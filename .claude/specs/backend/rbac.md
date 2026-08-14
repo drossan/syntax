@@ -4,6 +4,12 @@
 > `api-contract` (06, endpoints) y el RBAC del frontend (capacidades/menús). Modelo:
 > **rol → capacidad → ámbito** (mismo patrón que el propio Syntax, UC-API-001). Implementación en
 > `app/domain/services/rbac_service.py` + dependencias de FastAPI. **Este fichero es la spec, no el código.**
+>
+> **SDD** — Doc de **referencia** de la capa SDD. Requisitos en [`spec.md`](./spec.md); decisiones en
+> [ADR-0005](../adr/0005-rbac-por-capacidad-y-ambito.md) y
+> [ADR-0006](../adr/0006-aislamiento-multi-tenant-app-level-mas-rls.md); flujos en
+> [CU-BE-03](./casos-de-uso/CU-BE-03-autorizacion-y-aislamiento-tenant.md) y
+> [CU-BE-09](./casos-de-uso/CU-BE-09-administracion-tenants-usuarios-roles.md).
 
 ## 1. Conceptos
 

@@ -20,6 +20,8 @@ export default defineConfig({
           { text: 'Backend', link: '/backend/' },
           { text: 'Frontend', link: '/frontend/' },
           { text: 'Contrato de API', link: '/reference/api-contract' },
+          { text: 'ADR (decisiones)', link: '/reference/adr' },
+          { text: 'Casos de uso', link: '/reference/casos-de-uso' },
         ],
       },
       { text: 'Método', link: '/guides/task-lifecycle' },
@@ -54,6 +56,8 @@ export default defineConfig({
           text: 'Referencia',
           collapsed: false,
           items: [
+            { text: 'ADR (decisiones)', link: '/reference/adr' },
+            { text: 'Casos de uso', link: '/reference/casos-de-uso' },
             { text: 'Contrato de API', link: '/reference/api-contract' },
             { text: 'Modelo de datos', link: '/reference/data-model' },
             { text: 'RBAC', link: '/reference/rbac' },

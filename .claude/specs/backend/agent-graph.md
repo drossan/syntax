@@ -6,6 +6,13 @@
 > Aterriza en las entidades de **03** (`AgentRun`/`Ticket`/`ApprovalTask`/`Message`) y consume el
 > contrato de retrieval/confianza de **04**. **Este fichero es la spec, no el código.**
 >
+> **SDD** — Doc de **referencia** de la capa SDD. Requisitos en [`spec.md`](./spec.md); decisiones en
+> [ADR-0007](../adr/0007-hitl-asincrono-postgressaver-checkpointer.md),
+> [ADR-0008](../adr/0008-grafo-langgraph-plano-edges-tipados.md) y
+> [ADR-0009](../adr/0009-confianza-hibrida-y-auto-approve-por-tenant.md); flujos en
+> [CU-BE-05](./casos-de-uso/CU-BE-05-clasificacion-y-retrieval-rag.md) y
+> [CU-BE-06](./casos-de-uso/CU-BE-06-draft-ia-y-aprobacion-hitl.md).
+>
 > **Nota de conformidad de API (leer antes de implementar).** Este spec fija el **diseño**, no pina el
 > surface exacto de LangGraph/LangChain: el `requirements.txt` es un stub (lockfile sin compilar) y las
 > deps (`langgraph`, `langgraph-checkpoint-postgres`, `langchain`, `langchain-openai`, `langsmith`, todas

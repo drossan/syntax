@@ -59,12 +59,18 @@ Al terminar: verificar estructura + guiones + `docker-compose config`/`pyproject
 
 | Si la tarea crea / toca… | Lee la spec |
 |---|---|
+| **Toda tarea (SDD)** | `.claude/specs/backend/spec.md` (requisitos EARS) + `.claude/specs/backend/casos-de-uso/` (Gherkin, **único hogar**) |
 | Roles / permisos / aislamiento tenant | `.claude/specs/backend/rbac.md` |
 | Modelos / entidades / migraciones | `.claude/specs/backend/data-model.md` |
 | Routers / schemas / endpoints | `.claude/specs/general/api-contract.md` |
 | Ingestión / chunking / pgvector / retriever | `.claude/specs/backend/rag-ingestion.md` |
 | Grafo LangGraph / HITL / fases / LangSmith | `.claude/specs/backend/agent-graph.md` |
 | Cualquier código (transversal) | `.claude/specs/general/coding-standards.md` |
+| Decisiones de arquitectura (por qué) | `.claude/specs/adr/adr-index.md` (MADR) |
+
+> **SDD activo** (`features.sdd: true`). Con código real, el `## Scenarios (Gherkin)` de una tarea **nueva**
+> **enlaza** a su caso de uso (`casos-de-uso/CU-BE-*.md`) en vez de copiar escenarios. Las tareas doc-only ya
+> completadas **no** se migran. Al cierre corre el gate **`/sdd-lint`** (valida spec EARS · CU Gherkin · ADR MADR).
 
 > **Cuando implementes el backend real** (Python + pytest), este package pasará a TDD: ajusta
 > `.claude/task-pipeline.yml` (`stack` a python/pytest y su herramienta de mutation) y endurece

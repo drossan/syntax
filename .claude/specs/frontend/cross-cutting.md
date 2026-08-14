@@ -3,6 +3,9 @@
 > Nace de `scenario-coverage` (2026-08-11). Son **políticas transversales**: cada tarea de feature las
 > cumple y las cubre con tests donde apliquen (además de sus escenarios propios). Enlazada desde el
 > `HOW-TO-START-A-TASK.md` del package.
+>
+> **SDD** — Doc de **referencia** de políticas transversales de la capa SDD; se referencian como **NFR**
+> desde [`spec.md`](./spec.md) y se aplican en los [casos de uso](./casos-de-uso/) del frontend.
 
 ## 1. Renderizado seguro (anti-XSS) — T8
 
