@@ -1,58 +1,68 @@
 # Cómo arrancar una sesión nueva para una tarea — `backend`
 
-> Package **`backend`** de Syntax: **FastAPI + LangChain/LangGraph/LangSmith +
-> Postgres/pgvector**. En esta fase el package es **esqueleto doc-only**: se producen **ficheros
-> con su guión** (docstring/comentario que explica qué implementar), **specs** y **scaffolding**
-> (docker-compose, Alembic, pyproject) — **NO código de negocio ejecutable**. El usuario implementará
-> el código a mano después. Flujo canónico: `docs/guides/task-lifecycle.md`.
+> Package **`backend`** de Syntax: **FastAPI + LangChain/LangGraph/LangSmith + Postgres/pgvector**.
+> La fase de **esqueleto doc-only** (plan `skeleton-foundation`) está **completada**: existen los ficheros
+> con su guión + specs + scaffolding. A partir de aquí el package **implementa código real con TDD**
+> (`stack.packages.backend`: `pytest` + `mutmut`, activado 2026-08-14). Flujo canónico:
+> `docs/guides/task-lifecycle.md`. El **qué/cómo/por qué** de cada tarea sale de la capa SDD: `spec.md`
+> (EARS) · `casos-de-uso/CU-BE-*` (Gherkin) · ADR.
 
-> ## 🚦 GATE (doc-only — el TDD estándar NO aplica a estas tareas)
+> ## ⛔ PRECONDICIÓN dura (antes de la primera tarea TDD)
 >
-> Estas tareas usan el **escape hatch** de la plantilla (`features.tdd` no aplica: "sin código
-> testeable → justifica cómo se verifica"). **No** hay Red→Green→Refactor ni gate de mutation.
+> El backend **aún no ejecuta**: `requirements.txt` es **stub** y las deps (`langgraph`/`langchain`/…)
+> **no están instaladas** (no verificado que compile). Antes de escribir el primer test:
+> 1. **Compilar el lockfile** (`requirements.in` → `requirements.txt`, pip-tools) e **instalar** en el venv.
+> 2. **Pinar y verificar** el surface real de LangGraph/LangChain (`interrupt()`/`Command(resume=)`/
+>    `with_structured_output`) contra el paquete instalado — las specs (`agent-graph.md`) lo marcan como pendiente.
+> 3. `docker compose up` (Postgres+pgvector) y `.env` (OpenAI + LangSmith).
 >
-> **Antes de empezar:**
-> 1. La tarea está en `.claude/tasks/active/backend/<task-id>.md` con `status: active` y **todas**
->    sus `depends_on` en `done`. Si no → **PARAR y avisar**.
-> 2. Estamos en la rama `plan/backend/<name-plan>`. Solo **una** tarea `active` por plan.
+> Orden y detalle: `backend/IMPLEMENTATION-GUIDE.md`. **Sin esto, `make test` no corre.**
+
+> ## 🚦 GATE TDD — IMPERATIVO, NO NEGOCIABLE (preset `full`)
 >
-> **Verificación de una tarea backend (en vez de tests):**
-> - **Estructura**: los ficheros/carpetas existen donde el plan dice, con nombres correctos.
-> - **Guión por fichero**: cada fichero de esqueleto lleva su bloque-guía — **propósito**, **qué
->   implementar**, **contrato/firma esperada**, **dependencias** (qué importa / qué lo consume),
->   **pasos** y **anti-patrones**. Un fichero de esqueleto sin guión = tarea incompleta.
-> - **Specs completas y coherentes**: las specs (rbac, data-model, api-contract, rag-ingestion,
->   agent-graph) están escritas, sin contradicciones entre sí, y verificables por bullets.
-> - **Scaffolding válido** donde aplique: `pyproject.toml` parsea; `docker-compose config` valida;
->   el layout de Alembic es correcto. (Los stubs Python que se dejen **deben importar/typechear** si
->   se ejecuta `python -c` o `mypy`, pero **no** implementan lógica.)
+> 1. La tarea está en `.claude/tasks/active/backend/<task-id>.md` con `status: active` y **todas** sus
+>    `depends_on` en `done`. Si no → **PARAR y avisar**.
+> 2. Estamos en la rama `plan/backend/<name-plan>` (nunca integración ni `main`). Solo **una** tarea `active` por plan.
+> 3. **Test rojo ANTES de la implementación** (Red). Los tests salen **1:1 del `## Scenarios`** de la
+>    tarea, que con SDD **enlaza** a su `casos-de-uso/CU-BE-*.md` (cada `Then` es un assert). Niveles por artefacto:
 >
-> **Arquitectura del esqueleto** (hexagonal): dependencia `api → domain ← infra`; el **dominio no
-> importa infra**; puertos (interfaces) en `domain/ports`, adaptadores en `infra/`; Pydantic v2;
-> handlers `async`; config por entorno (nunca secretos en código). El **guión** de cada fichero debe
-> respetar y explicitar esta dirección de dependencias.
+>    | Artefacto | Nivel de test |
+>    |---|---|
+>    | Servicio / lógica de dominio | **unit** con **mocks de puertos** (sin infra) |
+>    | Repos / routers-endpoints | **integración** contra Postgres+pgvector en Docker |
+>    | Adapters (LLM / embeddings / storage) | **suite de contrato** del puerto |
+>    | **RLS** (aislamiento tenant) y **HITL / checkpointer** | **integración OBLIGATORIA** (footgun `SET app.tenant_id` en pool async; resume tras reinicio del proceso) |
 >
-> **Gate `fact-checker`** (no-negociable) al cierre: no afirmes "la estructura compila / el guión está
-> completo" sin haberlo comprobado en la sesión.
+>    Flujo IA end-to-end (`classify→retrieve→grade→generate→HITL`) → integración; e2e fuera del gate por tarea.
+> 4. Green (mínimo para pasar) → Refactor. **Arquitectura hexagonal**: `api → domain ← infra`; el
+>    **dominio no importa infra**; puertos (interfaces) en `domain/ports`, adaptadores en `infra/`;
+>    Pydantic v2; handlers `async`; **settings inyectables** (sin efectos en import); **cero secretos en código**.
+> 5. Cierre — **toda** la DoD: `make test` (pytest) verde · **ruff + mypy strict** · **gate de mutation
+>    `mutmut` (`break: 80`)** sobre los ficheros tocados (survivor por debajo = assert/escenario que falta) ·
+>    documentación en tres capas (docstrings + doc técnica/specs/ADR + session log).
+> 6. **Gate `/sdd-lint`** (SDD): valida los artefactos (spec EARS · CU Gherkin · ADR MADR) — tras `mutation`,
+>    antes de `fact-checker`; un ERROR bloquea.
+> 7. **Gate `fact-checker`** (no-negociable): tras mutation/sdd-lint y antes de commit/resumen. `INCORRECTO`
+>    bloquea; `NO VERIFICABLE` = aviso a reconocer; `VERIFICADO` pasa.
 
 ## Prompt de arranque (copia y pega)
 
 ```
-Voy a ejecutar la tarea <task-id> del plan <name-plan> (backend, ESQUELETO doc-only).
+Voy a ejecutar la tarea <task-id> del plan <name-plan> (backend, CÓDIGO REAL, TDD).
 
 Lee en este orden y repórtame en 3-4 líneas el plan que vas a seguir:
-1. `.claude/specs/backend/HOW-TO-START-A-TASK.md` (este fichero).
+1. `.claude/specs/backend/HOW-TO-START-A-TASK.md` (este fichero) — incl. la PRECONDICIÓN dura.
 2. `docs/guides/task-lifecycle.md` (flujo canónico).
 3. `.claude/plans/active/backend/<name-plan>.md` (contexto, objetivos, orden, dependencias).
-4. Las specs aplicables en `.claude/specs/backend/` (ver tabla abajo).
+4. Las specs aplicables + el caso de uso enlazado (tabla abajo): `spec.md` + `casos-de-uso/CU-BE-*`.
 5. `.claude/tasks/active/backend/<task-id>.md` + `.claude/context/backend/<task-id>.md`.
 
-Esta tarea produce ESQUELETO + GUIÓN + SPECS, NO código de negocio. NO escribas implementación.
-REGLAS: dependencias hexagonales (dominio no importa infra); cada fichero de esqueleto lleva su
-guión (propósito/qué implementar/contrato/dependencias/pasos); specs coherentes; scaffolding que
-valida. Commits `<task-id>: <conventional commit>` en la rama del plan.
-Al terminar: verificar estructura + guiones + `docker-compose config`/`pyproject` donde aplique;
-`fact-checker`; cerrar session log; mover task a completed/ + `[x]` en el plan; siguiente tarea.
+Ejecuta con el ciclo TDD. REGLAS ESTRICTAS:
+- GATE TDD: status active + depends_on done; rama del plan; test rojo ANTES (1:1 desde el CU enlazado).
+- Hexagonal (dominio no importa infra); RLS y HITL con integración OBLIGATORIA; mypy strict + ruff; cero secretos.
+- Commits `<task-id>: <conventional commit>` en la rama del plan.
+Al terminar: `make test` verde + ruff/mypy + gate mutmut(break:80) + `/sdd-lint` + `fact-checker`;
+docs 3 capas; cerrar session log; mover task a completed/ + `[x]` en el plan; siguiente tarea.
 ```
 
 ## Specs aplicables
@@ -65,17 +75,13 @@ Al terminar: verificar estructura + guiones + `docker-compose config`/`pyproject
 | Routers / schemas / endpoints | `.claude/specs/general/api-contract.md` |
 | Ingestión / chunking / pgvector / retriever | `.claude/specs/backend/rag-ingestion.md` |
 | Grafo LangGraph / HITL / fases / LangSmith | `.claude/specs/backend/agent-graph.md` |
+| Cualquier test (transversal) | `.claude/specs/general/testing.md` |
 | Cualquier código (transversal) | `.claude/specs/general/coding-standards.md` |
 | Decisiones de arquitectura (por qué) | `.claude/specs/adr/adr-index.md` (MADR) |
 
 > **SDD activo** (`features.sdd: true`). Con código real, el `## Scenarios (Gherkin)` de una tarea **nueva**
 > **enlaza** a su caso de uso (`casos-de-uso/CU-BE-*.md`) en vez de copiar escenarios. Las tareas doc-only ya
 > completadas **no** se migran. Al cierre corre el gate **`/sdd-lint`** (valida spec EARS · CU Gherkin · ADR MADR).
-
-> **Cuando implementes el backend real** (Python + pytest), este package pasará a TDD: ajusta
-> `.claude/task-pipeline.yml` (`stack` a python/pytest y su herramienta de mutation) y endurece
-> este HOW-TO con los niveles de test por artefacto (dominio → unit con mocks de puertos; repos/
-> endpoints → integración contra Postgres+pgvector en Docker; adapters → suite de contrato).
 
 ## Reglas anti-context-bloat
 

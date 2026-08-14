@@ -1,33 +1,33 @@
 mode: full
 stack:
-  language: typescript        # typescript | javascript | other
-  package-manager: pnpm       # pnpm | npm | yarn | none
-  test-runner: vitest         # vitest | jest | node | none
-  mutation-tool: stryker      # stryker | none
+  language: typescript
+  package-manager: pnpm
+  test-runner: vitest
+  mutation-tool: stryker
   packages:
-    backend:                  # workspace Python (FastAPI) dentro de este monorepo TS
+    backend:
       language: python
-      test-runner: none       # doc-only ahora → cámbialo a pytest cuando el backend tenga código real (Makefile: make test)
-      mutation-tool: none     # sin gate de mutation en backend (o mutmut cuando haya tests)
+      test-runner: pytest
+      mutation-tool: mutmut
     # frontend: sin entrada → hereda el `stack:` top-level completo (TS/pnpm/vitest/stryker)
 features:
   tdd: true
   closing-documentation:
-    tsdoc: true            # doc en el código (TSDoc en TS; el equivalente del lenguaje)
-    technical-docs: true   # doc técnica/contexto: README / CLAUDE.md / .claude/specs / ADRs
-    context-log: true      # histórico de la tarea en .claude/context/<package>/<task-id>.md
+    tsdoc: true
+    technical-docs: true
+    context-log: true
   mutation-gate: 80
   caveman: lite
   github-tracking:
-   enabled: false          # opt-in; off / sin conexión / sin config / repo no-GitHub = no-op
-   repo: drossan/syntax       # default = repo actual (gh repo view --json nameWithOwner)
-   project: 6      # nº Project v2 (URL .../projects/<N> o gh project list --owner <o>)
-   assignee: "@me"        # opcional; @me (default) = identidad gh que arranca la tarea; un login
+   enabled: false
+   repo: drossan/syntax
+   project: 6
+   assignee: "@me"
   sdd: true
   git-automation:
-    auto-commit: true      # al cerrar cada tarea (tras su DoD, incl. fact-checker): commit `<task-id>: <mensaje>`
-    auto-pr: true          # al cerrar el PLAN (última tarea): abre PR a la rama de integración. Requiere auto-commit
-    co-author: false       # NUNCA el trailer de co-autor de Claude en los commits de la automatización
+    auto-commit: true
+    auto-pr: true
+    co-author: false
 models:
   design-review: claude-opus-4-8
   scenario-coverage: sonnet
