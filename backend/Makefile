@@ -18,12 +18,13 @@ help: ## Lista los targets disponibles
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-venv: ## Crea el entorno virtual (.venv)
-	python3 -m venv $(VENV)
+venv: ## Crea el entorno virtual (.venv) — Python 3.12 (paridad con Dockerfile/pyproject)
+	python3.12 -m venv $(VENV)
 
 install: ## Compila e instala deps de desarrollo (pip-tools)
 	$(PIP) install --upgrade pip pip-tools
-	$(VENV)/bin/pip-compile requirements-dev.in -o requirements-dev.txt
+	$(VENV)/bin/pip-compile requirements.in -o requirements.txt
+	$(VENV)/bin/pip-compile requirements-dev.in -o requirements-dev.txt -c requirements.txt
 	$(PIP) install -r requirements-dev.txt
 
 run: ## Levanta la API en local con reload (entry-point: tarea 07)

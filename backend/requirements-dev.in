@@ -18,3 +18,7 @@ pytest                       # runner de tests (cuando exista código real)
 pytest-asyncio               # soporte async (asyncio_mode = auto)
 # Integración RLS/Postgres+pgvector: los tests de integración levantan el `db` de
 # docker-compose (footgun SET app.tenant_id → exige integración real, ver tarea 08).
+
+# ── Mutation testing / lockfiles ──────────────────────────────────────────────
+mutmut                       # gate de mutation (break:80) sobre los ficheros tocados
+pip-tools                    # compilar los lockfiles de forma reproducible (make install)

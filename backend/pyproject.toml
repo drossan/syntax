@@ -57,3 +57,10 @@ asyncio_mode = "auto"          # pytest-asyncio: no hace falta marcar cada test
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra -q"
+
+# ── Mutmut 3.7.0 (gate de mutation) ────────────────────────────────────────────
+# mutmut 3.x usa `source_paths` (2.x usaba `paths_to_mutate`). Invocación: `mutmut run`
+# (muta source_paths y corre pytest) → `mutmut results` (survivors). Sobre ficheros
+# tocados en cada tarea (gate break:80).
+[tool.mutmut]
+source_paths = ["app/"]
