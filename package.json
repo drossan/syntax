@@ -1,0 +1,13 @@
+{
+  "name": "syntax",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "pnpm --filter frontend lint",
+    "test": "pnpm --filter frontend test",
+    "typecheck": "pnpm --filter frontend typecheck"
+  }
+}

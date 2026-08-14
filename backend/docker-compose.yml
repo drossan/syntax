@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml — stack local de desarrollo.
+#
+# GUIÓN: `db` = Postgres 16 con pgvector (mismo Postgres para negocio + embeddings)
+# con healthcheck; `api` = build local que espera a `db` sano. Las variables usan
+# `${VAR:-default}` para que `docker compose config` valide SIN un `.env` presente;
+# en uso real, copiar `.env.example` → `.env` (env_file, required:false) para
+# sobreescribir. La clave `version:` se omite a propósito (obsoleta en Compose v2).
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-syntax}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-syntax}
+      POSTGRES_DB: ${POSTGRES_DB:-syntax}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` con el usuario real → el `api` solo arranca con la DB lista.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-syntax} -d ${POSTGRES_DB:-syntax}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # `.env` sobreescribe los defaults; no es obligatorio para validar/levantar.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Default apuntando al servicio `db` (host = nombre del servicio en la red compose).
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://syntax:syntax@db:5432/syntax}
+      APP_ENV: ${APP_ENV:-development}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+volumes:
+  pgdata:

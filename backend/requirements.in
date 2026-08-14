@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# requirements.in — dependencias de RUNTIME del backend (Syntax)
+#
+# GUIÓN (doc-only): este fichero es la FUENTE de dependencias. El lockfile
+# `requirements.txt` se genera con pip-tools:
+#
+#     pip-compile requirements.in -o requirements.txt        # runtime
+#     pip-compile requirements-dev.in -o requirements-dev.txt # + dev
+#
+# Reglas: pinear versiones NO es objeto de esta fase (se afina al instalar de
+# verdad — ver "Fuera de alcance" de la tarea 01). Aquí se declara el QUÉ y el
+# PORQUÉ por grupo; el pin exacto lo pone pip-compile. Al añadir una dep nueva,
+# recompilar y comprometer el `.txt` regenerado.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Web / ASGI ───────────────────────────────────────────────────────────────
+fastapi                     # framework HTTP async; genera el OpenAPI (contrato = fuente de verdad)
+uvicorn[standard]           # servidor ASGI (uvloop/httptools) para dev y contenedor
+
+# ── Validación / settings ────────────────────────────────────────────────────
+pydantic                    # v2 — schemas de dominio y de API (models Pydantic v2)
+pydantic-settings           # BaseSettings inyectable (config por entorno, sin efectos en import)
+
+# ── Persistencia (Postgres + pgvector) ───────────────────────────────────────
+sqlalchemy[asyncio]         # ORM/Core async (SQLAlchemy 2.x)
+asyncpg                     # driver async de Postgres (footgun RLS: SET app.tenant_id por conexión)
+alembic                     # migraciones (incl. políticas RLS)
+pgvector                    # tipo Vector + operadores de similitud en SQLAlchemy
+
+# ── LLM / agente (LangChain / LangGraph / LangSmith) ─────────────────────────
+langchain                   # utilidades base (messages, prompts, structured output)
+langgraph                   # grafo de estado del agente (nodos + edges condicionales tipados)
+langgraph-checkpoint-postgres  # PostgresSaver: checkpointer por thread_id=ticket (HITL/resume)
+langchain-openai            # adaptador OpenAI (chat + embeddings 3-small vector(1536))
+langsmith                   # tracing/observabilidad de runs del grafo
+
+# ── Seguridad / auth ─────────────────────────────────────────────────────────
+argon2-cffi                 # hashing de contraseñas (Argon2id)
+pyjwt                       # JWT access(memoria)+refresh(cookie httpOnly); rotación de refresh
+
+# ── HTTP client ──────────────────────────────────────────────────────────────
+httpx                       # cliente async (healthcheck externo, integraciones, tests)

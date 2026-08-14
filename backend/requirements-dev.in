@@ -1,0 +1,20 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# requirements-dev.in — dependencias de DESARROLLO (calidad + tests)
+#
+# GUIÓN (doc-only): incluye el runtime y añade tooling. Compilar con:
+#     pip-compile requirements-dev.in -o requirements-dev.txt
+# Cuando el backend pase a TDD real (ver HOW-TO-START-A-TASK), estas deps son las
+# que ejercen lint/typecheck/tests; la herramienta de mutation se añadirá aquí.
+# ─────────────────────────────────────────────────────────────────────────────
+
+-r requirements.in           # el dev-env es superconjunto del runtime
+
+# ── Calidad de código ────────────────────────────────────────────────────────
+ruff                         # linter + formatter (reemplaza flake8/isort/black)
+mypy                         # type-checker en modo strict (ver [tool.mypy] en pyproject)
+
+# ── Tests ────────────────────────────────────────────────────────────────────
+pytest                       # runner de tests (cuando exista código real)
+pytest-asyncio               # soporte async (asyncio_mode = auto)
+# Integración RLS/Postgres+pgvector: los tests de integración levantan el `db` de
+# docker-compose (footgun SET app.tenant_id → exige integración real, ver tarea 08).

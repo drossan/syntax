@@ -1,0 +1,23 @@
+# Contexto de build mínimo: nada de venv, caches, secretos ni artefactos locales.
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secretos / entorno (la config llega por variables, nunca horneada en la imagen)
+.env
+.env.*
+!.env.example
+
+# Lockfile generado localmente (el builder recompila desde requirements.in)
+requirements.lock
+
+# Docs / control de versiones / editor
+.git/
+.gitignore
+README.md
+.idea/
+.DS_Store

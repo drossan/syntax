@@ -1,0 +1,18 @@
+# Ignores específicos del backend (el .gitignore raíz cubre lo transversal).
+
+# Entorno virtual / caches
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secretos / entorno (se versiona solo .env.example)
+.env
+.env.*
+!.env.example
+
+# Lockfiles/artefactos generados localmente por el builder
+requirements.lock

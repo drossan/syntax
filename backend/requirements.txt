@@ -1,0 +1,13 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# requirements.txt — LOCKFILE GENERADO (no editar a mano)
+#
+# ⚠️ GUIÓN (doc-only): este fichero es un PLACEHOLDER. Aún NO se ha ejecutado
+# pip-compile (fijar versiones exactas está fuera del alcance de la fase de
+# esqueleto — se afina al instalar de verdad). Para materializarlo:
+#
+#     python -m pip install pip-tools
+#     pip-compile requirements.in -o requirements.txt
+#
+# A partir de ahí, pip-compile escribe aquí el árbol de deps pineado + hashes.
+# Hasta entonces, `make install` debe recompilar (ver Makefile target `install`).
+# ─────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,256 @@
+{
+  "app": {
+    "name": "Syntax",
+    "tagline": "AI-powered helpdesk"
+  },
+  "nav": {
+    "inbox": "Inbox",
+    "approvals": "Approvals",
+    "kb": "Knowledge base",
+    "tenants": "Clients",
+    "users": "Users",
+    "dashboard": "Dashboard"
+  },
+  "header": {
+    "logout": "Log out",
+    "toggleTheme": "Toggle theme",
+    "language": "Language",
+    "notifications": "Notifications",
+    "openMenu": "Open menu"
+  },
+  "tickets": {
+    "title": "Ticket inbox",
+    "new": "New ticket",
+    "unread": "Unread",
+    "loading": "Loading tickets…",
+    "retry": "Retry",
+    "genericError": "Could not load tickets.",
+    "empty": "No tickets match the filters.",
+    "clearFilters": "Clear filters",
+    "statusFilter": "Filter by status",
+    "unassigned": "Unassigned",
+    "columns": {
+      "subject": "Subject",
+      "status": "Status",
+      "priority": "Priority",
+      "domain": "Domain",
+      "assignee": "Assignee",
+      "sla": "SLA",
+      "updated": "Updated"
+    },
+    "status": {
+      "all": "All",
+      "new": "New",
+      "open": "Open",
+      "pending": "Pending",
+      "resolved": "Resolved",
+      "closed": "Closed",
+      "reopened": "Reopened"
+    },
+    "priority": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "sla": {
+      "none": "—",
+      "normal": "On track",
+      "imminent": "Imminent",
+      "overdue": "Overdue"
+    },
+    "pagination": {
+      "prev": "Previous",
+      "next": "Next",
+      "page": "Page {page}"
+    }
+  },
+  "adminTenants": {
+    "title": "Clients",
+    "slug": "Slug",
+    "name": "Name",
+    "create": "Create tenant",
+    "loading": "Loading clients…",
+    "error": "Could not load clients.",
+    "retry": "Retry",
+    "empty": "No clients yet."
+  },
+  "offline": {
+    "message": "You are offline. We'll retry reads when the connection is back."
+  },
+  "notifications": {
+    "bell": "Notifications, {count} unread",
+    "list": "Notifications",
+    "markRead": "Mark read",
+    "empty": "No notifications",
+    "types": {
+      "approval_requested": "Approval requested",
+      "ticket_assigned": "Ticket assigned",
+      "ticket_reply": "Ticket reply",
+      "sla_breach": "SLA breached",
+      "sla_warning": "SLA warning"
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "loading": "Loading metrics…",
+    "error": "Could not load metrics.",
+    "retry": "Retry",
+    "empty": "No activity yet in this tenant.",
+    "totalTickets": "Total tickets",
+    "approvalsPending": "Pending approvals",
+    "slaBreaches": "SLA at risk",
+    "avgConfidence": "Average confidence",
+    "byStatus": "Tickets by status"
+  },
+  "adminRoles": {
+    "title": "Roles and capabilities",
+    "catalog": "Role catalog",
+    "assignSection": "Assign a role to a user",
+    "composerSoon": "The custom role composer will arrive with real enforcement (Phase 2).",
+    "loading": "Loading roles…",
+    "noRoles": "no roles",
+    "chooseRole": "Choose a role",
+    "assign": "Assign",
+    "assignRoleTo": "Assign role to {email}"
+  },
+  "adminUsers": {
+    "title": "Users",
+    "email": "Email",
+    "role": "Role",
+    "chooseRole": "Choose a role",
+    "invite": "Invite",
+    "status": "Status",
+    "actions": "Actions",
+    "disable": "Disable",
+    "disableTitle": "Disable user?",
+    "disableBody": "The user will not be able to sign in until reactivated.",
+    "loading": "Loading users…",
+    "error": "Could not load users.",
+    "retry": "Retry",
+    "empty": "No users yet.",
+    "statuses": {
+      "invited": "Invited",
+      "active": "Active",
+      "disabled": "Disabled"
+    }
+  },
+  "kb": {
+    "title": "Knowledge base",
+    "searchLabel": "Search the knowledge base",
+    "searchPlaceholder": "Search…",
+    "search": "Search",
+    "domain": "Domain",
+    "estado": "Status",
+    "all": "All",
+    "prompt": "Type a term to search the documentation.",
+    "loading": "Searching…",
+    "error": "The search could not be completed.",
+    "retry": "Retry",
+    "empty": "No results. Rephrase the search or change the filters.",
+    "notFound": "Document not found.",
+    "openSource": "View source",
+    "related": "Related",
+    "estados": {
+      "draft": "Draft",
+      "active": "Active"
+    }
+  },
+  "approvalDecision": {
+    "approve": "Approve",
+    "edit": "Edit",
+    "editApprove": "Edit and approve",
+    "reject": "Reject",
+    "draftLabel": "Draft text",
+    "noteLabel": "Note to human",
+    "confirmReject": "Confirm rejection",
+    "cancel": "Cancel",
+    "noteRequired": "The note to human is required.",
+    "rejectTitle": "Reject the draft",
+    "resolved": "This approval is already resolved.",
+    "noDraft": "No draft to approve (the run failed).",
+    "retry": "Retry / escalate"
+  },
+  "aiDraft": {
+    "region": "AI draft",
+    "title": "AI draft",
+    "generate": "Generate draft",
+    "retry": "Retry",
+    "generating": "Generating the draft…",
+    "ready": "Draft ready",
+    "failed": "Generation failed.",
+    "confidence": "Confidence",
+    "sources": "Sources",
+    "trace": "View trace (LangSmith)"
+  },
+  "approvals": {
+    "title": "Approvals",
+    "loading": "Loading the queue…",
+    "retry": "Retry",
+    "error": "Could not load the approvals queue.",
+    "empty": "No pending approvals.",
+    "refresh": "Refresh",
+    "openTicket": "Open ticket"
+  },
+  "ticketSla": {
+    "region": "Ticket SLA",
+    "label": "SLA:",
+    "none": "No SLA set."
+  },
+  "timeline": {
+    "region": "Ticket activity",
+    "title": "Activity",
+    "empty": "No activity recorded.",
+    "system": "System",
+    "kind": {
+      "message": "Message",
+      "ai_draft": "AI draft"
+    }
+  },
+  "attachments": {
+    "region": "Ticket attachments",
+    "title": "Attachments",
+    "empty": "This ticket has no attachments.",
+    "download": "Download",
+    "downloadLabel": "Download {name}"
+  },
+  "ticketActions": {
+    "region": "Ticket actions",
+    "changeStatus": "Change status",
+    "changePriority": "Priority",
+    "assignToMe": "Assign to me",
+    "unassign": "Unassign",
+    "confirmCloseTitle": "Close this ticket?",
+    "confirmCloseBody": "The ticket will be closed. You can reopen it later if needed.",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "error": "Could not apply the change. It was reverted; please try again."
+  },
+  "ticketDetail": {
+    "loading": "Loading ticket…",
+    "notFound": "Ticket not found or no access.",
+    "error": "Could not load the ticket thread.",
+    "retry": "Retry",
+    "empty": "No messages yet on this ticket.",
+    "thread": {
+      "internal": "Internal",
+      "aiDraft": "AI draft",
+      "assistant": "AI assistant",
+      "system": "System"
+    }
+  },
+  "ticketCreate": {
+    "title": "New ticket",
+    "subject": "Subject",
+    "body": "Description",
+    "priority": "Priority",
+    "submit": "Create ticket",
+    "genericError": "Could not create the ticket.",
+    "priorities": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High",
+      "urgent": "Urgent"
+    }
+  }
+}

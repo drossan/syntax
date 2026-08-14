@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# pyproject.toml — metadata del proyecto + configuración de tooling.
+#
+# GUIÓN: las DEPENDENCIAS NO viven aquí sino en requirements.in (pip-tools es la
+# fuente de verdad de deps). Este fichero fija metadata mínima y la config de
+# ruff / mypy(strict) / pytest. Es una APLICACIÓN, no una librería publicable:
+# no se declara build-backend ni se empaqueta.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[project]
+name = "syntax-backend"
+version = "0.1.0"
+description = "Helpdesk con IA generativa para Syntax — backend FastAPI + LangGraph + Postgres/pgvector."
+requires-python = ">=3.12"
+# dependencies: intencionadamente vacío — la fuente de verdad es requirements.in (pip-tools).
+dependencies = []
+
+# ── Ruff (lint + format) ─────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["app"]
+
+[tool.ruff.lint]
+# E/W pycodestyle · F pyflakes · I isort · UP pyupgrade · B bugbear
+# ASYNC flake8-async · S bandit · SIM simplify · TID banned-imports (hexagonal)
+select = ["E", "W", "F", "I", "UP", "B", "ASYNC", "S", "SIM", "TID"]
+ignore = ["E501"]  # el formatter gestiona el ancho de línea
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # assert permitido en tests
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Guardarraíl HEXAGONAL: el dominio NO importa infra. Se endurece cuando exista
+# código real (regla por-módulo). Aquí queda documentada la dirección de deps:
+#   api → domain ← infra   (domain no importa app.infra ni app.api)
+
+# ── Mypy (strict) ────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+show_error_codes = true
+# Los stubs de esqueleto deben typechear (aunque no implementen lógica).
+
+[[tool.mypy.overrides]]
+# Libs sin type-hints completos: no bloquean el strict del código propio.
+module = ["pgvector.*", "langgraph.*", "langsmith.*"]
+ignore_missing_imports = true
+
+# ── Pytest ───────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+asyncio_mode = "auto"          # pytest-asyncio: no hace falta marcar cada test
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra -q"

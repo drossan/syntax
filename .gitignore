@@ -1,0 +1,27 @@
+# Node / frontend
+node_modules/
+.next/
+dist/
+coverage/
+playwright-report/
+test-results/
+reports/
+
+# Python / backend
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Env / secretos
+.env
+.env.local
+*.local
+
+# task-pipeline (métricas per-usuario)
+.claude/analytics/
+
+# OS / editor
+.DS_Store
+.idea/
+*.iml

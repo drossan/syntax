@@ -1,0 +1,256 @@
+{
+  "app": {
+    "name": "Syntax",
+    "tagline": "Helpdesk con IA generativa"
+  },
+  "nav": {
+    "inbox": "Bandeja",
+    "approvals": "Aprobaciones",
+    "kb": "Base de conocimiento",
+    "tenants": "Clientes",
+    "users": "Usuarios",
+    "dashboard": "Panel"
+  },
+  "header": {
+    "logout": "Cerrar sesión",
+    "toggleTheme": "Cambiar tema",
+    "language": "Idioma",
+    "notifications": "Notificaciones",
+    "openMenu": "Abrir menú"
+  },
+  "tickets": {
+    "title": "Bandeja de tickets",
+    "new": "Nuevo ticket",
+    "unread": "No leído",
+    "loading": "Cargando tickets…",
+    "retry": "Reintentar",
+    "genericError": "No se pudieron cargar los tickets.",
+    "empty": "No hay tickets que coincidan con los filtros.",
+    "clearFilters": "Limpiar filtros",
+    "statusFilter": "Filtrar por estado",
+    "unassigned": "Sin asignar",
+    "columns": {
+      "subject": "Asunto",
+      "status": "Estado",
+      "priority": "Prioridad",
+      "domain": "Dominio",
+      "assignee": "Responsable",
+      "sla": "SLA",
+      "updated": "Actualizado"
+    },
+    "status": {
+      "all": "Todos",
+      "new": "Nuevo",
+      "open": "Abierto",
+      "pending": "Pendiente",
+      "resolved": "Resuelto",
+      "closed": "Cerrado",
+      "reopened": "Reabierto"
+    },
+    "priority": {
+      "low": "Baja",
+      "normal": "Normal",
+      "high": "Alta",
+      "urgent": "Urgente"
+    },
+    "sla": {
+      "none": "—",
+      "normal": "En plazo",
+      "imminent": "Inminente",
+      "overdue": "Vencido"
+    },
+    "pagination": {
+      "prev": "Anterior",
+      "next": "Siguiente",
+      "page": "Página {page}"
+    }
+  },
+  "adminTenants": {
+    "title": "Clientes",
+    "slug": "Slug",
+    "name": "Nombre",
+    "create": "Crear tenant",
+    "loading": "Cargando clientes…",
+    "error": "No se pudieron cargar los clientes.",
+    "retry": "Reintentar",
+    "empty": "Aún no hay clientes."
+  },
+  "offline": {
+    "message": "Sin conexión. Reintentaremos las lecturas al recuperar la red."
+  },
+  "notifications": {
+    "bell": "Notificaciones, {count} sin leer",
+    "list": "Notificaciones",
+    "markRead": "Marcar leída",
+    "empty": "Sin notificaciones",
+    "types": {
+      "approval_requested": "Aprobación solicitada",
+      "ticket_assigned": "Ticket asignado",
+      "ticket_reply": "Respuesta en ticket",
+      "sla_breach": "SLA incumplido",
+      "sla_warning": "Aviso de SLA"
+    }
+  },
+  "dashboard": {
+    "title": "Panel",
+    "loading": "Cargando métricas…",
+    "error": "No se pudieron cargar las métricas.",
+    "retry": "Reintentar",
+    "empty": "Sin actividad todavía en este tenant.",
+    "totalTickets": "Total de tickets",
+    "approvalsPending": "Aprobaciones pendientes",
+    "slaBreaches": "SLA en riesgo",
+    "avgConfidence": "Confianza media",
+    "byStatus": "Tickets por estado"
+  },
+  "adminRoles": {
+    "title": "Roles y capacidades",
+    "catalog": "Catálogo de roles",
+    "assignSection": "Asignar rol a un usuario",
+    "composerSoon": "El compositor de roles custom llegará con el enforcement real (Fase 2).",
+    "loading": "Cargando roles…",
+    "noRoles": "sin roles",
+    "chooseRole": "Elige un rol",
+    "assign": "Asignar",
+    "assignRoleTo": "Asignar rol a {email}"
+  },
+  "adminUsers": {
+    "title": "Usuarios",
+    "email": "Email",
+    "role": "Rol",
+    "chooseRole": "Elige un rol",
+    "invite": "Invitar",
+    "status": "Estado",
+    "actions": "Acciones",
+    "disable": "Deshabilitar",
+    "disableTitle": "¿Deshabilitar usuario?",
+    "disableBody": "El usuario no podrá iniciar sesión hasta que se reactive.",
+    "loading": "Cargando usuarios…",
+    "error": "No se pudieron cargar los usuarios.",
+    "retry": "Reintentar",
+    "empty": "Aún no hay usuarios.",
+    "statuses": {
+      "invited": "Invitado",
+      "active": "Activo",
+      "disabled": "Deshabilitado"
+    }
+  },
+  "kb": {
+    "title": "Base de conocimiento",
+    "searchLabel": "Buscar en la base de conocimiento",
+    "searchPlaceholder": "Buscar…",
+    "search": "Buscar",
+    "domain": "Dominio",
+    "estado": "Estado",
+    "all": "Todos",
+    "prompt": "Escribe un término para buscar en la documentación.",
+    "loading": "Buscando…",
+    "error": "No se pudo completar la búsqueda.",
+    "retry": "Reintentar",
+    "empty": "Sin resultados. Reformula la búsqueda o cambia los filtros.",
+    "notFound": "No se encontró el documento.",
+    "openSource": "Ver fuente",
+    "related": "Relacionados",
+    "estados": {
+      "draft": "Borrador",
+      "active": "Activo"
+    }
+  },
+  "approvalDecision": {
+    "approve": "Aprobar",
+    "edit": "Editar",
+    "editApprove": "Editar y aprobar",
+    "reject": "Rechazar",
+    "draftLabel": "Texto del borrador",
+    "noteLabel": "Nota al humano",
+    "confirmReject": "Confirmar rechazo",
+    "cancel": "Cancelar",
+    "noteRequired": "La nota al humano es obligatoria.",
+    "rejectTitle": "Rechazar el borrador",
+    "resolved": "Esta aprobación ya está resuelta.",
+    "noDraft": "No hay borrador para aprobar (el run falló).",
+    "retry": "Reintentar / escalar"
+  },
+  "aiDraft": {
+    "region": "Borrador IA",
+    "title": "Borrador IA",
+    "generate": "Generar borrador",
+    "retry": "Reintentar",
+    "generating": "Generando el borrador…",
+    "ready": "Borrador listo",
+    "failed": "La generación falló.",
+    "confidence": "Confianza",
+    "sources": "Fuentes",
+    "trace": "Ver traza (LangSmith)"
+  },
+  "approvals": {
+    "title": "Aprobaciones",
+    "loading": "Cargando la cola…",
+    "retry": "Reintentar",
+    "error": "No se pudo cargar la cola de aprobaciones.",
+    "empty": "No hay aprobaciones pendientes.",
+    "refresh": "Actualizar",
+    "openTicket": "Abrir ticket"
+  },
+  "ticketSla": {
+    "region": "SLA del ticket",
+    "label": "SLA:",
+    "none": "Sin SLA definido."
+  },
+  "timeline": {
+    "region": "Actividad del ticket",
+    "title": "Actividad",
+    "empty": "Sin actividad registrada.",
+    "system": "Sistema",
+    "kind": {
+      "message": "Mensaje",
+      "ai_draft": "Borrador IA"
+    }
+  },
+  "attachments": {
+    "region": "Adjuntos del ticket",
+    "title": "Adjuntos",
+    "empty": "No hay adjuntos en este ticket.",
+    "download": "Descargar",
+    "downloadLabel": "Descargar {name}"
+  },
+  "ticketActions": {
+    "region": "Acciones del ticket",
+    "changeStatus": "Cambiar estado",
+    "changePriority": "Prioridad",
+    "assignToMe": "Asignarme",
+    "unassign": "Desasignar",
+    "confirmCloseTitle": "¿Cerrar el ticket?",
+    "confirmCloseBody": "Se cerrará el ticket. Podrás reabrirlo más tarde si es necesario.",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "error": "No se pudo aplicar el cambio. Se ha revertido; inténtalo de nuevo."
+  },
+  "ticketDetail": {
+    "loading": "Cargando el ticket…",
+    "notFound": "Ticket no encontrado o sin acceso.",
+    "error": "No se pudo cargar el hilo del ticket.",
+    "retry": "Reintentar",
+    "empty": "Aún no hay mensajes en este ticket.",
+    "thread": {
+      "internal": "Interna",
+      "aiDraft": "Borrador IA",
+      "assistant": "Asistente IA",
+      "system": "Sistema"
+    }
+  },
+  "ticketCreate": {
+    "title": "Nuevo ticket",
+    "subject": "Asunto",
+    "body": "Descripción",
+    "priority": "Prioridad",
+    "submit": "Crear ticket",
+    "genericError": "No se pudo crear el ticket.",
+    "priorities": {
+      "low": "Baja",
+      "normal": "Normal",
+      "high": "Alta",
+      "urgent": "Urgente"
+    }
+  }
+}

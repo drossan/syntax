@@ -1,0 +1,83 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import { useEffect } from "react";
+
+import { AiDraftPanel } from "@/features/ai-flow/ai-draft-panel";
+import { useTicketReads } from "@/features/cross-cutting/use-ticket-reads";
+import { useCan } from "@/features/rbac/use-can";
+
+import { TicketActions } from "./ticket-actions";
+import { TicketAttachments } from "./ticket-attachments";
+import { TicketHeader } from "./ticket-header";
+import { TicketSla } from "./ticket-sla";
+import { TicketThread } from "./ticket-thread";
+import { TicketTimeline } from "./ticket-timeline";
+import { useTicket, useTicketMessages } from "./use-ticket";
+
+/**
+ * Detalle de ticket (parte de **lectura**): cabecera read-only + hilo con filtro de visibilidad
+ * (`note.internal.read`). Un ticket inaccesible (403/404) muestra no-encontrado/sin-acceso sin filtrar
+ * datos (no renderiza cabecera ni hilo). Mutaciones/adjuntos/SLA llegan en 10-12.
+ *
+ * @param ticketId Id del ticket.
+ */
+export function TicketDetail({ ticketId }: { ticketId: string }) {
+  const t = useTranslations("ticketDetail");
+  const canSeeInternal = useCan("note.internal.read");
+  const ticketQuery = useTicket(ticketId);
+  const messagesQuery = useTicketMessages(ticketId);
+
+  // No leído (task 22): abrir el detalle sella la visita → el ticket deja de contar como no leído.
+  const { markVisited } = useTicketReads();
+  useEffect(() => {
+    markVisited(ticketId);
+  }, [ticketId, markVisited]);
+
+  if (ticketQuery.isError) {
+    return (
+      <div role="alert" className="p-4">
+        <h2 className="text-lg font-semibold">{t("notFound")}</h2>
+      </div>
+    );
+  }
+
+  if (ticketQuery.isLoading || messagesQuery.isLoading) {
+    return (
+      <div role="status" aria-busy="true" className="p-4 text-muted-foreground">
+        {t("loading")}
+      </div>
+    );
+  }
+
+  if (messagesQuery.isError) {
+    return (
+      <div role="alert" className="flex flex-col items-start gap-3 p-4">
+        <p className="text-destructive">{t("error")}</p>
+        <button
+          type="button"
+          onClick={() => messagesQuery.refetch()}
+          className="rounded-md border px-3 py-1.5 text-sm"
+        >
+          {t("retry")}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <section className="flex flex-col gap-4">
+      {ticketQuery.data ? <TicketHeader ticket={ticketQuery.data} /> : null}
+      {ticketQuery.data ? <TicketSla slaDue={ticketQuery.data.sla_due} /> : null}
+      {ticketQuery.data ? <TicketActions ticket={ticketQuery.data} /> : null}
+      {ticketQuery.data?.id ? (
+        <AiDraftPanel ticketId={ticketQuery.data.id} resourceTenantId={ticketQuery.data.tenant_id} />
+      ) : null}
+      <TicketThread messages={messagesQuery.data ?? []} canSeeInternal={canSeeInternal} />
+      <TicketTimeline messages={messagesQuery.data ?? []} canSeeInternal={canSeeInternal} />
+      {/* View-only. El contrato v0.1.0 no expone GET de adjuntos → lista vacía hasta que el backend
+          los sirva (ver session log 11). La subida está diferida (design-review M2). */}
+      <TicketAttachments attachments={[]} />
+    </section>
+  );
+}

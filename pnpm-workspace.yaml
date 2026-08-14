@@ -1,0 +1,7 @@
+# Workspace pnpm del monorepo Syntax.
+# `frontend` (Next.js) y `docs` (VitePress) son paquetes pnpm; `backend` es Python
+# (pip-tools + venv) y NO forma parte del workspace pnpm. Por eso los comandos del
+# pipeline usan `pnpm --filter frontend`.
+packages:
+  - 'frontend'
+  - 'docs'

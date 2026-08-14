@@ -1,0 +1,96 @@
+# task-pipeline — configuración del repo
+#
+# Las skills del plugin (/plan-task, /mutation, /task-init) LEEN este archivo y lo
+# respetan; además, design-review, scenario-coverage y fact-checker leen su fase en `models:`.
+# No hay parser: el modelo lo interpreta. Edítalo para adaptar el pipeline a ESTE
+# repo (stack, qué fases son obligatorias, etc.).
+#
+# RESOLUCIÓN (de menor a mayor prioridad):
+#   1. Defaults internos (equivalen al preset `full`).
+#   2. El preset de `mode:` (si lo pones) pisa los defaults.
+#   3. Cualquier clave explícita en `stack:` / `features:` pisa al preset.
+#   → Archivo, sección o clave ausente = se hereda del nivel anterior.
+#   → Sin archivo en el repo = todo `full` (comportamiento histórico del plugin).
+#
+# Los dos checkpoints humanos (grilling y la aprobación del plan) NO son
+# configurables por ningún flag ni preset: son por diseño.
+
+# ── Preset ──────────────────────────────────────────────────────────────────
+# full       → todo obligatorio: TDD + 3 capas de doc + gate de mutation (break 80).
+# legacy     → hay forma de testear lo que tocas (TDD ON) pero SIN gate de mutation
+#              (un codebase legacy no llega a 80); docs ON.
+# docs-only  → solo orquestación de planes y documentación: TDD OFF + gate OFF, docs ON.
+mode: full
+
+# ── Stack del repo ────────────────────────────────────────────────────────────
+# Las skills usan esto para elegir comandos en vez de asumir pnpm/Vitest/Stryker.
+stack:
+  language: typescript        # typescript | javascript | other
+  package-manager: pnpm       # pnpm | npm | yarn | none
+  test-runner: vitest         # vitest | jest | node | none
+  mutation-tool: stryker      # stryker | none
+
+# ── Features ──────────────────────────────────────────────────────────────────
+features:
+  # Escribir tests / TDD como parte de la DoD (Red→Green→Refactor, 1 test por
+  # escenario Gherkin). En `false` la DoD NO exige tests (úsalo solo en legacy sin
+  # harness o repos doc-only: vacía buena parte del valor del pipeline).
+  tdd: true
+
+  # Documentación al cerrar una tarea. Cada capa se activa por separado.
+  closing-documentation:
+    tsdoc: true            # doc en el código (TSDoc en TS; el equivalente del lenguaje)
+    technical-docs: true   # doc técnica/contexto: README / CLAUDE.md / .claude/specs / ADRs
+    context-log: true      # histórico de la tarea en .claude/context/<package>/<task-id>.md
+
+  # Gate de cierre por tarea: mutation testing.
+  #   false  → sin gate.
+  #   true   → gate con umbral break:80 (default).
+  #   <int>  → gate con ese umbral break (p.ej. 50 para ir subiendo el listón en legacy).
+  mutation-gate: 80
+
+  # Modo caveman (comportamiento opt-in, default off). Comprime el OUTPUT del hilo
+  # principal para ahorrar tokens; lo lee el hook UserPromptSubmit (caveman.sh), que se
+  # auto-inhibe en los checkpoints (grilling/design-review/scenario-coverage/fact-checker).
+  # NO forma parte de ningún preset (mode: full NO lo enciende). Valores canónicos:
+  #   off  → desactivado (default)   ·   lite → compresión ligera   ·   full → compresión mayor
+  # Cualquier otro valor (mayúsculas, espacios, comentado, desconocido) → off (fail-safe).
+  # Comentado a propósito: el TEMPLATE no impone coste/comportamiento a repos consumidores.
+  caveman: lite
+
+  # GitHub tracking (integración OPCIONAL, opt-in, default off). Proyecta el trabajo a
+  # GitHub Issues/Projects one-way (md→GitHub): plan → issue PADRE, tarea → SUB-ISSUE.
+  # El .md sigue siendo la ÚNICA fuente de verdad; GitHub es una proyección.
+  # NO forma parte de ningún preset (mode: full NO lo enciende) y NO es un gate de la DoD:
+  # es comportamiento opt-in. Su AUSENCIA no es drift para /doctor (default off, como caveman).
+  # RESOLUCIÓN FAIL-SAFE: SOLO `enabled: true` (booleano) lo activa. Ausente / enabled: false /
+  # cualquier valor no-canónico (mayúsculas, "true" string, yes, 1, comentado, desconocido) → off.
+  # Además off / sin conexión / sin config / repo no-GitHub / gh sin auth → no-op.
+  # Con `enabled: true` la proyección incluye TODAS estas piezas (no hay toggle por-pieza): el CONTENIDO
+  # completo del .md (body + banner de espejo), la label `pkg:<package>`, el ESTADO (label `status:*` +
+  # Status del Project) en cada transición y el `assignee`. Comportamiento y límites en el README del
+  # plugin → "GitHub tracking (opcional)".
+  # Comentado a propósito: el TEMPLATE no impone comportamiento a repos consumidores.
+  # github-tracking:
+  #   enabled: false          # opt-in; off / sin conexión / sin config / repo no-GitHub = no-op
+  #   # repo: owner/name       # default = repo actual (gh repo view --json nameWithOwner)
+  #   # project: <number>      # nº Project v2 (URL .../projects/<N> o gh project list --owner <o>)
+  #   # assignee: "@me"        # opcional; @me (default) = identidad gh que arranca la tarea; un login
+  #   #                        # para fijar otro; false para no asignar. Requiere que la identidad sea
+  #   #                        # colaborador ASIGNABLE del repo (si no → avisa y sigue). Solo la sub-issue.
+  #   # issue-type-plan: Plan  # avanzado: issue types se definen en el ORG; sin ellos → label `plan`
+
+# ── Modelos por fase (subagentes) ─────────────────────────────────────────────
+# Fija el modelo de las fases que lanzan un SUBAGENTE: `design-review`,
+# `scenario-coverage` y `fact-checker`. Las fases INLINE (`grilling`, `mutation`, `plan-task`) heredan
+# el modelo de la sesión y NO se rutan (limitación de plataforma — el porqué en el
+# README del plugin → "Routing de modelo por fase").
+#   clave ausente / `inherit`              → modelo de la sesión (no se fuerza nada)
+#   alias o id de modelo (p.ej. `opus`)    → se pasa como `model` al lanzar el subagente
+#   valor inválido (typo / id inexistente) → aviso + inherit (no se lanza roto)
+#   clave para una fase inline             → se ignora (esa fase hereda la sesión)
+# Comentado a propósito: el TEMPLATE no impone modelos a repos consumidores (inherit).
+models:
+  design-review: opus
+  scenario-coverage: sonnet
+  fact-checker: sonnet
