@@ -5,6 +5,11 @@
 > **05** (agent-graph) consume el **contrato de confianza/citas** definido aquí. Aterriza en las tablas
 > `kb_document`/`kb_chunk`/`embedding` de **03** (`data-model.md`). **Este fichero es la spec, no el
 > código.** Diseñada contra el **formato real verificado** de la fuente restaurada (§ conteos abajo).
+>
+> **SDD** — Doc de **referencia** de la capa SDD. Requisitos en [`spec.md`](./spec.md); decisión en
+> [ADR-0010](../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso.md); flujos en
+> [CU-BE-07](./casos-de-uso/CU-BE-07-ingestion-de-la-kb.md) y
+> [CU-BE-05](./casos-de-uso/CU-BE-05-clasificacion-y-retrieval-rag.md).
 
 ## 1. Fuente
 

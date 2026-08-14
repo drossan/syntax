@@ -6,6 +6,11 @@
 > (`rbac.md`) para capacidades/roles/ámbitos y visibilidad de mensajes. **Este fichero es la spec, no el
 > código**: aquí van entidades, relaciones, enums, índices, marca de RLS y política de borrado; la
 > creación de tablas/migraciones es 08.
+>
+> **SDD** — Doc de **referencia** (detalle técnico) de la capa SDD. Requisitos en [`spec.md`](./spec.md);
+> aislamiento en [ADR-0006](../adr/0006-aislamiento-multi-tenant-app-level-mas-rls.md); flujos en
+> [CU-BE-04](./casos-de-uso/CU-BE-04-ciclo-de-vida-del-ticket.md) y
+> [CU-BE-09](./casos-de-uso/CU-BE-09-administracion-tenants-usuarios-roles.md).
 
 ## 1. Convenciones
 

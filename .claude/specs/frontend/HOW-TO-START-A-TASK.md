@@ -73,12 +73,18 @@ Al terminar: `pnpm --filter frontend lint` + `pnpm test` repo-wide en verde; gat
 
 | Si la tarea crea / toca… | Lee la spec |
 |---|---|
+| **Toda tarea (SDD)** | `.claude/specs/frontend/spec.md` (requisitos EARS) + `.claude/specs/frontend/casos-de-uso/` (Gherkin, **único hogar**) |
 | Cliente API / tipos / mocks MSW | `.claude/specs/general/api-contract.md` |
 | Rutas/menús/acciones por rol o tenant | `.claude/specs/backend/rbac.md` |
 | Formas de ticket/mensaje/aprobación (shape de datos) | `.claude/specs/backend/data-model.md` |
 | **Toda feature (transversal)** | `.claude/specs/frontend/cross-cutting.md` (anti-XSS, i18n fecha/tz, ciclo de caché, estados error/loading/empty) |
 | Cualquier código (transversal) | `.claude/specs/general/coding-standards.md` |
-| Cualquier test (transversal) | `.claude/specs/general/testing.md` *(rellénala tú)* |
+| Cualquier test (transversal) | `.claude/specs/general/testing.md` |
+
+> **SDD activo** (`features.sdd: true`). El `## Scenarios (Gherkin)` de una tarea **nueva** **enlaza** al
+> caso de uso correspondiente (`casos-de-uso/CU-FE-*.md`) en vez de copiar los escenarios (los CU son el
+> único hogar del Gherkin de aceptación). Las tareas **ya completadas** con Gherkin inline **no** se migran.
+> Al cierre corre el gate **`/sdd-lint`** (tras `mutation`, antes de `fact-checker`): un ERROR bloquea.
 
 ## Reglas anti-context-bloat
 

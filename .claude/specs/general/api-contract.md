@@ -3,6 +3,10 @@
 > **La fuente única de verdad es [`api-contract.yaml`](./api-contract.yaml)** (OpenAPI 3.1,
 > machine-readable). Este `.md` es un **companion**: convenciones y cómo consumirlo. Si algo aquí
 > contradice el `.yaml`, **manda el `.yaml`**. Doc-only: define el contrato, no la implementación.
+>
+> **SDD** — La decisión *OpenAPI-first* está en [ADR-0002](../adr/0002-contrato-openapi-first.md). Este
+> contrato es consumido por el `spec.md` del [backend](../backend/spec.md) (superficie HTTP) y del
+> [frontend](../frontend/spec.md) (codegen + mocks).
 
 ## Por qué OpenAPI-first (no prosa)
 
