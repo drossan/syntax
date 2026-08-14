@@ -30,6 +30,20 @@ stack:
   test-runner: vitest         # vitest | jest | node | none
   mutation-tool: stryker      # stryker | none
 
+  # Override por-package (monorepo poliglota). El `stack:` de arriba es el DEFAULT/FALLBACK.
+  # `stack.packages.<pkg>` pisa el stack POR-WORKSPACE; clave del mapa = el <package> (mismo
+  # nombre que .claude/tasks|plans/<package>/). HERENCIA PARCIAL: una entrada pisa SOLO las
+  # claves que declara; el resto se hereda del stack top-level. Un package sin entrada usa el
+  # stack plano completo. `packages` ausente = comportamiento histórico y NO es drift.
+  # Regla de resolución CANÓNICA: README del plugin → "Configuración por repo" → "Stack por-package".
+  # ACTIVADO (2026-08-14): backend es Python (FastAPI). Sigue doc-only → sin test/mutation gate por ahora.
+  packages:
+    backend:                  # workspace Python (FastAPI) dentro de este monorepo TS
+      language: python
+      test-runner: none       # doc-only ahora → cámbialo a pytest cuando el backend tenga código real (Makefile: make test)
+      mutation-tool: none     # sin gate de mutation en backend (o mutmut cuando haya tests)
+    # frontend: sin entrada → hereda el `stack:` top-level completo (TS/pnpm/vitest/stryker)
+
 # ── Features ──────────────────────────────────────────────────────────────────
 features:
   # Escribir tests / TDD como parte de la DoD (Red→Green→Refactor, 1 test por
@@ -79,6 +93,12 @@ features:
    #                        # para fijar otro; false para no asignar. Requiere que la identidad sea
    #                        # colaborador ASIGNABLE del repo (si no → avisa y sigue). Solo la sub-issue.
    # issue-type-plan: Plan  # avanzado: issue types se definen en el ORG; sin ellos → label `plan`
+
+  # SDD nativo (Spec-Driven Development) — capa opt-in. ACTIVADA en este repo (2026-08-14): la tarea
+  # trabaja contra specs (EARS) + casos de uso (Gherkin, única fuente) + ADR (MADR); plantillas en
+  # `.claude/specs/`. FAIL-SAFE: solo `sdd: true` (booleano) activa. Afecta a las tareas NUEVAS; el
+  # scaffold per-package (spec.md / casos-de-uso/) lo crea el flujo SDD on-demand. Gate `/sdd-lint` al cierre.
+  sdd: true
 
 # ── Modelos por fase (subagentes) ─────────────────────────────────────────────
 # Fija el modelo de las fases que lanzan un SUBAGENTE: `design-review`,
