@@ -71,14 +71,14 @@ features:
   # Status del Project) en cada transición y el `assignee`. Comportamiento y límites en el README del
   # plugin → "GitHub tracking (opcional)".
   # Comentado a propósito: el TEMPLATE no impone comportamiento a repos consumidores.
-  # github-tracking:
-  #   enabled: false          # opt-in; off / sin conexión / sin config / repo no-GitHub = no-op
-  #   # repo: owner/name       # default = repo actual (gh repo view --json nameWithOwner)
-  #   # project: <number>      # nº Project v2 (URL .../projects/<N> o gh project list --owner <o>)
-  #   # assignee: "@me"        # opcional; @me (default) = identidad gh que arranca la tarea; un login
-  #   #                        # para fijar otro; false para no asignar. Requiere que la identidad sea
-  #   #                        # colaborador ASIGNABLE del repo (si no → avisa y sigue). Solo la sub-issue.
-  #   # issue-type-plan: Plan  # avanzado: issue types se definen en el ORG; sin ellos → label `plan`
+  github-tracking:
+   enabled: false          # opt-in; off / sin conexión / sin config / repo no-GitHub = no-op
+   repo: drossan/syntax       # default = repo actual (gh repo view --json nameWithOwner)
+   project: 6      # nº Project v2 (URL .../projects/<N> o gh project list --owner <o>)
+   assignee: "@me"        # opcional; @me (default) = identidad gh que arranca la tarea; un login
+   #                        # para fijar otro; false para no asignar. Requiere que la identidad sea
+   #                        # colaborador ASIGNABLE del repo (si no → avisa y sigue). Solo la sub-issue.
+   # issue-type-plan: Plan  # avanzado: issue types se definen en el ORG; sin ellos → label `plan`
 
 # ── Modelos por fase (subagentes) ─────────────────────────────────────────────
 # Fija el modelo de las fases que lanzan un SUBAGENTE: `design-review`,
@@ -91,6 +91,6 @@ features:
 #   clave para una fase inline             → se ignora (esa fase hereda la sesión)
 # Comentado a propósito: el TEMPLATE no impone modelos a repos consumidores (inherit).
 models:
-  design-review: opus
+  design-review: claude-opus-4-8
   scenario-coverage: sonnet
   fact-checker: sonnet
