@@ -76,7 +76,7 @@ function unauthorized() {
 export const e2eHandlers = [
   http.post("*/api/v1/auth/login", () => {
     store.session = true;
-    // El middleware redirige por presencia de la cookie `refresh_token` (UX, no seguridad). El backend
+    // El proxy redirige por presencia de la cookie `refresh_token` (UX, no seguridad). El backend
     // real la pone httpOnly; aquí (dev/e2e) la fija el mock como cookie de cliente para que la app deje
     // pasar a las rutas protegidas. Cualquier email/contraseña vale (el mock no valida credenciales).
     if (typeof document !== "undefined") document.cookie = "refresh_token=mock; path=/";
