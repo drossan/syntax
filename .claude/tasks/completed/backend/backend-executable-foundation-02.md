@@ -2,13 +2,13 @@
 id: backend-executable-foundation-02
 package: backend
 plan: executable-foundation
-status: pending
+status: done
 priority: 1
 depends_on: [backend-executable-foundation-01]
 estimate: 1.5h
-actual:
+actual: ~1h
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # Scaffold de tests (make test verde) + ADR-0013 (arranque Fase 2)

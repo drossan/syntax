@@ -153,7 +153,7 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
 ## Tasks
 
 - [x] `backend-executable-foundation-01` (P1) — Entorno ejecutable: lockfiles (`make install` compila ambos, dev `-c`) + deps (structlog/mutmut/pip-tools) + docker db + smoke-import + pin/verificar mutmut  · depends_on: —  · **done 2026-08-15**
-- [ ] `backend-executable-foundation-02` (P1) — Scaffold tests + smoke + ADR-0013 (supersede 0012) + adr-index + nota ADR-0001  · depends_on: backend-executable-foundation-01
+- [x] `backend-executable-foundation-02` (P1) — Scaffold tests + smoke + ADR-0013 (supersede 0012) + adr-index + nota ADR-0001  · depends_on: backend-executable-foundation-01  · **done 2026-08-15**
 - [ ] `backend-executable-foundation-03` (P1) — Settings inyectables + `CORS_ORIGINS` (`app/core/config.py`)  · depends_on: backend-executable-foundation-02
 - [ ] `backend-executable-foundation-04` (P1) — Primitivas de seguridad sin estado: Argon2id + JWT access (`app/core/security.py`)  · depends_on: backend-executable-foundation-02
 - [ ] `backend-executable-foundation-05` (P1) — Logging estructurado (`structlog`) + request-id + ADR-0014 (`app/core/logging.py`)  · depends_on: backend-executable-foundation-03

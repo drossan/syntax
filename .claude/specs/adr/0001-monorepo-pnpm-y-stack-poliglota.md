@@ -32,6 +32,11 @@ y encaja 1:1 con la unidad de trabajo del pipeline (`<package>`). El **stack por
 `frontend` hereda TS/pnpm/Vitest/Stryker). Git flow: rama `plan/<package>/<name-plan>` → `dev` (PR por
 plan) → `main` (release), **nunca** feature directa sobre `main`.
 
+> **Nota (2026-08-15)**: en la práctica **no se adoptó la rama `dev`**; el flujo de facto es
+> **trunk-from-`main`** — las ramas `plan/<package>/<name-plan>` salen de `main` y mergean a `main` por PR.
+> El principio de «nunca feature directa sobre `main`» se mantiene (siempre rama de plan). Registrado al
+> arrancar `plan/backend/executable-foundation`.
+
 ### Confirmación
 
 `pnpm-workspace.yaml` + `package.json` raíz; `.claude/task-pipeline.yml` con `stack.packages.backend`

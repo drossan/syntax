@@ -54,6 +54,7 @@ ignore_missing_imports = true
 # ── Pytest ───────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 asyncio_mode = "auto"          # pytest-asyncio: no hace falta marcar cada test
+pythonpath = ["."]             # backend/ en sys.path → `import app` funciona en los tests
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra -q"
