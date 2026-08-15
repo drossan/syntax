@@ -54,6 +54,90 @@ class AuthTokenKind(enum.Enum):
     invitation = "invitation"
 
 
+class TicketStatus(enum.Enum):
+    """Estado de un ticket (``reopened`` reabre el ciclo; sin ``on_hold`` en Fase 1)."""
+
+    new = "new"
+    open = "open"
+    pending = "pending"
+    resolved = "resolved"
+    closed = "closed"
+    reopened = "reopened"
+
+
+class TicketPriority(enum.Enum):
+    """Prioridad del ticket (la fija el clasificador, 05)."""
+
+    low = "low"
+    normal = "normal"
+    high = "high"
+    urgent = "urgent"
+
+
+class MessageVisibility(enum.Enum):
+    """Visibilidad de un mensaje (sin ``developer`` en Fase 1, 02 §6)."""
+
+    public = "public"
+    internal = "internal"
+
+
+class ApprovalStatus(enum.Enum):
+    """Estado de una tarea de aprobación HITL."""
+
+    pending = "pending"
+    approved = "approved"
+    edited = "edited"
+    rejected = "rejected"
+
+
+class AgentRunStatus(enum.Enum):
+    """Estado de una ejecución del grafo (``failed`` = fallo del LLM a mitad de run)."""
+
+    queued = "queued"
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+
+
+class NotificationType(enum.Enum):
+    """Tipo de notificación in-app (data-model §3)."""
+
+    approval_requested = "approval_requested"
+    ticket_assigned = "ticket_assigned"
+    ticket_reply = "ticket_reply"
+    sla_breach = "sla_breach"
+    sla_warning = "sla_warning"
+
+
+class KbEstado(enum.Enum):
+    """Señal de retrieval de un documento KB (peso explícito, 04)."""
+
+    draft = "draft"
+    active = "active"
+
+
+class KbDomain(enum.Enum):
+    """Los 17 dominios de la KB (data-model §3; contrato verificado contra la KB real)."""
+
+    analytics_logs_and_activity = "analytics-logs-and-activity"
+    authoring_and_editor = "authoring-and-editor"
+    content_modeling_and_schemas = "content-modeling-and-schemas"
+    data_collection_and_store = "data-collection-and-store"
+    data_packs_and_distributors = "data-packs-and-distributors"
+    forms_and_submissions = "forms-and-submissions"
+    i18n_and_translations = "i18n-and-translations"
+    identity_and_permissions = "identity-and-permissions"
+    integrations_crm_and_feeds = "integrations-crm-and-feeds"
+    media_and_dam = "media-and-dam"
+    navigation_and_menus = "navigation-and-menus"
+    platform_and_devex = "platform-and-devex"
+    render_infra_and_config = "render-infra-and-config"
+    rendering_and_publishing = "rendering-and-publishing"
+    search_ai_and_llms = "search-ai-and-llms"
+    seo_sitemaps_and_edge = "seo-sitemaps-and-edge"
+    sites_domains_instances = "sites-domains-instances"
+
+
 def pg_enum(enum_cls: type[enum.Enum], name: str) -> Enum:
     """Enum nativo de Postgres cuyas etiquetas son los VALUES del enum (no los names).
 

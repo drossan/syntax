@@ -11,6 +11,15 @@ Grupos por frontera RLS (data-model.md §2):
 Anti-patrón (hexagonal): exponer estos modelos a ``app.domain`` (el dominio no conoce SQLAlchemy).
 """
 
+from app.infra.db.models.business import (
+    AgentRun,
+    ApprovalTask,
+    Attachment,
+    AuditLog,
+    Message,
+    Notification,
+    Ticket,
+)
 from app.infra.db.models.identity import (
     AuthToken,
     Capability,
@@ -23,12 +32,19 @@ from app.infra.db.models.identity import (
 )
 
 __all__ = [
+    "AgentRun",
+    "ApprovalTask",
+    "Attachment",
+    "AuditLog",
     "AuthToken",
     "Capability",
+    "Message",
+    "Notification",
     "RefreshSession",
     "Role",
     "RoleCapability",
     "Tenant",
+    "Ticket",
     "User",
     "UserRole",
 ]

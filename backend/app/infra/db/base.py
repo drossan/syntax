@@ -56,4 +56,6 @@ class TenantMixin:
     lo llevan (§6 de data-model.md): su aislamiento no es RLS de fila.
     """
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenant.id", ondelete="RESTRICT"), nullable=False
+    )
