@@ -151,3 +151,17 @@ async def superuser_engine(migrated_database: str) -> AsyncIterator[AsyncEngine]
         yield engine
     finally:
         await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def app_engine(migrated_database: str) -> AsyncIterator[AsyncEngine]:
+    """Engine async como `syntax_app` (no-superuser → RLS aplica) sobre `syntax_test`.
+
+    `pool_size=1, max_overflow=0`: una única conexión reutilizada → hace **testeable el footgun**
+    (que el contexto de un tenant no se arrastre a la siguiente transacción del pool).
+    """
+    engine = create_async_engine(app_test_url(), pool_size=1, max_overflow=0)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()

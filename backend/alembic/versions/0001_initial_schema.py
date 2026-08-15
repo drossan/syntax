@@ -36,11 +36,13 @@ BUSINESS_TABLES: tuple[str, ...] = (
 )
 
 # Predicado exacto de la policy (H2): bypass por GUC transaccional O match de tenant.
-# `current_setting(..., true)` (2 args, missing_ok) → NULL si el GUC no está (fail-closed,
-# no lanza). El ámbito `global` de Soporte activa `app.bypass_rls='on'` por transacción (07).
+# `current_setting(..., true)` (2 args, missing_ok) → NULL si el GUC no está, pero tras un
+# `SET LOCAL` previo sobre una conexión del pool reutilizada devuelve '' (cadena vacía), no NULL:
+# el `NULLIF(..., '')` lo normaliza a NULL → `NULL::uuid` = NULL → 0 filas (fail-closed), en vez de
+# `''::uuid` que lanzaría. El ámbito `global` activa `app.bypass_rls='on'` por transacción (07).
 _POLICY_PREDICATE = (
     "current_setting('app.bypass_rls', true) = 'on' "
-    "OR tenant_id = current_setting('app.tenant_id', true)::uuid"
+    "OR tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid"
 )
 
 
