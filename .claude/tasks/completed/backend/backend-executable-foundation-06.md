@@ -157,6 +157,6 @@ sobre el que los planes de routers montarán sus endpoints. Cierra el plan `exec
 - [x] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU — infra/composición). AVISO reconocido: anchor i18n = `api-contract.md:42` (NFR-007 temático).
 - [x] Gate de `fact-checker` — 8/9 VERIFICADO; afirmación de mutation "0.00%" era **INCORRECTA** (no-determinismo del interning) → **corregida a 1.08%** y re-verificada (92 killed / 1 survived).
 - [x] Documentación: docstrings; nota en `backend/README.md` sobre `/health/live` (y `/health/ready` diferido) + i18n del envelope; session log.
-- [ ] Cierre del plan: última tarea → PR de `plan/backend/executable-foundation` a `main` (auto-pr; git-automation).
+- [x] Cierre del plan: última tarea → PR de `plan/backend/executable-foundation` a `main` (auto-pr; git-automation). — PR #2: https://github.com/drossan/syntax/pull/2
 
 <!-- github-tracking off. Sin changeset (backend). -->
