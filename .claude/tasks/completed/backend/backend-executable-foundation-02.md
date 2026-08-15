@@ -55,11 +55,11 @@ un **ADR** la decisión —ya tomada— de arrancar la Fase 2 (código real). Ta
 
 ## Definition of Done
 
-- [ ] `backend/tests/` + `conftest.py` + `test_smoke.py` → `make test` **verde** (1 passed).
-- [ ] ADR-0013 (MADR) escrito, supersede 0012; `adr-index.md` actualizado; nota en ADR-0001.
-- [ ] `make lint` + `make typecheck` OK.
-- [ ] Gate `/sdd-lint`: artefactos SDD (ADR MADR) sin ERROR — tras verificación, antes de `fact-checker`.
-- [ ] Gate de `fact-checker`: afirmaciones verificadas.
-- [ ] Documentación: docstrings en `conftest.py`; session log; ADR-0013 (doc técnica).
+- [x] `backend/tests/` + `conftest.py` + `test_smoke.py` → `make test` **verde** (1 passed).
+- [x] ADR-0013 (MADR) escrito, supersede 0012; `adr-index.md` actualizado; nota en ADR-0001.
+- [x] `make lint` + `make typecheck` OK.
+- [x] Gate `/sdd-lint`: artefactos SDD (ADR MADR) sin ERROR — tras verificación, antes de `fact-checker`.
+- [x] Gate de `fact-checker`: afirmaciones verificadas.
+- [x] Documentación: docstrings en `conftest.py`; session log; ADR-0013 (doc técnica).
 
 <!-- No aplican: TDD rojo-primero (smoke por carve-out), gate de mutation (sin código de producción). github-tracking off. -->

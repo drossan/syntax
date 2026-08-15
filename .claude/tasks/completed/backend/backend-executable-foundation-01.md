@@ -70,14 +70,14 @@ y commiteados, servicio `db` (Postgres+pgvector) corriendo, y toolchain de mutat
 
 ## Definition of Done
 
-- [ ] `make install` compila **ambos** lockfiles (dev `-c requirements.txt`) e instala, sin error (salida real).
-- [ ] `structlog` en `requirements.in`; `mutmut` + `pip-tools` en `requirements-dev.in`; ambos `.txt` commiteados.
-- [ ] `docker compose up -d db` → healthy (salida real).
-- [ ] Smoke-import de `fastapi/pydantic/structlog/langgraph/langchain` OK (salida real).
-- [ ] `mutmut` pinado + `[tool.mutmut]` en `pyproject.toml` + invocación exacta registrada.
-- [ ] `make lint` + `make typecheck` OK.
-- [ ] Gate de `fact-checker`: afirmaciones de la sesión verificadas (INCORRECTO bloquea).
-- [ ] Documentación: session log (`.claude/context/backend/backend-executable-foundation-01.md`) con comandos +
+- [x] `make install` compila **ambos** lockfiles (dev `-c requirements.txt`) e instala, sin error (salida real).
+- [x] `structlog` en `requirements.in`; `mutmut` + `pip-tools` en `requirements-dev.in`; ambos `.txt` commiteados.
+- [x] `docker compose up -d db` → healthy (salida real).
+- [x] Smoke-import de `fastapi/pydantic/structlog/langgraph/langchain` OK (salida real).
+- [x] `mutmut` pinado + `[tool.mutmut]` en `pyproject.toml` + invocación exacta registrada.
+- [x] `make lint` + `make typecheck` OK.
+- [x] Gate de `fact-checker`: afirmaciones de la sesión verificadas (INCORRECTO bloquea).
+- [x] Documentación: session log (`.claude/context/backend/backend-executable-foundation-01.md`) con comandos +
       salidas + invocación mutmut; nota en `backend/README.md`/HOW-TO si cambia el flujo de `make install`.
 
 <!-- No aplican: TDD, "1 test por escenario", gate de mutation (sin código de producción). github-tracking off. -->
