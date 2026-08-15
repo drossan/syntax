@@ -12,18 +12,19 @@ PY   ?= $(VENV)/bin/python
 PIP  ?= $(VENV)/bin/pip
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install run migrate ingest seed lint typecheck test
+.PHONY: help venv install run migrate ingest seed lint typecheck test test-watch mutation
 
 help: ## Lista los targets disponibles
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-venv: ## Crea el entorno virtual (.venv)
-	python3 -m venv $(VENV)
+venv: ## Crea el entorno virtual (.venv) — Python 3.12 (paridad con Dockerfile/pyproject)
+	python3.12 -m venv $(VENV)
 
 install: ## Compila e instala deps de desarrollo (pip-tools)
 	$(PIP) install --upgrade pip pip-tools
-	$(VENV)/bin/pip-compile requirements-dev.in -o requirements-dev.txt
+	$(VENV)/bin/pip-compile requirements.in -o requirements.txt
+	$(VENV)/bin/pip-compile requirements-dev.in -o requirements-dev.txt -c requirements.txt
 	$(PIP) install -r requirements-dev.txt
 
 run: ## Levanta la API en local con reload (entry-point: tarea 07)
@@ -47,3 +48,12 @@ typecheck: ## Mypy en modo strict
 
 test: ## Pytest (cuando exista código real; doc-only por ahora)
 	$(VENV)/bin/pytest
+
+test-watch: ## Reejecuta pytest al guardar (modo watch, pytest-watcher)
+	$(VENV)/bin/ptw . --now
+
+mutation: ## Gate de mutation (cosmic-ray) — acota module-path/test-command en cosmic-ray.toml
+	rm -f session.sqlite
+	$(VENV)/bin/cosmic-ray init cosmic-ray.toml session.sqlite
+	$(VENV)/bin/cosmic-ray exec cosmic-ray.toml session.sqlite
+	$(VENV)/bin/cr-rate session.sqlite --fail-over 20

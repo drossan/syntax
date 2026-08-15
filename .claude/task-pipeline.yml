@@ -8,7 +8,8 @@ stack:
     backend:
       language: python
       test-runner: pytest
-      mutation-tool: mutmut
+      mutation-tool: cosmic-ray   # mutmut 3.x no instrumenta funciones decoradas / campos pydantic (ver ADR-0015)
+      mutation-command: "make mutation"   # escape: cosmic-ray init+exec+cr-rate (ver backend/Makefile + cosmic-ray.toml)
     # frontend: sin entrada → hereda el `stack:` top-level completo (TS/pnpm/vitest/stryker)
 features:
   tdd: true

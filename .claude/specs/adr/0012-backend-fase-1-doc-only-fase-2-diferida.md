@@ -1,6 +1,6 @@
 # 0012. Backend Fase 1 doc-only (esqueleto + specs + guión); Fase 2 diferida
 
-- **Estado**: accepted
+- **Estado**: superseded — por [[0013-arranque-fase-2-backend-codigo-real]] (la parte «Fase 2 diferida»; la decisión de hacer Fase 1 doc-only primero se ejecutó y sigue válida)
 - **Fecha**: 2026-08-11
 - **Decisores**: Owner (backend como práctica de LangChain/LangGraph a implementar a mano).
 

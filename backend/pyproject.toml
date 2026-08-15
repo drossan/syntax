@@ -28,7 +28,7 @@ select = ["E", "W", "F", "I", "UP", "B", "ASYNC", "S", "SIM", "TID"]
 ignore = ["E501"]  # el formatter gestiona el ancho de línea
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]  # assert permitido en tests
+"tests/**" = ["S101", "S105", "S106"]  # assert + secretos/contraseñas dummy permitidos en tests
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 # Guardarraíl HEXAGONAL: el dominio NO importa infra. Se endurece cuando exista
@@ -54,6 +54,10 @@ ignore_missing_imports = true
 # ── Pytest ───────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 asyncio_mode = "auto"          # pytest-asyncio: no hace falta marcar cada test
+pythonpath = ["."]             # backend/ en sys.path → `import app` funciona en los tests
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra -q"
+
+# Mutation testing: cosmic-ray (config en backend/cosmic-ray.toml; gate `make mutation`).
+# mutmut se descartó: 3.x no instrumenta funciones decoradas ni campos pydantic (ADR-0015).

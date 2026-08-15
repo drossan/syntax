@@ -16,5 +16,10 @@ mypy                         # type-checker en modo strict (ver [tool.mypy] en p
 # ── Tests ────────────────────────────────────────────────────────────────────
 pytest                       # runner de tests (cuando exista código real)
 pytest-asyncio               # soporte async (asyncio_mode = auto)
+pytest-watcher               # watch mode (ptw): reejecuta pytest al guardar (make test-watch)
 # Integración RLS/Postgres+pgvector: los tests de integración levantan el `db` de
 # docker-compose (footgun SET app.tenant_id → exige integración real, ver tarea 08).
+
+# ── Mutation testing / lockfiles ──────────────────────────────────────────────
+cosmic-ray                   # gate de mutation (AST-based; cubre config pydantic decorada — ver ADR-0015)
+pip-tools                    # compilar los lockfiles de forma reproducible (make install)

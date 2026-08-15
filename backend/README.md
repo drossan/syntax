@@ -45,7 +45,7 @@ docker compose up -d db       # Postgres 16 + pgvector con healthcheck
 make migrate                  # aplica migraciones Alembic (incl. RLS)          · disponible tras la tarea 08
 make seed                     # tenant demo + roles + KB de muestra              · disponible tras la tarea 17
 make ingest                   # ingesta la KB real (idempotente)                 · disponible tras la tarea 13
-make run                      # levanta la API (http://localhost:8000)           · disponible tras la tarea 07
+make run                      # levanta la API (http://localhost:8000)           · disponible (app factory: executable-foundation-06)
 ```
 
 O el stack completo en contenedores:
@@ -54,7 +54,11 @@ O el stack completo en contenedores:
 docker compose up --build     # `db` (sano) + `api`
 ```
 
-`GET /health` comprueba conexión a DB + disponibilidad de la extensión pgvector (tarea 07).
+`GET /health/live` → **200** liveness (el proceso responde; no toca DB ni dependencias). `GET /health/ready`
+y el alias `GET /health` (conexión a DB + extensión pgvector) están **diferidos al plan de capa DB** y hasta
+entonces responden **404 limpio**. Los errores usan el envelope `application/problem+json` (RFC 9457:
+`{type, title, status, detail, errors[]}`), con `title`/`detail` **localizados por `Accept-Language`** (base
+`es` + `en`; fallback al base).
 
 ## Calidad
 

@@ -40,3 +40,6 @@ pyjwt                       # JWT access(memoria)+refresh(cookie httpOnly); rota
 
 # ── HTTP client ──────────────────────────────────────────────────────────────
 httpx                       # cliente async (healthcheck externo, integraciones, tests)
+
+# ── Observabilidad ────────────────────────────────────────────────────────────
+structlog                   # logging estructurado (JSON) + binding de request-id (NFR-004)
