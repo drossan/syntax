@@ -2,11 +2,11 @@
 id: backend-database-foundation-01
 package: backend
 plan: database-foundation
-status: pending
+status: done
 priority: 1
 depends_on: []
 estimate: 1.5h
-actual:
+actual: 0.5h
 created: 2026-08-15
 updated: 2026-08-15
 ---

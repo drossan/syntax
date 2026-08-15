@@ -36,8 +36,9 @@ services:
       - path: .env
         required: false
     environment:
-      # Default apuntando al servicio `db` (host = nombre del servicio en la red compose).
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://syntax:syntax@db:5432/syntax}
+      # Default al servicio `db` (host = nombre del servicio) y al rol RUNTIME `syntax_app`
+      # (no superuser → RLS aplica). El superuser queda solo para migraciones/bootstrap.
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://syntax_app:syntax_app@db:5432/syntax}
       APP_ENV: ${APP_ENV:-development}
     depends_on:
       db:

@@ -171,7 +171,7 @@ migración inicial Alembic y el **readiness** que comprueba DB + extensión pgve
 
 *(Materializadas tras grilling; el Gherkin definitivo se endurece con `scenario-coverage`.)*
 
-- [ ] `backend-database-foundation-01` (P1) — Settings `database_url` (syntax_app, con default) + `embedding_dim` (default 1536) + `.env.example`/compose a `syntax_app`; `MIGRATION_DATABASE_URL` solo en entorno · depends_on: —
+- [x] `backend-database-foundation-01` (P1) — Settings `database_url` (syntax_app, con default) + `embedding_dim` (default 1536) + `.env.example`/compose a `syntax_app`; `MIGRATION_DATABASE_URL` solo en entorno · depends_on: —
 - [ ] `backend-database-foundation-02` (P1) — `base.py`: DeclarativeBase + naming_convention + mixins Timestamp/Tenant · depends_on: 01
 - [ ] `backend-database-foundation-03` (P1) — Modelos identidad/RBAC (8 tablas, sin RLS) + enums · depends_on: 02
 - [ ] `backend-database-foundation-04` (P1) — Modelos negocio (7 tablas, TenantMixin/RLS-marked) + enums · depends_on: 03
