@@ -155,7 +155,7 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
 - [x] `backend-executable-foundation-01` (P1) — Entorno ejecutable: lockfiles (`make install` compila ambos, dev `-c`) + deps (structlog/mutmut/pip-tools) + docker db + smoke-import + pin/verificar mutmut  · depends_on: —  · **done 2026-08-15**
 - [x] `backend-executable-foundation-02` (P1) — Scaffold tests + smoke + ADR-0013 (supersede 0012) + adr-index + nota ADR-0001  · depends_on: backend-executable-foundation-01  · **done 2026-08-15**
 - [x] `backend-executable-foundation-03` (P1) — Settings inyectables + `CORS_ORIGINS` (`app/core/config.py`)  · depends_on: backend-executable-foundation-02  · **done 2026-08-15**
-- [ ] `backend-executable-foundation-04` (P1) — Primitivas de seguridad sin estado: Argon2id + JWT access (`app/core/security.py`)  · depends_on: backend-executable-foundation-02
+- [x] `backend-executable-foundation-04` (P1) — Primitivas de seguridad sin estado: Argon2id + JWT access (`app/core/security.py`)  · depends_on: backend-executable-foundation-02  · **done 2026-08-15**
 - [ ] `backend-executable-foundation-05` (P1) — Logging estructurado (`structlog`) + request-id + ADR-0015 (`app/core/logging.py`)  · depends_on: backend-executable-foundation-03
 - [ ] `backend-executable-foundation-06` (P1) — App factory + `/health/live` + CORS + envelope problem+json (`app/main.py`)  · depends_on: backend-executable-foundation-03, backend-executable-foundation-05
 
@@ -200,6 +200,11 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
   **diferida** al plan de auth (primitiva pura); **diseño JWT** → **puras con parámetros explícitos** (resuelve
   el wiring 03↔04). **(B) fuera de alcance**: todos consistentes con el plan (refresh/reuse/logout, throttling,
   `/health/ready`, `deps.py`, `/metrics`, RLS, verificación LangGraph) → **mantenidos diferidos** a sus planes.
+- 2026-08-15: tarea **04 done** (`app/core/security.py`): Argon2id (`hash_password`/`verify_password` fail-closed)
+  + JWT access puro (`create_access_token`/`decode_access_token`, `algorithms=[algorithm]`, `exp` manual vs `now`
+  inyectado). 22 tests TDD; suite 41 passed; ruff+mypy strict; **cosmic-ray survival 0.00%** (2 supervivientes
+  del `*` keyword-only → matados con 2 tests de contrato); sdd-lint sin ERROR; fact-checker 8/8. Traza a
+  FR-001/FR-008 + CU-BE-01/02. Política de contraseña diferida al plan de auth.
 - 2026-08-15: en la tarea 03, el gate de mutation `mutmut` **no puntuó** el código pydantic (no instrumenta
   funciones decoradas ni campos de clase; F3 materializado). Tras spike + evaluación, **se adopta `cosmic-ray`**
   como herramienta de mutation del backend (**ADR-0014**): `stack.packages.backend.mutation-tool: cosmic-ray`

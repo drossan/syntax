@@ -1,31 +1,68 @@
-"""app.core.security — hashing, JWT y sesiones de refresh.
+"""app.core.security — primitivas de identidad puras y sin estado.
 
-GUIÓN (→ tarea 07)
-------------------
-Propósito: primitivas de autenticación. NO decide autorización (eso es RBAC, ver
-``.claude/specs/backend/rbac.md`` 02 y ``app.domain``); aquí solo identidad + tokens.
-
-Qué implementar:
-  - **Password hashing**: Argon2id (p.ej. ``argon2-cffi``/``passlib``). ``hash_password(str)`` /
-    ``verify_password(str, hash)``. Nunca guardar la contraseña en claro (03: ``user.password_hash``).
-  - **JWT access**: ``create_access_token(sub, tenant_id, ...)`` con claims ``sub`` (user id),
-    ``tenant_id``, ``exp`` (JWT_ACCESS_TTL). TTL corto (memoria en el cliente).
-    ``decode_access_token(token) -> claims`` con verificación de firma/exp.
-    NOTA (A1.7): el token **NO** lleva las capacidades; se resuelven server-side por request (ver
-    ``deps.py``) para que un cambio/revocación de rol surta efecto en la siguiente request.
-  - **Refresh + RefreshSession (03)**: el refresh viaja en cookie httpOnly. Contra la tabla
-    ``refresh_session`` (03 §4.1): se guarda el ``token_hash`` (no el token), con ``family_id`` +
-    ``parent_id`` para la cadena de rotación.
-      - ``rotate_refresh(...)``: emite uno nuevo, marca el anterior ``rotated``.
-      - **reuse-detection**: si llega un refresh ya ``rotated``/``revoked`` → revocar **toda la
-        ``family_id``** (logout global de esa cadena) y denegar.
-      - ``logout(...)``: **server-side** — revoca la sesión/familia en BD, no solo borra la cookie.
-  - **Tokens de un solo uso** (03 ``auth_token``): reset de contraseña / invitación (hash + expiración
-    + ``used_at``); el envío del email es un stub del puerto en Fase 1.
-
-Contrato (consumido por deps/routers): ``get_current_subject`` (en ``deps.py``) usa ``decode_access_token``
-para resolver el sujeto; la rotación/reuse-detection las orquesta el servicio de auth.
-
-Anti-patrones: meter roles/capacidades en el JWT y confiar en ellos para autorizar; logout que solo borra
-la cookie sin revocar en BD; almacenar el refresh en claro; algoritmo de hashing débil.
+Hashing de contraseñas (Argon2id) y JWT de acceso. NO decide autorización (eso es RBAC/dominio),
+NO toca DB y NO lee config: recibe lo que necesita por parámetro. El wiring a get_settings() lo hace
+el servicio de auth en su plan.
 """
+
+from datetime import UTC, datetime
+from typing import Any
+
+import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerificationError
+
+_hasher = PasswordHasher()
+
+
+def hash_password(password: str) -> str:
+    """Calcula el hash Argon2id de ``password`` (salt aleatorio embebido)."""
+    return _hasher.hash(password)
+
+
+def verify_password(password: str, hash: str) -> bool:
+    """Verifica ``password`` contra el ``hash`` Argon2id. Devuelve ``True``/``False``, nunca lanza por
+    contraseña incorrecta (fail-closed)."""
+    try:
+        return _hasher.verify(hash, password)
+    except (VerificationError, InvalidHashError):
+        return False
+
+
+def create_access_token(
+    sub: str,
+    tenant_id: str,
+    *,
+    secret: str,
+    algorithm: str,
+    ttl: int,
+    now: datetime,
+) -> str:
+    """Emite un JWT de acceso. Claims: ``sub``, ``tenant_id``, ``iat`` (=now), ``exp`` (=now+ttl).
+    NO incluye capacidades (se resuelven server-side por request)."""
+    issued = int(now.timestamp())
+    payload = {"sub": sub, "tenant_id": tenant_id, "iat": issued, "exp": issued + ttl}
+    return jwt.encode(payload, secret, algorithm=algorithm)
+
+
+def decode_access_token(
+    token: str,
+    *,
+    secret: str,
+    algorithm: str,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Decodifica y valida el JWT. Fija ``algorithms=[algorithm]`` (rechaza alg=none/confusión) y
+    comprueba la expiración contra ``now`` (o el reloj real si ``now`` es None). ``exp <= now`` → expirado."""
+    claims: dict[str, Any] = jwt.decode(
+        token,
+        secret,
+        algorithms=[algorithm],
+        options={"require": ["exp", "sub", "tenant_id"], "verify_exp": False},
+    )
+    current = int((now or datetime.now(tz=UTC)).timestamp())
+
+    if current >= claims["exp"]:
+        raise jwt.ExpiredSignatureError("El token ha expirado")
+
+    return claims

@@ -2,13 +2,13 @@
 id: backend-executable-foundation-04
 package: backend
 plan: executable-foundation
-status: pending
+status: done
 priority: 1
 depends_on: [backend-executable-foundation-02]
 estimate: 2.5h
-actual:
+actual: ~2.5h
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # Primitivas de seguridad sin estado: Argon2id + JWT access (app/core/security.py)
@@ -148,14 +148,14 @@ desde `get_settings()`. No las usa ninguna otra tarea de este plan.
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario Gherkin tiene al menos un test (hashing feliz/incorrecto/salt/malformado/vacío; JWT round-trip/exp/firma/alg=none/confusión/parseo/claims/expiración/frontera).
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; `exp` y expiración testeados con `now` inyectado (determinismo); `decode` fija `algorithms=[algorithm]`.
-- [ ] `ruff check` (incl. `S` bandit) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `mutmut` (`break: 80`) sobre `app/core/security.py`.
-- [ ] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU; **traza a FR-001/FR-008 + CU-BE-01/02 documentada** en el session log).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (intención, params, returns, errores); session log con la traza a los CU consumidores + follow-up "política de contraseña → plan de auth".
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario Gherkin tiene al menos un test (hashing feliz/incorrecto/salt/malformado/vacío; JWT round-trip/exp/firma/alg=none/confusión/parseo/claims/expiración/frontera). — 22 tests en `tests/test_security.py`.
+- [x] Todos los tests en verde (`make test`). — 41 passed (suite completa).
+- [x] `Provides` disponible; `exp` y expiración testeados con `now` inyectado (determinismo); `decode` fija `algorithms=[algorithm]`.
+- [x] `ruff check` (incl. `S` bandit) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation **`cosmic-ray`** (`fail-over 20` = `break: 80`; ADR-0014, supersede `mutmut`) sobre `app/core/security.py` → survival **0.00%** (59 mutantes, 0 supervivientes).
+- [x] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU; **traza a FR-001/FR-008 + CU-BE-01/02 documentada** en el session log). AVISOS menores (Then compuestos) reconocidos, no bloquean.
+- [x] Gate de `fact-checker` — 8/8 afirmaciones VERIFICADAS.
+- [x] Documentación: docstrings (intención, params, returns, errores); session log con la traza a los CU consumidores + follow-up "política de contraseña → plan de auth".
 
 <!-- github-tracking off. Sin changeset (backend). -->
