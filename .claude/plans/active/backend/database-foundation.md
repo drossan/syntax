@@ -173,7 +173,7 @@ migración inicial Alembic y el **readiness** que comprueba DB + extensión pgve
 
 - [x] `backend-database-foundation-01` (P1) — Settings `database_url` (syntax_app, con default) + `embedding_dim` (default 1536) + `.env.example`/compose a `syntax_app`; `MIGRATION_DATABASE_URL` solo en entorno · depends_on: —
 - [x] `backend-database-foundation-02` (P1) — `base.py`: DeclarativeBase + naming_convention + mixins Timestamp/Tenant · depends_on: 01
-- [ ] `backend-database-foundation-03` (P1) — Modelos identidad/RBAC (8 tablas, sin RLS) + enums · depends_on: 02
+- [x] `backend-database-foundation-03` (P1) — Modelos identidad/RBAC (8 tablas, sin RLS) + enums · depends_on: 02
 - [ ] `backend-database-foundation-04` (P1) — Modelos negocio (7 tablas, TenantMixin/RLS-marked) + enums · depends_on: 03
 - [ ] `backend-database-foundation-05` (P1) — Modelos KB (3 tablas + `vector(1536)` literal; modelo `vector(EMBEDDING_DIM)`) + enums · depends_on: 04
 - [ ] `backend-database-foundation-06` (P1) — Init script (rol `syntax_app`) + Alembic (config + env async + `script.py.mako`) + migración `0001` (GRANTs + extensión + tablas/índices no-ANN + RLS-policy con bypass en 7 negocio) + fixture test-DB + **test drift `compare_metadata`** + **smoke `relrowsecurity`** (7 negocio true / KB+identidad false) · depends_on: 05
