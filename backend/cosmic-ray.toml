@@ -3,10 +3,10 @@
 # mantiene el gate en segundos). `test-command` corre los tests de ese módulo.
 # Sesión (SQLite) generada por `cosmic-ray init` → gitignore.
 [cosmic-ray]
-module-path = "app/core/config.py"
+module-path = "app/infra/db/alembic_url.py"
 timeout = 30.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_config.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_migration.py::test_migration_url_missing_raises_clear_error"
 
 [cosmic-ray.distributor]
 name = "local"

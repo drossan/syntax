@@ -25,3 +25,4 @@
 | [0013](./0013-arranque-fase-2-backend-codigo-real.md) | Arranque de Fase 2 del backend (código real, TDD) | accepted | 2026-08-14 |
 | [0014](./0014-backend-mutation-testing-cosmic-ray.md) | Backend: mutation testing con cosmic-ray (mutmut descartado) | accepted | 2026-08-15 |
 | [0015](./0015-backend-observabilidad-structlog-request-id.md) | Backend: observabilidad con structlog + request-id por contextvars | accepted | 2026-08-15 |
+| [0016](./0016-rls-via-rol-dedicado-no-superuser-y-guc-de-bypass.md) | RLS multi-tenant vía rol dedicado no-superuser + GUC de bypass por transacción (refina 0006) | accepted | 2026-08-16 |

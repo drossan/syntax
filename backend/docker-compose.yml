@@ -15,10 +15,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-syntax}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-syntax}
       POSTGRES_DB: ${POSTGRES_DB:-syntax}
+      # Password out-of-band del rol runtime `syntax_app` (la aplica el init script).
+      SYNTAX_APP_PASSWORD: ${SYNTAX_APP_PASSWORD:-syntax_app}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Init script (solo 1ª init): crea el rol no-superuser `syntax_app` (ADR-0016).
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       # `pg_isready` con el usuario real → el `api` solo arranca con la DB lista.
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-syntax} -d ${POSTGRES_DB:-syntax}"]
