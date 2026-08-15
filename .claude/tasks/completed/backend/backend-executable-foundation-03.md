@@ -2,13 +2,13 @@
 id: backend-executable-foundation-03
 package: backend
 plan: executable-foundation
-status: pending
+status: done
 priority: 1
 depends_on: [backend-executable-foundation-02]
 estimate: 2.5h
-actual:
+actual: ~4h
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # Settings inyectables + CORS_ORIGINS (app/core/config.py)
@@ -16,8 +16,9 @@ updated: 2026-08-14
 ## Description
 
 Primera tarea de **código real (TDD)**. Implementa la configuración por entorno **inyectable y sin
-efectos en import**, base de todas las capas. Es también el **shakeout del toolchain mutmut** (primer
-gate de mutation real). Guión: `backend/app/core/config.py`; spec: NFR-003, `IMPLEMENTATION-GUIDE` §3.
+efectos en import**, base de todas las capas. Es también el **shakeout del toolchain de mutation** (primer
+gate real; `mutmut` no puntuó → se adoptó **cosmic-ray**, ADR-0014). Guión: `backend/app/core/config.py`;
+spec: NFR-003, `IMPLEMENTATION-GUIDE` §3.
 
 ## Spec
 
@@ -111,14 +112,14 @@ logging (05), la app factory (06) y todas las capas posteriores; `cors_origins` 
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario Gherkin tiene al menos un test (feliz + bordes: import sin entorno, tipo inválido, extra=ignore, defaults/override B.1, CORS ausente/vacío/uno/espacios/duplicados).
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible: `get_settings()` inyectable sin efectos en import + fixture de reset del `lru_cache` en `conftest.py`.
-- [ ] `ruff check` + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `mutmut` (`break: 80`) sobre `app/core/config.py` — **primer run e2e (shakeout)**; si mutmut resulta inviable, parar y avisar.
-- [ ] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU — infra; anclada a NFR-003).
-- [ ] Gate de `fact-checker` (tras mutation, antes de commit/resumen).
-- [ ] Documentación: docstrings en `Settings`/`get_settings`; session log.
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario Gherkin tiene al menos un test (feliz + bordes: import sin entorno, tipo inválido, extra=ignore, defaults/override B.1, CORS ausente/vacío/uno/espacios/duplicados).
+- [x] Todos los tests en verde (`make test`).
+- [x] `Provides` disponible: `get_settings()` inyectable sin efectos en import + fixture de reset del `lru_cache` en `conftest.py`.
+- [x] `ruff check` + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`make mutation`, survival ≤ 20% = score ≥ 80) sobre `app/core/config.py` — score **91.7%**, 1 mutante **equivalente** documentado (`@classmethod` sin uso de `cls`).
+- [x] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU — infra; anclada a NFR-003).
+- [x] Gate de `fact-checker` (tras mutation, antes de commit/resumen).
+- [x] Documentación: docstrings en `Settings`/`get_settings`; session log.
 
 <!-- github-tracking off → sin línea de proyección. Sin changeset (backend). -->

@@ -11,13 +11,13 @@ created: 2026-08-14
 updated: 2026-08-14
 ---
 
-# Logging estructurado (structlog) + request-id + ADR-0014 (app/core/logging.py)
+# Logging estructurado (structlog) + request-id + ADR-0015 (app/core/logging.py)
 
 ## Description
 
 Observabilidad transversal: logging **estructurado** con `structlog` y un **request-id** correlacionable
 por petición (`contextvar` + middleware). Guión: `backend/app/core/logging.py`; spec: NFR-004. Registra
-la elección de `structlog` en **ADR-0014**. El echo HTTP de extremo a extremo se prueba en integración en
+la elección de `structlog` en **ADR-0015**. El echo HTTP de extremo a extremo se prueba en integración en
 la tarea 06; aquí, unidad (invocando el dispatch del middleware con `request`/`call_next` dobles).
 
 ## Spec
@@ -35,7 +35,7 @@ la tarea 06; aquí, unidad (invocando el dispatch del middleware con `request`/`
 - `get_request_id() -> str | None`.
 - Un processor de structlog inyecta el `request_id` en **cada** log de la request.
 - **No** loguear secretos/PII (tokens, `Authorization`, cookies, contraseñas).
-- ADR-0014 (structlog/observabilidad, MADR).
+- ADR-0015 (structlog/observabilidad, MADR).
 
 ## Fuera de alcance
 
@@ -45,7 +45,7 @@ la tarea 06; aquí, unidad (invocando el dispatch del middleware con `request`/`
 ## Scenarios (Gherkin)
 
 <!-- SDD: infra transversal sin CU de actor → Gherkin LOCAL, "sin cambios de spec/CU". Ancla NFR-004 +
-     guión de logging.py. Crea ADR-0014 (MADR), validado por /sdd-lint. Endurecido por scenario-coverage:
+     guión de logging.py. Crea ADR-0015 (MADR), validado por /sdd-lint. Endurecido por scenario-coverage:
      concurrencia, idempotencia, CRLF, id gigante/vacío, reset del contextvar, no-PII. -->
 
 ```gherkin
@@ -126,8 +126,8 @@ montados por la app factory (06) y usados por todas las capas que logueen.
 - [ ] `Provides` disponible; sin efectos en import; `configure_logging` idempotente.
 - [ ] `ruff check` + `ruff format --check` + `mypy` strict OK.
 - [ ] Gate de mutation `mutmut` (`break: 80`) sobre `app/core/logging.py`.
-- [ ] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU — infra; ADR-0014 MADR bien formado).
+- [ ] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU — infra; ADR-0015 MADR bien formado).
 - [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings; **ADR-0014** (structlog/observabilidad, doc técnica); session log.
+- [ ] Documentación: docstrings; **ADR-0015** (structlog/observabilidad, doc técnica); session log.
 
 <!-- github-tracking off. Sin changeset (backend). -->

@@ -3,7 +3,7 @@
 > Package **`backend`** de Syntax: **FastAPI + LangChain/LangGraph/LangSmith + Postgres/pgvector**.
 > La fase de **esqueleto doc-only** (plan `skeleton-foundation`) está **completada**: existen los ficheros
 > con su guión + specs + scaffolding. A partir de aquí el package **implementa código real con TDD**
-> (`stack.packages.backend`: `pytest` + `mutmut`, activado 2026-08-14). Flujo canónico:
+> (`stack.packages.backend`: `pytest` + `cosmic-ray`, activado 2026-08-14). Flujo canónico:
 > `docs/guides/task-lifecycle.md`. El **qué/cómo/por qué** de cada tarea sale de la capa SDD: `spec.md`
 > (EARS) · `casos-de-uso/CU-BE-*` (Gherkin) · ADR.
 
@@ -38,7 +38,7 @@
 >    **dominio no importa infra**; puertos (interfaces) en `domain/ports`, adaptadores en `infra/`;
 >    Pydantic v2; handlers `async`; **settings inyectables** (sin efectos en import); **cero secretos en código**.
 > 5. Cierre — **toda** la DoD: `make test` (pytest) verde · **ruff + mypy strict** · **gate de mutation
->    `mutmut` (`break: 80`)** sobre los ficheros tocados (survivor por debajo = assert/escenario que falta) ·
+>    `cosmic-ray` (`break: 80`)** sobre los ficheros tocados (survivor por debajo = assert/escenario que falta) ·
 >    documentación en tres capas (docstrings + doc técnica/specs/ADR + session log).
 > 6. **Gate `/sdd-lint`** (SDD): valida los artefactos (spec EARS · CU Gherkin · ADR MADR) — tras `mutation`,
 >    antes de `fact-checker`; un ERROR bloquea.
@@ -61,7 +61,7 @@ Ejecuta con el ciclo TDD. REGLAS ESTRICTAS:
 - GATE TDD: status active + depends_on done; rama del plan; test rojo ANTES (1:1 desde el CU enlazado).
 - Hexagonal (dominio no importa infra); RLS y HITL con integración OBLIGATORIA; mypy strict + ruff; cero secretos.
 - Commits `<task-id>: <conventional commit>` en la rama del plan.
-Al terminar: `make test` verde + ruff/mypy + gate mutmut(break:80) + `/sdd-lint` + `fact-checker`;
+Al terminar: `make test` verde + ruff/mypy + gate cosmic-ray(break:80) + `/sdd-lint` + `fact-checker`;
 docs 3 capas; cerrar session log; mover task a completed/ + `[x]` en el plan; siguiente tarea.
 ```
 

@@ -8,6 +8,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+# cosmic-ray: sesión de mutation (generada por `make mutation`)
+session.sqlite
 
 # Secretos / entorno (se versiona solo .env.example)
 .env

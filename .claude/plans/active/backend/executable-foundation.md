@@ -83,7 +83,7 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
   (secret/algorithm/ttl/now **por parámetro**; el wiring a `get_settings()` es del plan de auth). `decode` fija
   `algorithms=[algorithm]` (rechaza `alg=none`/confusión). Dos grupos de escenarios.
 - `app/core/logging.py` (tarea 05): `configure_logging(settings)` con **`structlog`** (JSON en prod, legible en
-  dev) + request-id (`contextvar` + middleware) + `get_request_id()`; **ADR-0014** (observabilidad/structlog).
+  dev) + request-id (`contextvar` + middleware) + `get_request_id()`; **ADR-0015** (observabilidad/structlog).
 - `app/main.py` (tarea 06): `create_app()` factory + middleware (request-id, **CORS**) + handlers de error
   problem+json (**404/405/422 con `errors[]`/500**, con **i18n por `Accept-Language`** — NFR-007) + `GET
   /health/live`; documentar que `/health/ready` + alias `/health` llegan en el plan de capa DB.
@@ -115,7 +115,7 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
   `.claude/specs/general/coding-standards.md`. Casos de uso que **consumen** las primitivas de la tarea 04:
   `casos-de-uso/CU-BE-01` (login → access) y `CU-BE-02` (fijar contraseña Argon2id).
 - ADRs: 0001 (git flow — nota F8), 0003 (SPA), 0004 (auth JWT — refresh/rotación fuera de alcance aquí),
-  **0012** (fase 1 doc-only → **superado por ADR-0013**, tarea 02). ADR-0014 (structlog) en la tarea 05.
+  **0012** (fase 1 doc-only → **superado por ADR-0013**, tarea 02). ADR-0015 (structlog) en la tarea 05.
 - Config del pipeline: `mode: full`, backend `pytest`+`mutmut`+`break:80` (**camino mutmut marcado "no
   verificado" por el plugin → se sanea en la tarea 01**), **SDD on**, git-automation (auto-commit al cerrar
   tarea, auto-pr al cerrar plan), fact-checker en `sonnet`.
@@ -154,9 +154,9 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
 
 - [x] `backend-executable-foundation-01` (P1) — Entorno ejecutable: lockfiles (`make install` compila ambos, dev `-c`) + deps (structlog/mutmut/pip-tools) + docker db + smoke-import + pin/verificar mutmut  · depends_on: —  · **done 2026-08-15**
 - [x] `backend-executable-foundation-02` (P1) — Scaffold tests + smoke + ADR-0013 (supersede 0012) + adr-index + nota ADR-0001  · depends_on: backend-executable-foundation-01  · **done 2026-08-15**
-- [ ] `backend-executable-foundation-03` (P1) — Settings inyectables + `CORS_ORIGINS` (`app/core/config.py`)  · depends_on: backend-executable-foundation-02
+- [x] `backend-executable-foundation-03` (P1) — Settings inyectables + `CORS_ORIGINS` (`app/core/config.py`)  · depends_on: backend-executable-foundation-02  · **done 2026-08-15**
 - [ ] `backend-executable-foundation-04` (P1) — Primitivas de seguridad sin estado: Argon2id + JWT access (`app/core/security.py`)  · depends_on: backend-executable-foundation-02
-- [ ] `backend-executable-foundation-05` (P1) — Logging estructurado (`structlog`) + request-id + ADR-0014 (`app/core/logging.py`)  · depends_on: backend-executable-foundation-03
+- [ ] `backend-executable-foundation-05` (P1) — Logging estructurado (`structlog`) + request-id + ADR-0015 (`app/core/logging.py`)  · depends_on: backend-executable-foundation-03
 - [ ] `backend-executable-foundation-06` (P1) — App factory + `/health/live` + CORS + envelope problem+json (`app/main.py`)  · depends_on: backend-executable-foundation-03, backend-executable-foundation-05
 
 > Orden sugerido: **01** → **02** → (**03**, **04**) → **05** → **06**. Una sola tarea `active` por plan
@@ -168,12 +168,12 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
 - **Rama**: crear `plan/backend/executable-foundation` **desde `main`** (convención de facto del repo; no hay
   `dev` — decidido en grilling 2026-08-14; ADR-0001 se anota en la tarea 02, F8).
 - **ADRs** (los redacta el asistente, el owner revisa): 0013 (arranque Fase 2, supersede 0012) en la tarea 02;
-  0014 (structlog/observabilidad) en la tarea 05.
+  0015 (structlog/observabilidad) en la tarea 05.
 
 ## Registro de cambios del plan
 
 - 2026-08-14: creado (draft para aprobación).
-- 2026-08-14: refinado con `grilling` (9 preguntas, 9 decisiones). Cambios: +`structlog` (runtime dep, ADR-0014);
+- 2026-08-14: refinado con `grilling` (9 preguntas, 9 decisiones). Cambios: +`structlog` (runtime dep, ADR-0015);
   +`pip-tools`/`mutmut` en dev; **CORS incluido ya** (+ setting `CORS_ORIGINS`); **seguridad partida** en 2 tareas;
   `/health/ready` **diferido** (solo `/health/live`); precondición = full-install + smoke-import; rama **desde
   `main`**; **ADR-0013** (arranque Fase 2, supersede 0012); scaffold `tests/` + smoke (carve-out) para `make test`
@@ -200,3 +200,8 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
   **diferida** al plan de auth (primitiva pura); **diseño JWT** → **puras con parámetros explícitos** (resuelve
   el wiring 03↔04). **(B) fuera de alcance**: todos consistentes con el plan (refresh/reuse/logout, throttling,
   `/health/ready`, `deps.py`, `/metrics`, RLS, verificación LangGraph) → **mantenidos diferidos** a sus planes.
+- 2026-08-15: en la tarea 03, el gate de mutation `mutmut` **no puntuó** el código pydantic (no instrumenta
+  funciones decoradas ni campos de clase; F3 materializado). Tras spike + evaluación, **se adopta `cosmic-ray`**
+  como herramienta de mutation del backend (**ADR-0014**): `stack.packages.backend.mutation-tool: cosmic-ray`
+  + `mutation-command: "make mutation"`; config en `backend/cosmic-ray.toml`; `mutmut` retirado. `config.py`
+  puntuó **91.7%** (1 mutante equivalente documentado). La ADR de structlog se renumeró **0014→0015**.

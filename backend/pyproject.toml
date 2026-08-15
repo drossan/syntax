@@ -28,7 +28,7 @@ select = ["E", "W", "F", "I", "UP", "B", "ASYNC", "S", "SIM", "TID"]
 ignore = ["E501"]  # el formatter gestiona el ancho de línea
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]  # assert permitido en tests
+"tests/**" = ["S101", "S105", "S106"]  # assert + secretos/contraseñas dummy permitidos en tests
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 # Guardarraíl HEXAGONAL: el dominio NO importa infra. Se endurece cuando exista
@@ -59,9 +59,5 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra -q"
 
-# ── Mutmut 3.7.0 (gate de mutation) ────────────────────────────────────────────
-# mutmut 3.x usa `source_paths` (2.x usaba `paths_to_mutate`). Invocación: `mutmut run`
-# (muta source_paths y corre pytest) → `mutmut results` (survivors). Sobre ficheros
-# tocados en cada tarea (gate break:80).
-[tool.mutmut]
-source_paths = ["app/"]
+# Mutation testing: cosmic-ray (config en backend/cosmic-ray.toml; gate `make mutation`).
+# mutmut se descartó: 3.x no instrumenta funciones decoradas ni campos pydantic (ADR-0015).

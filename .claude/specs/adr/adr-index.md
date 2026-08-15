@@ -6,7 +6,7 @@
 > lexicográfico). El **estado de cada fila es el de su ADR** (`proposed` / `accepted` / `rejected` /
 > `deprecated` / `superseded`). Las decisiones **0001–0012** se **tomaron el 2026-08-11** (`grilling` +
 > `design-review` de los planes) y se **materializaron como ADR** el 2026-08-14 al activar la capa SDD;
-> **0013** (arranque de Fase 2) se decidió el 2026-08-14 y se materializó al arrancar `plan/backend/executable-foundation`.
+> las **0013+** son decisiones posteriores de la Fase 2 del backend, con su propia fecha por fila (2026-08-14/15).
 
 | #    | Título                                                              | Estado   | Fecha      |
 |------|--------------------------------------------------------------------|----------|------------|
@@ -23,3 +23,4 @@
 | [0011](./0011-entrega-draft-por-polling-no-sse-fase-1.md) | Entrega del draft por polling (no streaming SSE en Fase 1) | accepted | 2026-08-11 |
 | [0012](./0012-backend-fase-1-doc-only-fase-2-diferida.md) | Backend Fase 1 doc-only; Fase 2 diferida | superseded (0013) | 2026-08-11 |
 | [0013](./0013-arranque-fase-2-backend-codigo-real.md) | Arranque de Fase 2 del backend (código real, TDD) | accepted | 2026-08-14 |
+| [0014](./0014-backend-mutation-testing-cosmic-ray.md) | Backend: mutation testing con cosmic-ray (mutmut descartado) | accepted | 2026-08-15 |
