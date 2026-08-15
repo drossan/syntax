@@ -30,6 +30,7 @@ from app.infra.db.models.identity import (
     User,
     UserRole,
 )
+from app.infra.db.models.kb import Embedding, KBChunk, KBDocument
 
 __all__ = [
     "AgentRun",
@@ -38,6 +39,9 @@ __all__ = [
     "AuditLog",
     "AuthToken",
     "Capability",
+    "Embedding",
+    "KBChunk",
+    "KBDocument",
     "Message",
     "Notification",
     "RefreshSession",
