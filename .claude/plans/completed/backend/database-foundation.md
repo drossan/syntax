@@ -1,10 +1,10 @@
 ---
 id: backend-database-foundation
 package: backend
-status: active
+status: completed
 branch: plan/backend/database-foundation
 created: 2026-08-15
-updated: 2026-08-15
+updated: 2026-08-16
 ---
 
 # Backend — Capa de datos + RLS multi-tenant + readiness (schema · migración · session · repos base · /health/ready)
@@ -179,7 +179,7 @@ migración inicial Alembic y el **readiness** que comprueba DB + extensión pgve
 - [x] `backend-database-foundation-06` (P1) — Init script (rol `syntax_app`) + Alembic (config + env async + `script.py.mako`) + migración `0001` (GRANTs + extensión + tablas/índices no-ANN + RLS-policy con bypass en 7 negocio) + fixture test-DB + **test drift `compare_metadata`** + **smoke `relrowsecurity`** (7 negocio true / KB+identidad false) · depends_on: 05
 - [x] `backend-database-foundation-07` (P1) — `session.py` (engine `syntax_app` + sessionmaker + helper contexto RLS + GUC bypass) + tests de aislamiento (footgun/global: conexión `syntax_app`, commit + `TRUNCATE`) · depends_on: 06 · **traza CU-BE-03**
 - [x] `backend-database-foundation-08` (P1) — `BaseRepository` tenant-aware (CRUD + filtro `tenant_id`) · depends_on: 07
-- [ ] `backend-database-foundation-09` (P1) — `/health/ready` + alias `/health` (DB + pgvector + dim viva == settings) + `deps.get_db_session` · depends_on: 07
+- [x] `backend-database-foundation-09` (P1) — `/health/ready` + alias `/health` (DB + pgvector + dim viva == settings) + `deps.get_db_session` · depends_on: 07
 
 > Orden: 01 → 02 → 03 → 04 → 05 → 06 → 07 → (08, 09). Una sola tarea `active` por plan.
 
@@ -222,6 +222,18 @@ migración inicial Alembic y el **readiness** que comprueba DB + extensión pgve
   migración solo GRANTs (M1/M2). `BaseRepository` **se mantiene** (especulativo aceptado, puede remodelarse en el
   plan 10) (L5). **Resiste** (validado por el reviewer): ANN diferido, sin `FORCE RLS`, `deps` limitado, orden de
   dependencias, `/health/ready` 200/503, reúso de `db` de compose.
+- 2026-08-16: **plan COMPLETADO** (9/9 tareas). Ejecutado con TDD por el asistente (a petición del owner:
+  "esta vez te encargas tú de escribir el código"). Todas las tareas: tests → gates (ruff+`S` / mypy strict /
+  cosmic-ray / `/sdd-lint` / `fact-checker`) → commit en la rama. **Retro (estimación vs real)**: estimado
+  ~4-5 sesiones / ~20h; real ~8h en una sesión asistida (config→base→modelos rápido; el peso real estuvo en
+  06/07 — Alembic async + RLS + footgun). **Sorpresas/dependencias no vistas**: (1) `psycopg` instalado pero
+  **sin `libpq`** → se usó **asyncpg** para el mantenimiento de test (sin deps nuevas); (2) **bug real** en el
+  predicado RLS: tras reúso del pool el GUC vuelve a `''` (no NULL) y `''::uuid` lanzaba → arreglado con
+  `NULLIF(..., '')` (fail-closed correcto); (3) el init script del rol solo corre en la 1ª init del volumen →
+  la fixture asegura el rol idempotentemente; (4) `compare_metadata` agrupa cambios de columna en sublistas y
+  detecta CHECK → aplanar + excluir CHECK del drift. **Qué hacer distinto**: en la 09 se escribió impl+tests
+  juntos (solo pasada GREEN) — mantener RED explícito también en tareas de composición. **Nueva ADR-0016**.
+  Doc didáctica para el owner: `backend/docs/database-foundation-explicado.md`.
 - 2026-08-15: endurecido con `scenario-coverage` (subagente QA sonnet, 8 dimensiones sobre las 9 tareas).
   **(A) Dentro de alcance — incorporados**: **07** reset del GUC `bypass_rls` entre conexiones del pool (footgun
   espejo), `WITH CHECK` rechaza escritura cross-tenant, `tenant_id` malformado → error controlado, GUC descartado

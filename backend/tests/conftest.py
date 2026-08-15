@@ -135,6 +135,12 @@ def check_reachable() -> object:
 
 
 @pytest.fixture(scope="session")
+def app_db_url(migrated_database: str) -> str:
+    """URL SQLAlchemy de `syntax_test` como `syntax_app` (para readiness / deps)."""
+    return app_test_url()
+
+
+@pytest.fixture(scope="session")
 def alembic_config(migrated_database: str) -> Config:
     """Config de Alembic apuntando a `syntax_test` (para tests de up/downgrade)."""
     config = Config(str(_BACKEND_ROOT / "alembic.ini"))
