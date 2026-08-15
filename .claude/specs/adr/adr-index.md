@@ -24,3 +24,4 @@
 | [0012](./0012-backend-fase-1-doc-only-fase-2-diferida.md) | Backend Fase 1 doc-only; Fase 2 diferida | superseded (0013) | 2026-08-11 |
 | [0013](./0013-arranque-fase-2-backend-codigo-real.md) | Arranque de Fase 2 del backend (código real, TDD) | accepted | 2026-08-14 |
 | [0014](./0014-backend-mutation-testing-cosmic-ray.md) | Backend: mutation testing con cosmic-ray (mutmut descartado) | accepted | 2026-08-15 |
+| [0015](./0015-backend-observabilidad-structlog-request-id.md) | Backend: observabilidad con structlog + request-id por contextvars | accepted | 2026-08-15 |

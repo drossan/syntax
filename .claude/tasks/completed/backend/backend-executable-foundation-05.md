@@ -2,13 +2,13 @@
 id: backend-executable-foundation-05
 package: backend
 plan: executable-foundation
-status: pending
+status: done
 priority: 1
 depends_on: [backend-executable-foundation-03]
 estimate: 2.5h
-actual:
+actual: ~2.5h
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # Logging estructurado (structlog) + request-id + ADR-0015 (app/core/logging.py)
@@ -120,14 +120,14 @@ montados por la app factory (06) y usados por todas las capas que logueen.
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario Gherkin tiene al menos un test (log lleva id; None sin contexto; genera/respeta/vacío/CRLF/gigante; concurrencia; reset; idempotencia; JSON vs consola por APP_ENV).
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; sin efectos en import; `configure_logging` idempotente.
-- [ ] `ruff check` + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `mutmut` (`break: 80`) sobre `app/core/logging.py`.
-- [ ] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU — infra; ADR-0015 MADR bien formado).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings; **ADR-0015** (structlog/observabilidad, doc técnica); session log.
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario Gherkin tiene al menos un test (log lleva id; None sin contexto; genera/respeta/vacío/CRLF/gigante; concurrencia; reset; idempotencia; JSON vs consola por APP_ENV). — 14 tests en `tests/test_logging.py`.
+- [x] Todos los tests en verde (`make test`). — 55 passed (suite completa).
+- [x] `Provides` disponible; sin efectos en import; `configure_logging` idempotente.
+- [x] `ruff check` + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation **`cosmic-ray`** (`fail-over 20` = `break: 80`; ADR-0014, supersede `mutmut`) sobre `app/core/logging.py` → survival **4.08%** (2 supervivientes equivalentes documentados: `is not` por interning + `cache_logger_on_first_use` flag de rendimiento).
+- [x] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU — infra; ADR-0015 MADR bien formado). AVISO menor (Then compuesto) reconocido.
+- [x] Gate de `fact-checker` — 9/9 afirmaciones VERIFICADAS.
+- [x] Documentación: docstrings; **ADR-0015** (structlog/observabilidad, doc técnica) + `adr-index`; session log.
 
 <!-- github-tracking off. Sin changeset (backend). -->
