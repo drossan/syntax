@@ -1,7 +1,7 @@
 ---
 id: backend-executable-foundation
 package: backend
-status: active
+status: completed
 branch: plan/backend/executable-foundation
 created: 2026-08-14
 updated: 2026-08-15
@@ -157,7 +157,7 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
 - [x] `backend-executable-foundation-03` (P1) — Settings inyectables + `CORS_ORIGINS` (`app/core/config.py`)  · depends_on: backend-executable-foundation-02  · **done 2026-08-15**
 - [x] `backend-executable-foundation-04` (P1) — Primitivas de seguridad sin estado: Argon2id + JWT access (`app/core/security.py`)  · depends_on: backend-executable-foundation-02  · **done 2026-08-15**
 - [x] `backend-executable-foundation-05` (P1) — Logging estructurado (`structlog`) + request-id + ADR-0015 (`app/core/logging.py`)  · depends_on: backend-executable-foundation-03  · **done 2026-08-15**
-- [ ] `backend-executable-foundation-06` (P1) — App factory + `/health/live` + CORS + envelope problem+json (`app/main.py`)  · depends_on: backend-executable-foundation-03, backend-executable-foundation-05
+- [x] `backend-executable-foundation-06` (P1) — App factory + `/health/live` + CORS + envelope problem+json (`app/main.py`)  · depends_on: backend-executable-foundation-03, backend-executable-foundation-05  · **done 2026-08-15**
 
 > Orden sugerido: **01** → **02** → (**03**, **04**) → **05** → **06**. Una sola tarea `active` por plan
 > (comparten rama). El Gherkin definitivo de cada tarea se materializa tras la aprobación del plan (Paso 5 de
@@ -200,6 +200,11 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
   **diferida** al plan de auth (primitiva pura); **diseño JWT** → **puras con parámetros explícitos** (resuelve
   el wiring 03↔04). **(B) fuera de alcance**: todos consistentes con el plan (refresh/reuse/logout, throttling,
   `/health/ready`, `deps.py`, `/metrics`, RLS, verificación LangGraph) → **mantenidos diferidos** a sus planes.
+- 2026-08-15: tarea **06 done** (`app/main.py`) — **cierra el plan**: `create_app()` (valida settings, monta
+  request-id + CORS, handlers problem+json 404/405/422/500 con i18n `Accept-Language`) + `GET /health/live` +
+  `app` para uvicorn. 22 tests integración (`httpx.ASGITransport`); suite **77 passed**; ruff+mypy strict;
+  **cosmic-ray survival 1.08%** (1 equivalente `Eq_Is` por string interning); sdd-lint sin ERROR; fact-checker
+  8/9 (corregida la cifra de mutation 0.00%→1.08%). README actualizado; `make run` ya operativo.
 - 2026-08-15: tarea **05 done** (`app/core/logging.py`): logging estructurado structlog (JSON/consola por
   `APP_ENV`, idempotente) + request-id por contextvars (`get_request_id`) + `RequestIDMiddleware` (sanea CRLF/
   recorta 128/uuid4, `bound_contextvars` con reset, echo `X-Request-ID`). 14 tests TDD; suite 55 passed;
@@ -215,3 +220,19 @@ request-id, app factory y `/health/live` — sobre las que se apoyan todas las c
   como herramienta de mutation del backend (**ADR-0014**): `stack.packages.backend.mutation-tool: cosmic-ray`
   + `mutation-command: "make mutation"`; config en `backend/cosmic-ray.toml`; `mutmut` retirado. `config.py`
   puntuó **91.7%** (1 mutante equivalente documentado). La ADR de structlog se renumeró **0014→0015**.
+
+## Nota retro (plan cerrado 2026-08-15)
+
+- **Estimación vs real**: 6 tareas, ~3–4 sesiones estimadas; cerrado en 1 sesión larga (01–03 en sesiones
+  previas; 04–06 en esta). El riesgo concentrado en la 01 (compilar el árbol nativo) se resolvió sin fricción.
+- **Sorpresa 1 (mutation)**: `mutmut` no puntúa pydantic/decoradores → migración a `cosmic-ray` a mitad del
+  plan (ADR-0014). Coste extra en la 03; a partir de ahí, scope por tarea manual en `cosmic-ray.toml`.
+- **Sorpresa 2 (mutante no determinista)**: `cosmic-ray` genera `==`→`is` sobre literales string; su
+  supervivencia depende del *string interning* (resultado no reproducible run-a-run). Lección: `x is "literal"`
+  es anti-patrón y su mutante es **equivalente**; documentarlo, no perseguirlo. El fact-checker destapó una
+  cifra de mutation reportada de más (0.00% vs 1.08% real) → reforzar: leer el survivor, no fiarse de un run.
+- **Sorpresa 3 (Starlette 1.6.0)**: el footgun de contextvars de `BaseHTTPMiddleware` (que preocupaba para la
+  05/06) **no aplica**: propaga al endpoint (verificado en spike). El 500 exige `raise_app_exceptions=False`
+  en los tests con `httpx.ASGITransport`.
+- **Deuda declarada** (planes posteriores): `/health/ready` + alias `/health` (capa DB), request-id en 500,
+  integración de logs uvicorn/stdlib, política de contraseña (auth), wiring de `security.py` a `get_settings()`.

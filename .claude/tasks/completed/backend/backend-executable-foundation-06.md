@@ -2,13 +2,13 @@
 id: backend-executable-foundation-06
 package: backend
 plan: executable-foundation
-status: pending
+status: done
 priority: 1
 depends_on: [backend-executable-foundation-03, backend-executable-foundation-05]
 estimate: 3h
-actual:
+actual: ~3h
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # App factory + /health/live + CORS + envelope problem+json (app/main.py)
@@ -148,15 +148,15 @@ sobre el que los planes de routers montarán sus endpoints. Cierra el plan `exec
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario Gherkin tiene al menos un test (construcción, settings inválidas, liveness, request-id gen/echo/en-error, correlación e2e, 404/422/500/405 problem+json, /health(/ready) 404 limpio, i18n Accept-Language, CORS permitido/denegado/dev-permisivo).
-- [ ] Todos los tests en verde (`make test`, integración `httpx.ASGITransport`).
-- [ ] `Provides` disponible: `create_app()`/`app` arrancan sin efectos en import.
-- [ ] `ruff check` + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `mutmut` (`break: 80`) sobre `app/main.py`.
-- [ ] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU — infra/composición).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings; nota en `backend/README.md` sobre `/health/live` (y `/health/ready` diferido) + i18n del envelope; session log.
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario Gherkin tiene al menos un test (construcción, settings inválidas, liveness, request-id gen/echo/en-error, correlación e2e, 404/422/500/405 problem+json, /health(/ready) 404 limpio, i18n Accept-Language, CORS permitido/denegado/dev-permisivo). — 22 tests en `tests/test_main.py`.
+- [x] Todos los tests en verde (`make test`, integración `httpx.ASGITransport`). — 77 passed (suite completa).
+- [x] `Provides` disponible: `create_app()`/`app` arrancan sin efectos en import.
+- [x] `ruff check` + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation **`cosmic-ray`** (`fail-over 20` = `break: 80`; ADR-0014, supersede `mutmut`) sobre `app/main.py` → survival **1.08%** ≤ 20 (92 killed / 1 superviviente equivalente `Eq_Is` por string interning, documentado).
+- [x] Gate `/sdd-lint` sin ERROR (SDD: sin cambios de CU — infra/composición). AVISO reconocido: anchor i18n = `api-contract.md:42` (NFR-007 temático).
+- [x] Gate de `fact-checker` — 8/9 VERIFICADO; afirmación de mutation "0.00%" era **INCORRECTA** (no-determinismo del interning) → **corregida a 1.08%** y re-verificada (92 killed / 1 survived).
+- [x] Documentación: docstrings; nota en `backend/README.md` sobre `/health/live` (y `/health/ready` diferido) + i18n del envelope; session log.
 - [ ] Cierre del plan: última tarea → PR de `plan/backend/executable-foundation` a `main` (auto-pr; git-automation).
 
 <!-- github-tracking off. Sin changeset (backend). -->
