@@ -236,7 +236,7 @@ Scope pedido por el owner: `auth_service`, `rbac_service`, `ticket_service`, `ap
 
 ## Tasks
 
-- [ ] `backend-domain-services-01` (P1) — Entidades de dominio (identidad + negocio + `Subject`/
+- [x] `backend-domain-services-01` (P1) — Entidades de dominio (identidad + negocio + `Subject`/
   `Resource`/`AuditLogEntry`) + enums propios + test de drift dominio↔ORM · depends_on: —
 - [ ] `backend-domain-services-02` (P1) — `errors.py` (jerarquía + taxonomía HTTP-derivable + `PortError`)
   + puertos base: repositorios (incl. `ApprovalRepository.decide_if_pending` CAS, `AuditLogRepository`,

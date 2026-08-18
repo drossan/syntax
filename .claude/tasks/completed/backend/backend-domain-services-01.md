@@ -2,11 +2,11 @@
 id: backend-domain-services-01
 package: backend
 plan: domain-services
-status: pending
+status: done
 priority: 1
 depends_on: []
 estimate: 2h
-actual:
+actual: 0.6h
 issue:
 created: 2026-08-18
 updated: 2026-08-18
