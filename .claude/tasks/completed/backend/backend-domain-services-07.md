@@ -2,11 +2,11 @@
 id: backend-domain-services-07
 package: backend
 plan: domain-services
-status: pending
+status: done
 priority: 2
 depends_on: [backend-domain-services-02]
 estimate: 1.5h
-actual:
+actual: 0.8h
 issue:
 created: 2026-08-18
 updated: 2026-08-18
@@ -78,15 +78,17 @@ puerto `ChatModel` (recortado) en `app.domain.ports.llm`, consumidos por el nodo
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario del CU (alcance de esta tarea) tiene al menos un test, con `ChatModel` fake
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario del CU (alcance de esta tarea) tiene al menos un test, con `ChatModel` fake
   (dominio reconocible → `KbDomain` concreto; dominio incierto → `None`; fallo del fake → `PortError`;
   salida malformada → error de validación).
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; el dominio no importa `app.infra`; sin dependencia de `ticket_service`.
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre `classification.py` (`llm.py` es Protocol, N/A).
-- [ ] Gate `/sdd-lint` sin ERROR (CU-BE-05 Gherkin bien formado, enlace válido).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (por qué `dominio: KbDomain | None` en vez de `confidence`, por qué
+- [x] Todos los tests en verde (`make test`).
+- [x] `Provides` disponible; el dominio no importa `app.infra`; sin dependencia de `ticket_service`.
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre `classification.py` (`llm.py` es Protocol, N/A).
+  Resultado: 0.00% survival (4/4 mutantes matados).
+- [x] Gate `/sdd-lint` sin ERROR (CU-BE-05 Gherkin bien formado, enlace válido). 1 AVISO menor no
+  bloqueante, reconocido en el session log.
+- [x] Gate de `fact-checker`. 8/8 VERIFICADO, 0 INCORRECTO.
+- [x] Documentación: docstrings (por qué `dominio: KbDomain | None` en vez de `confidence`, por qué
   `ChatModel` solo tiene `classify` en este plan); session log con la traza a CU-BE-05.
