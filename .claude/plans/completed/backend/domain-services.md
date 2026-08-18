@@ -1,7 +1,7 @@
 ---
 id: backend-domain-services
 package: backend
-status: active
+status: completed
 branch: plan/backend/domain-services
 created: 2026-08-18
 updated: 2026-08-18
@@ -317,3 +317,26 @@ Scope pedido por el owner: `auth_service`, `rbac_service`, `ticket_service`, `ap
   `tenant.status=disabled`, atribución del actor de auditoría en la transición compuesta, política de
   contraseña, payload por `NotificationType`. Sección (B) del QA (fuera de alcance) confirmó sin sorpresas
   los huecos ya nombrados de FR-030 y CU-BE-09.
+- 2026-08-18: **plan COMPLETADO** (8/8 tareas). Ejecutado con TDD por el asistente (misma modalidad que
+  `database-foundation`: "tú te encargas de escribir el código"). Todas las tareas: tests → gates
+  (`ruff`+`S` / `ruff format` / `mypy` strict / `cosmic-ray` / `/sdd-lint` / `fact-checker`) → commit en
+  la rama. **Retro (estimación vs real)**: estimado ~3-4 sesiones; real ~1 sesión asistida (nivel unit
+  con fakes, sin Docker — mucho más rápido que la capa de datos). **Survivors de mutación aceptados en
+  todas las tareas de servicio** (documentados caso a caso en cada session log): comparaciones `==`/`is`
+  sobre singletons de `Enum` o sobre valores de un dominio cerrado ya validado por una guardia previa —
+  observacionalmente idénticas, ningún valor válido las distingue. **Bugs propios detectados y
+  corregidos durante el propio endurecimiento de mutación** (no en producción): unpacking erróneo de
+  fixture en `test_ticket_service.py` (04); UUIDs aleatorios reutilizados que enmascaraban mutaciones de
+  comparación en 03/04/06 (fix: `uuid.UUID(int=N)` deterministas); un test de `reset_password` (06) cuyo
+  `token_hash` literal nunca coincidía con el hash real calculado, probando sin querer solo la rama
+  "no encontrado" en vez de las 3 variantes parametrizadas. **Desviación real detectada en tarea 08**:
+  el guión asumía `AgentRunner.resume(thread_id, ...)` vía `updated.agent_run.thread_id`, pero
+  `ApprovalTask` (tareas 01/02) solo tiene `agent_run_id: uuid.UUID` — no embebe la entidad `AgentRun`.
+  Resuelto cambiando el puerto a `resume(agent_run_id, ...)`, coherente con la propia restricción de la
+  tarea de no inyectar `AgentRunRepository`; la traducción a `thread_id` real queda para el adaptador
+  (tarea 16). **Huecos de SDD detectados y reconocidos (no bloqueantes) durante `/sdd-lint`**: CU-BE-01
+  sin escenario para "refresh caducado" ni para FR-005 (capacidades fuera del JWT); CU-BE-02 sin
+  escenario de emisión del token de invitación; CU-BE-05 sin ajustar en qué nodo se marca la baja
+  confianza; CU-BE-06 sin escenario Gherkin propio para la creación de la `ApprovalTask(pending)` al
+  interrumpir el grafo (FR-026) — todos quedan como ajuste pendiente de los CUs, no bloquean código.
+  Doc didáctica para el owner: `backend/docs/domain-services-explicado.md`.
