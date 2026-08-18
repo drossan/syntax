@@ -238,7 +238,7 @@ Scope pedido por el owner: `auth_service`, `rbac_service`, `ticket_service`, `ap
 
 - [x] `backend-domain-services-01` (P1) — Entidades de dominio (identidad + negocio + `Subject`/
   `Resource`/`AuditLogEntry`) + enums propios + test de drift dominio↔ORM · depends_on: —
-- [ ] `backend-domain-services-02` (P1) — `errors.py` (jerarquía + taxonomía HTTP-derivable + `PortError`)
+- [x] `backend-domain-services-02` (P1) — `errors.py` (jerarquía + taxonomía HTTP-derivable + `PortError`)
   + puertos base: repositorios (incl. `ApprovalRepository.decide_if_pending` CAS, `AuditLogRepository`,
   orden/paginación explícitos) + `clock` + `email` · depends_on: 01
 - [ ] `backend-domain-services-03` (P1) — `rbac_service.authorize` (devuelve `Allow|Deny(reason)`,
