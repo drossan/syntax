@@ -6,8 +6,9 @@ middleware de request-id (``app.core.logging``) y CORS, registra los handlers de
 en ``.claude/specs/general/api-contract.md``) y expone ``GET /health/live``. Exporta ``app`` para uvicorn
 (``app.main:app``). Sin efectos en import (ni clientes ni conexiones): la validación de settings ocurre en el factory.
 
-``/health/ready`` y el alias ``/health`` (DB alcanzable + extensión pgvector) llegan en el plan de capa DB;
-hasta entonces responden 404 limpio.
+``GET /health/ready`` y el alias ``GET /health`` comprueban DB alcanzable + extensión pgvector + dimensión
+viva == ``settings.embedding_dim`` (200) o **503 problem+json** con el detalle del fallo (chequeo en
+``app.core.readiness``, acotado por timeout). ``GET /health/live`` no toca DB.
 """
 
 from typing import Any, cast
@@ -21,6 +22,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import Settings, get_settings
 from app.core.logging import RequestIDMiddleware, configure_logging
+from app.core.readiness import ReadinessError, check_database_ready
 
 _PROBLEM_MEDIA_TYPE = "application/problem+json"
 _DEFAULT_LANG = "es"
@@ -49,6 +51,10 @@ _MESSAGES: dict[int, dict[str, dict[str, str]]] = {
     500: {
         "es": {"title": "Error interno del servidor", "detail": "Ha ocurrido un error inesperado."},
         "en": {"title": "Internal Server Error", "detail": "An unexpected error occurred."},
+    },
+    503: {
+        "es": {"title": "Servicio no disponible", "detail": "El servicio no está listo."},
+        "en": {"title": "Service Unavailable", "detail": "The service is not ready."},
     },
 }
 _GENERIC_MESSAGE: dict[str, dict[str, str]] = {
@@ -159,6 +165,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """Liveness: el proceso responde. NO toca DB ni dependencias externas."""
         _logger.info("health_live")
         return {"status": "alive"}
+
+    @app.get("/health/ready")
+    @app.get("/health")
+    async def health_ready(request: Request) -> Response:
+        """Readiness: DB alcanzable + extensión pgvector + dimensión viva == config → 200.
+
+        Si algún chequeo falla → **503 application/problem+json** con el `detail` del fallo (usa el
+        mismo envelope que los errores). `/health` es un alias de `/health/ready`. NO cuelga: el
+        chequeo está acotado por timeout (una DB lenta → 503, no un cuelgue indefinido).
+        """
+        try:
+            await check_database_ready(settings.database_url, settings.embedding_dim)
+        except ReadinessError as exc:
+            _logger.warning("health_ready_failed", detail=str(exc))
+            return _problem_response(status=503, request=request, detail=str(exc))
+        return JSONResponse(content={"status": "ready"})
 
     return app
 

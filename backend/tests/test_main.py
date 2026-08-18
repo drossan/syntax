@@ -167,18 +167,6 @@ async def test_method_not_allowed_returns_405_problem_json() -> None:
     assert r.json()["title"] == "Método no permitido"
 
 
-@pytest.mark.parametrize("route", ["/health/ready", "/health"])
-async def test_deferred_health_routes_return_clean_404(route: str) -> None:
-    """/health/ready y el alias /health, diferidos, dan 404 limpio (no 500) problem+json."""
-    app = create_app(_settings())
-
-    async with _client(app) as c:
-        r = await c.get(route)
-
-    assert r.status_code == 404
-    assert r.headers["content-type"].startswith("application/problem+json")
-
-
 @pytest.mark.parametrize(
     ("lang", "expected_title"),
     [

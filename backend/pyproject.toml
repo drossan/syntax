@@ -48,7 +48,7 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 # Libs sin type-hints completos: no bloquean el strict del código propio.
-module = ["pgvector.*", "langgraph.*", "langsmith.*"]
+module = ["pgvector.*", "langgraph.*", "langsmith.*", "asyncpg.*"]
 ignore_missing_imports = true
 
 # ── Pytest ───────────────────────────────────────────────────────────────────

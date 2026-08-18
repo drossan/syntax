@@ -55,10 +55,12 @@ docker compose up --build     # `db` (sano) + `api`
 ```
 
 `GET /health/live` → **200** liveness (el proceso responde; no toca DB ni dependencias). `GET /health/ready`
-y el alias `GET /health` (conexión a DB + extensión pgvector) están **diferidos al plan de capa DB** y hasta
-entonces responden **404 limpio**. Los errores usan el envelope `application/problem+json` (RFC 9457:
-`{type, title, status, detail, errors[]}`), con `title`/`detail` **localizados por `Accept-Language`** (base
-`es` + `en`; fallback al base).
+y el alias `GET /health` → **200** si la DB es alcanzable, la extensión **pgvector** está instalada y la
+dimensión viva de `embedding.vector` coincide con `EMBEDDING_DIM`; si no, **503 `application/problem+json`**
+con el `detail` del chequeo que falló (chequeo acotado por timeout → una DB colgada no cuelga el endpoint).
+El `HEALTHCHECK` del contenedor `api` (→ `/health`) ya queda **verde**. Los errores usan el envelope
+`application/problem+json` (RFC 9457: `{type, title, status, detail, errors[]}`), con `title`/`detail`
+**localizados por `Accept-Language`** (base `es` + `en`; fallback al base).
 
 ## Calidad
 

@@ -104,3 +104,59 @@ def test_cors_origins_normalized(monkeypatch, raw, expected) -> None:
         monkeypatch.setenv("CORS_ORIGINS", raw)
 
     assert get_settings().cors_origins == expected
+
+
+# ── DB settings (tarea backend-database-foundation-01) ────────────────────────
+
+
+def test_database_url_read_from_environment(monkeypatch) -> None:
+    """DATABASE_URL del entorno se expone en settings.database_url."""
+    dsn = "postgresql+asyncpg://syntax_app:pw@db:5432/syntax"
+    monkeypatch.setenv("DATABASE_URL", dsn)
+    assert get_settings().database_url == dsn
+
+
+def test_database_url_defaults_to_syntax_app_dsn(monkeypatch) -> None:
+    """Sin DATABASE_URL (ni entorno ni .env) → DSN de dev del rol syntax_app."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert (
+        settings.database_url == "postgresql+asyncpg://syntax_app:syntax_app@localhost:5432/syntax"
+    )
+
+
+def test_database_url_empty_is_rejected(monkeypatch) -> None:
+    """DATABASE_URL presente pero vacío ('') → ValidationError (no cae al default)."""
+    monkeypatch.setenv("DATABASE_URL", "")
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+def test_embedding_dim_defaults_to_1536_int(monkeypatch) -> None:
+    """Sin EMBEDDING_DIM, embedding_dim es 1536 (int)."""
+    monkeypatch.delenv("EMBEDDING_DIM", raising=False)
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.embedding_dim == 1536
+    assert isinstance(settings.embedding_dim, int)
+
+
+@pytest.mark.parametrize("value", ["no-numérico", "0", "-1"])
+def test_embedding_dim_invalid_raises(monkeypatch, value) -> None:
+    """EMBEDDING_DIM no numérico o no físico (<=0, gt=0) aborta la carga."""
+    monkeypatch.setenv("EMBEDDING_DIM", value)
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+@pytest.mark.parametrize("value", ["1", "1536", "3072"])
+def test_embedding_dim_valid_positive(monkeypatch, value) -> None:
+    """EMBEDDING_DIM positivo es válido (frontera gt=0: el mínimo válido es 1)."""
+    monkeypatch.setenv("EMBEDDING_DIM", value)
+    assert get_settings().embedding_dim == int(value)
+
+
+def test_no_migration_database_url_field() -> None:
+    """La URL de migración (superuser) NO es campo de Settings (least-privilege)."""
+    settings = get_settings()
+    assert not hasattr(settings, "migration_database_url")
+    assert "migration_database_url" not in Settings.model_fields
