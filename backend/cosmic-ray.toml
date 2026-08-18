@@ -3,10 +3,10 @@
 # mantiene el gate en segundos). `test-command` corre los tests de ese módulo.
 # Sesión (SQLite) generada por `cosmic-ray init` → gitignore.
 [cosmic-ray]
-module-path = "app/domain/services/ticket_service.py"
-timeout = 90.0
+module-path = "app/domain/services/notification_service.py"
+timeout = 60.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_ticket_service.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_notification_service.py"
 
 [cosmic-ray.distributor]
 name = "local"

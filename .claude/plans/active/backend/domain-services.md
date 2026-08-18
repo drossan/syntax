@@ -245,7 +245,7 @@ Scope pedido por el owner: `auth_service`, `rbac_service`, `ticket_service`, `ap
   capacidad+ámbito, fail-closed, roles custom) · depends_on: 02
 - [x] `backend-domain-services-04` (P1) — `ticket_service` (máquina de estados —`reopen()` deja el ticket
   en `reopened`—, asignación, CSAT, auditoría) + puerto `SlaPolicy` (nace aquí) · depends_on: 02
-- [ ] `backend-domain-services-05` (P2) — `notification_service` (emitir/listar/marcar-leída,
+- [x] `backend-domain-services-05` (P2) — `notification_service` (emitir/listar/marcar-leída,
   desacoplado) · depends_on: 02
 - [ ] `backend-domain-services-06` (P1) — `auth_service` (login, refresh rotación+reuse-detection,
   reset/invitación) + primitiva nueva de token opaco en `app.core.security` · depends_on: 02
