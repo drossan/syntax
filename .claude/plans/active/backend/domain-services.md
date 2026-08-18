@@ -241,7 +241,7 @@ Scope pedido por el owner: `auth_service`, `rbac_service`, `ticket_service`, `ap
 - [x] `backend-domain-services-02` (P1) — `errors.py` (jerarquía + taxonomía HTTP-derivable + `PortError`)
   + puertos base: repositorios (incl. `ApprovalRepository.decide_if_pending` CAS, `AuditLogRepository`,
   orden/paginación explícitos) + `clock` + `email` · depends_on: 01
-- [ ] `backend-domain-services-03` (P1) — `rbac_service.authorize` (devuelve `Allow|Deny(reason)`,
+- [x] `backend-domain-services-03` (P1) — `rbac_service.authorize` (devuelve `Allow|Deny(reason)`,
   capacidad+ámbito, fail-closed, roles custom) · depends_on: 02
 - [ ] `backend-domain-services-04` (P1) — `ticket_service` (máquina de estados —`reopen()` deja el ticket
   en `reopened`—, asignación, CSAT, auditoría) + puerto `SlaPolicy` (nace aquí) · depends_on: 02
