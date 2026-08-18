@@ -53,6 +53,7 @@ SQLAlchemy 2.0 el estilo es:
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 ```
@@ -163,8 +164,8 @@ la sesión y las queries son todos `async`.
 RLS es la última línea. La **primera** es filtrar por `tenant_id` en el propio código:
 
 ```python
-class BaseRepository[T: TenantScoped]:      # PEP 695: genérico "moderno" (Python 3.12)
-    async def get(self, entity_id, tenant_id): ...   # WHERE id = ? AND tenant_id = ?
+class BaseRepository[T: TenantScoped]:  # PEP 695: genérico "moderno" (Python 3.12)
+    async def get(self, entity_id, tenant_id): ...  # WHERE id = ? AND tenant_id = ?
 ```
 
 - **Genéricos (`[T: TenantScoped]`)**: la clase funciona para *cualquier* modelo de negocio; `T` es el

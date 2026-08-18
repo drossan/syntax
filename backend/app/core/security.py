@@ -5,6 +5,8 @@ NO toca DB y NO lee config: recibe lo que necesita por parámetro. El wiring a g
 el servicio de auth en su plan.
 """
 
+import hashlib
+import secrets
 from datetime import UTC, datetime
 from typing import Any
 
@@ -13,6 +15,28 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 
 _hasher = PasswordHasher()
+_OPAQUE_TOKEN_BYTES = 32
+"""256 bits de entropía (`secrets.token_urlsafe` genera ~1.3 caracteres por byte)."""
+
+
+def new_opaque_token() -> str:
+    """Token opaco aleatorio (256 bits) para `refresh_session`/`auth_token`.
+
+    No es un JWT ni lleva payload: es un secreto que solo tiene sentido junto a su `hash_token()`
+    almacenado, buscado por igualdad.
+    """
+    return secrets.token_urlsafe(_OPAQUE_TOKEN_BYTES)
+
+
+def hash_token(token: str) -> str:
+    """Hash **determinista** (SHA-256) de un token opaco — buscable por igualdad en `token_hash`.
+
+    A diferencia de `hash_password` (Argon2id, salt aleatorio embebido → cada hash es distinto aunque
+    la contraseña sea la misma, por diseño), `token_hash` es `UNIQUE` y se busca por igualdad exacta:
+    Argon2 haría esa búsqueda imposible. No es para contraseñas humanas (sin salt, sin cómputo lento
+    a propósito) — el propio token ya tiene 256 bits de entropía aleatoria.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def hash_password(password: str) -> str:
