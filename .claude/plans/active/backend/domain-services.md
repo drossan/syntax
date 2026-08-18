@@ -251,7 +251,7 @@ Scope pedido por el owner: `auth_service`, `rbac_service`, `ticket_service`, `ap
   reset/invitación) + primitiva nueva de token opaco en `app.core.security` · depends_on: 02
 - [x] `backend-domain-services-07` (P2) — `classification` (contrato `dominio: KbDomain | None` +
   `classify()`) + puerto `ChatModel` recortado a `classify` (nace aquí) · depends_on: 02
-- [ ] `backend-domain-services-08` (P1) — `approval_service` (cola aislada por tenant, `decide()` compone
+- [x] `backend-domain-services-08` (P1) — `approval_service` (cola aislada por tenant, `decide()` compone
   `ApprovalRepository.decide_if_pending` [NotFound/Conflict] + transición a `pending` vía `ticket_service`
   + `AgentRunner.resume`; NO emite Message/toca agent_run; `auto_approve` fuera, es de la tarea 16) +
   puerto `AgentRunner` (nace aquí) · depends_on: 02, 04

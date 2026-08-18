@@ -2,11 +2,11 @@
 id: backend-domain-services-08
 package: backend
 plan: domain-services
-status: pending
+status: done
 priority: 1
 depends_on: [backend-domain-services-02, backend-domain-services-04]
 estimate: 3h
-actual:
+actual: 1.2h
 issue:
 created: 2026-08-18
 updated: 2026-08-18
@@ -121,20 +121,20 @@ LangGraph/checkpointer (16).
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario del CU (alcance de esta tarea) tiene al menos un test: approve→CAS+pending+resume,
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario del CU (alcance de esta tarea) tiene al menos un test: approve→CAS+pending+resume,
   edit→ídem con final_body (y rechazo si falta), reject→sin transición+human_note obligatorio, tarea
   inexistente→NotFound, doble decisión→Conflict sin segundo resume, cola aislada por tenant, fallo tras
   el CAS se propaga.
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; el dominio no importa `app.infra`; `approval_service` NO recibe
+- [x] Todos los tests en verde (`make test`).
+- [x] `Provides` disponible; el dominio no importa `app.infra`; `approval_service` NO recibe
   `MessageRepository`, `AgentRunRepository` ni `ApprovalPolicy` (verificar por la firma del constructor).
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre `approval_service.py` (`agent_runner.py` es
-  Protocol, N/A).
-- [ ] Gate `/sdd-lint` sin ERROR (CU-BE-06 Gherkin bien formado, enlace válido; aviso reconocido sobre el
-  hueco de "aprobar→pending" no fijado aún en el CU).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (por qué NO emite Message, por qué NO tiene `ApprovalPolicy`, contrato
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre `approval_service.py` (`agent_runner.py` es
+  Protocol, N/A). Resultado: 6.52% survival (3 equivalentes-en-dominio-cerrado, documentados en el log).
+- [x] Gate `/sdd-lint` sin ERROR (CU-BE-06 Gherkin bien formado, enlace válido; aviso reconocido sobre el
+  hueco de "aprobar→pending" no fijado aún en el CU). 2 AVISOS no bloqueantes, reconocidos en el log.
+- [x] Gate de `fact-checker`. 9/9 VERIFICADO, 0 INCORRECTO.
+- [x] Documentación: docstrings (por qué NO emite Message, por qué NO tiene `ApprovalPolicy`, contrato
   CAS, `ApprovalOutcome`, el riesgo conocido de fallo post-CAS); session log con la traza a CU-BE-06 y el
   hueco a incorporar al CU.
