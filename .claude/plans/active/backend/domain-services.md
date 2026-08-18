@@ -243,7 +243,7 @@ Scope pedido por el owner: `auth_service`, `rbac_service`, `ticket_service`, `ap
   orden/paginación explícitos) + `clock` + `email` · depends_on: 01
 - [x] `backend-domain-services-03` (P1) — `rbac_service.authorize` (devuelve `Allow|Deny(reason)`,
   capacidad+ámbito, fail-closed, roles custom) · depends_on: 02
-- [ ] `backend-domain-services-04` (P1) — `ticket_service` (máquina de estados —`reopen()` deja el ticket
+- [x] `backend-domain-services-04` (P1) — `ticket_service` (máquina de estados —`reopen()` deja el ticket
   en `reopened`—, asignación, CSAT, auditoría) + puerto `SlaPolicy` (nace aquí) · depends_on: 02
 - [ ] `backend-domain-services-05` (P2) — `notification_service` (emitir/listar/marcar-leída,
   desacoplado) · depends_on: 02
