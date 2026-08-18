@@ -2,11 +2,11 @@
 id: backend-domain-services-06
 package: backend
 plan: domain-services
-status: pending
+status: done
 priority: 1
 depends_on: [backend-domain-services-02]
 estimate: 3h
-actual:
+actual: 1.5h
 issue:
 created: 2026-08-18
 updated: 2026-08-18
@@ -117,18 +117,19 @@ Criterios de aceptación (Gherkin) en los casos de uso:
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario del CU (alcance de esta tarea) tiene al menos un test, incl. la primitiva nueva
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario del CU (alcance de esta tarea) tiene al menos un test, incl. la primitiva nueva
   (`hash_token` determinista: mismo input → mismo hash, distinto de `hash_password`), el CAS de
   `rotate_if_active` (Rotated/Reused/NotFound), refresh caducado sin reuse-detection, login con
   invited/disabled/tenant equivocado, invitación a usuario ya activo.
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; el dominio no importa `app.infra`; `secret`/`ttl` como parámetros (no
+- [x] Todos los tests en verde (`make test`).
+- [x] `Provides` disponible; el dominio no importa `app.infra`; `secret`/`ttl` como parámetros (no
   `get_settings()` dentro del servicio).
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre `auth_service.py` + la primitiva nueva de
-  `security.py`.
-- [ ] Gate `/sdd-lint` sin ERROR (CU-BE-01/CU-BE-02 Gherkin bien formados, enlaces válidos).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (por qué SHA-256 y no Argon2 para `token_hash`, reuse-detection,
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre `auth_service.py` + la primitiva nueva de
+  `security.py`. Resultado: 2.50% survival (3 quasi-equivalentes de Enum, documentados en el session log).
+- [x] Gate `/sdd-lint` sin ERROR (CU-BE-01/CU-BE-02 Gherkin bien formados, enlaces válidos). Solo AVISOS
+  semánticos (gaps del propio CU, no de esta tarea), reconocidos en el session log.
+- [x] Gate de `fact-checker`. 9/10 VERIFICADO, 1 INCORRECTO (conteo de tests propio, corregido en el log).
+- [x] Documentación: docstrings (por qué SHA-256 y no Argon2 para `token_hash`, reuse-detection,
   no-revelar-existencia); session log con la traza a CU-BE-01/CU-BE-02.

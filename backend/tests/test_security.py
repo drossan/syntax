@@ -6,6 +6,8 @@ from app.core.security import (
     create_access_token,
     decode_access_token,
     hash_password,
+    hash_token,
+    new_opaque_token,
     verify_password,
 )
 
@@ -196,3 +198,28 @@ def test_decode_access_token_secret_is_keyword_only() -> None:
     token = create_access_token("u", "t", secret=SECRET, algorithm="HS256", ttl=900, now=NOW)
     with pytest.raises(TypeError):
         decode_access_token(token, SECRET, "HS256")  # posicional → viola el contrato
+
+
+def test_new_opaque_token_has_enough_entropy() -> None:
+    """new_opaque_token() genera un token largo y distinto en cada llamada (256 bits)."""
+    token_a = new_opaque_token()
+    token_b = new_opaque_token()
+    assert token_a != token_b
+    assert len(token_a) >= 32
+
+
+def test_hash_token_is_deterministic() -> None:
+    """hash_token() es determinista: mismo input, mismo hash (buscable por igualdad)."""
+    token = new_opaque_token()
+    assert hash_token(token) == hash_token(token)
+
+
+def test_hash_token_differs_from_hash_password() -> None:
+    """hash_token NO es hash_password: mismo input, hashes distintos (SHA-256 vs Argon2id)."""
+    token = "some-opaque-token"
+    assert hash_token(token) != hash_password(token)
+
+
+def test_hash_token_different_inputs_differ() -> None:
+    """Dos tokens distintos producen hashes distintos."""
+    assert hash_token(new_opaque_token()) != hash_token(new_opaque_token())

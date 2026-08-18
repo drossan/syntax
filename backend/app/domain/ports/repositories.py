@@ -99,6 +99,12 @@ class RefreshSessionRepository(Protocol):
         """Revoca una sesión concreta (logout server-side)."""
         ...
 
+    async def revoke_by_hash(self, token_hash: str) -> None:
+        """Revoca la sesión con ese `token_hash`, sin rotarla (logout). Idempotente: si el hash no
+        corresponde a ninguna sesión (ya revocada, o nunca existió), no-op — no revela cuál de las
+        dos ocurrió, ni lanza."""
+        ...
+
 
 class AuthTokenRepository(Protocol):
     """Puerto de `auth_token` (password-reset / invitación, un solo uso)."""
