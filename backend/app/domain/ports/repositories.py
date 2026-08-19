@@ -104,6 +104,11 @@ class RoleRepository(Protocol):
 
     async def list_capabilities(self, role_id: uuid.UUID) -> list[Capability]: ...
 
+    async def list_all_capabilities(self) -> list[Capability]:
+        """Catálogo COMPLETO de capacidades (`GET /admin/capabilities`, 06) — a diferencia de
+        `list_capabilities(role_id)`, que devuelve solo las concedidas a un rol concreto."""
+        ...
+
     async def effective_capabilities(
         self, user_id: uuid.UUID, tenant_id: uuid.UUID
     ) -> set[tuple[str, str]]:
@@ -111,6 +116,33 @@ class RoleRepository(Protocol):
         (A1.7): sin este acotamiento, un usuario con roles distintos en dos tenants (ya soportado
         por `user_role.tenant_id`) filtraría capacidades de un tenant a la sesión activa en otro —
         fix de seguridad de `scenario-coverage`, no una ampliación discrecional."""
+        ...
+
+    async def assign(
+        self, user_id: uuid.UUID, role_id: uuid.UUID, tenant_id: uuid.UUID | None
+    ) -> None:
+        """Concede `role_id` a `user_id` con el ámbito de asignación `tenant_id` (`None` → grant
+        `global`, la fila `user_role.tenant_id` la lee `effective_capabilities`). PK real es
+        `(user_id, role_id)` — reasignar el mismo par es un no-op idempotente (upsert), no un error:
+        `admin_users` (06) reemplaza `roles[]` completo en cada `PATCH`, así que repetir un rol ya
+        asignado es el caso normal, no una excepción."""
+        ...
+
+    async def unassign_all(self, user_id: uuid.UUID, tenant_id: uuid.UUID | None) -> None:
+        """Retira TODAS las asignaciones de `user_id` en ese ámbito de `tenant_id` — usado por
+        `admin_users` (06) para reemplazar `roles[]` completo (unassign-all + assign de la lista
+        nueva, sin necesidad de diff)."""
+        ...
+
+    async def list_assigned(self, user_id: uuid.UUID, tenant_id: uuid.UUID) -> list[Role]:
+        """Roles de `user_id` asignados en `tenant_id` (incl. los `system`/globales que apliquen ahí)
+        — pinta `roles: [string]` en `/admin/users` (06)."""
+        ...
+
+    async def set_capabilities(self, role_id: uuid.UUID, capability_ids: list[uuid.UUID]) -> None:
+        """Reemplaza el conjunto de `capability_ids` concedidas a `role_id` (delete-all + insert) —
+        `admin_roles` (06) resuelve nombres del catálogo a ids ANTES de llamar (invariantes de
+        `rbac_service.validate_role_composition` ya validadas en el router)."""
         ...
 
     async def list(self, tenant_id: uuid.UUID) -> list[Role]:

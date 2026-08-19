@@ -19,7 +19,8 @@ capacidad concedida en los dos ámbitos.
 
 import uuid
 
-from sqlalchemy import or_, select
+from sqlalchemy import delete, insert, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities.enums import CapabilityScope, RoleKind
@@ -121,6 +122,68 @@ class SqlAlchemyRoleRepository:
         except Exception as exc:
             raise PortError("fallo al listar capabilities del role") from exc
         return [_capability_to_domain(row) for row in rows]
+
+    async def list_all_capabilities(self) -> list[Capability]:
+        try:
+            rows = (await self._session.execute(select(CapabilityModel))).scalars()
+        except Exception as exc:
+            raise PortError("fallo al listar el catálogo de capabilities") from exc
+        return [_capability_to_domain(row) for row in rows]
+
+    async def assign(
+        self, user_id: uuid.UUID, role_id: uuid.UUID, tenant_id: uuid.UUID | None
+    ) -> None:
+        stmt = (
+            pg_insert(UserRoleModel)
+            .values(user_id=user_id, role_id=role_id, tenant_id=tenant_id)
+            .on_conflict_do_update(
+                index_elements=[UserRoleModel.user_id, UserRoleModel.role_id],
+                set_={"tenant_id": tenant_id},
+            )
+        )
+        try:
+            await self._session.execute(stmt)
+        except Exception as exc:
+            raise PortError("fallo al asignar role") from exc
+
+    async def unassign_all(self, user_id: uuid.UUID, tenant_id: uuid.UUID | None) -> None:
+        tenant_filter = (
+            UserRoleModel.tenant_id.is_(None)
+            if tenant_id is None
+            else UserRoleModel.tenant_id == tenant_id
+        )
+        try:
+            await self._session.execute(
+                delete(UserRoleModel).where(UserRoleModel.user_id == user_id, tenant_filter)
+            )
+        except Exception as exc:
+            raise PortError("fallo al retirar roles") from exc
+
+    async def list_assigned(self, user_id: uuid.UUID, tenant_id: uuid.UUID) -> list[Role]:
+        try:
+            rows = (
+                await self._session.execute(
+                    select(RoleModel)
+                    .join(UserRoleModel, UserRoleModel.role_id == RoleModel.id)
+                    .where(UserRoleModel.user_id == user_id, UserRoleModel.tenant_id == tenant_id)
+                )
+            ).scalars()
+        except Exception as exc:
+            raise PortError("fallo al listar roles asignados") from exc
+        return [_role_to_domain(row) for row in rows]
+
+    async def set_capabilities(self, role_id: uuid.UUID, capability_ids: list[uuid.UUID]) -> None:
+        try:
+            await self._session.execute(
+                delete(RoleCapabilityModel).where(RoleCapabilityModel.role_id == role_id)
+            )
+            if capability_ids:
+                await self._session.execute(
+                    insert(RoleCapabilityModel),
+                    [{"role_id": role_id, "capability_id": cid} for cid in capability_ids],
+                )
+        except Exception as exc:
+            raise PortError("fallo al fijar capabilities del role") from exc
 
     async def effective_capabilities(
         self, user_id: uuid.UUID, tenant_id: uuid.UUID

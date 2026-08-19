@@ -8,6 +8,7 @@ aislamiento, no RLS) y tienen adaptadores propios (`tenant.py`/`user.py`/`user_t
 entidades ORM crudas al dominio; dejar pasar una excepción de infra cruda (envolver en `PortError`).
 """
 
+from app.infra.db.repositories.audit_log import SqlAlchemyAuditLogRepository
 from app.infra.db.repositories.auth_token import SqlAlchemyAuthTokenRepository
 from app.infra.db.repositories.base import BaseRepository, TenantScoped
 from app.infra.db.repositories.refresh_session import SqlAlchemyRefreshSessionRepository
@@ -18,6 +19,7 @@ from app.infra.db.repositories.user_tenant import SqlAlchemyUserTenantMembership
 
 __all__ = [
     "BaseRepository",
+    "SqlAlchemyAuditLogRepository",
     "SqlAlchemyAuthTokenRepository",
     "SqlAlchemyRefreshSessionRepository",
     "SqlAlchemyRoleRepository",

@@ -273,7 +273,7 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
 - [x] `backend-routers-core-05` (P1) — `deps.get_current_subject`/`get_tenant_context`/
   `require_capability` (decisión de ámbito por-capacidad, precedencia global>tenant) + router `auth`
   completo (incl. `select-tenant`, `switch-tenant`, password forgot/reset/change) · depends_on: 02, 04
-- [ ] `backend-routers-core-06` (P2) — Routers `admin_tenants`(+`/admin/settings` bajo
+- [x] `backend-routers-core-06` (P2) — Routers `admin_tenants`(+`/admin/settings` bajo
   `tenant.settings.manage`, con `tenant_id` query param para ámbito global)/`admin_users` (`PATCH .../{id}`
   = `User.id` global)/`admin_roles` (+ `GET /admin/capabilities`) + auditoría (`AuditLogRepository`) en
   las 3 · depends_on: 05
@@ -393,3 +393,17 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   — CU-BE-01 sin FR explícito para el flujo multi-tenant, entre otros). `fact-checker`: 12/12 VERIFICADO.
   470 tests verdes en el backend completo. Detalle en
   `.claude/context/backend/backend-routers-core-05.md`.
+- 2026-08-19: **tarea 06 cerrada** — routers `admin_tenants`/`admin_users`/`admin_roles` (de esqueleto
+  doc-only a código real), con auditoría (`AuditLogRepository`) en toda mutación. Cerró 3 huecos de
+  puerto/entidad que el propio `## Spec` de la tarea exigía y que no existían: `AuditLogEntry` sin
+  `tenant_id` (obligatorio en la tabla de negocio real, solo se había probado con fakes hasta ahora),
+  `RoleRepository` sin asignación `user_role` (`assign`/`unassign_all`/`list_assigned`) ni catálogo
+  completo de capacidades (`list_all_capabilities`)/gestión de capabilities de un rol
+  (`set_capabilities`), y sin adaptador real de `AuditLogRepository` (`SqlAlchemyAuditLogRepository`,
+  nuevo). `api-contract.yaml` ganó el query param `tenant_id` de `/admin/settings` (decisión 18 de
+  `scenario-coverage`, nunca sincronizada al contrato hasta ahora). Mutation gate en 2-3 rondas por
+  router (12.50%/2.78%/6.67% survival final); `/sdd-lint` encontró 1 ERROR real (faltaba el escenario
+  de "no escalar privilegios" en el Gherkin de la tarea, criterio de aceptación de CU-BE-09 ligado a
+  FR-037) — corregido con escenario + test; 4 AVISO de sincronización spec↔tarea reconocidos, no
+  bloqueantes. `fact-checker` 16/16 VERIFICADO. 514 tests verdes en el backend completo. Detalle en
+  `.claude/context/backend/backend-routers-core-06.md`.

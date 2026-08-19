@@ -59,7 +59,11 @@ class TicketService:
     async def _audit(self, ticket: Ticket, action: str, payload: dict[str, object]) -> None:
         await self._audit_log.add(
             AuditLogEntry(
-                action=action, entity_type="ticket", entity_id=str(ticket.id), payload=payload
+                tenant_id=ticket.tenant_id,
+                action=action,
+                entity_type="ticket",
+                entity_id=str(ticket.id),
+                payload=payload,
             )
         )
 

@@ -2,11 +2,11 @@
 id: backend-routers-core-06
 package: backend
 plan: routers-core
-status: pending
+status: done
 priority: 2
 depends_on: [backend-routers-core-05]
 estimate: 4h
-actual:
+actual: 5h
 issue:
 created: 2026-08-19
 updated: 2026-08-19
@@ -150,6 +150,11 @@ Feature: administración de tenants, usuarios y roles
     When intenta conceder una capacidad en ámbito global
     Then se rechaza (422, invariante de rbac_service)
 
+  Scenario: un rol custom no puede escalar privilegios
+    Given un admin de tenant que no posee cierta capacidad de ámbito tenant
+    When intenta concederla en un rol custom
+    Then se rechaza (422, invariante de rbac_service)
+
   Scenario: editar un rol system se rechaza
     Given un rol de kind system
     When se intenta hacer PATCH sobre él
@@ -167,13 +172,15 @@ Routers `admin_tenants`, `admin_users`, `admin_roles` montados en `/api/v1`, inc
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario tiene al menos un test de integración.
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; sin lógica de negocio en el router (delega en `rbac_service`/adaptadores).
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre los 3 routers.
-- [ ] Gate `/sdd-lint` sin ERROR (CU-BE-09 Gherkin bien formado, enlace válido).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (por qué `tenant.settings.manage` es de ámbito tenant, no global); session
-  log con la traza a CU-BE-09.
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario tiene al menos un test de integración.
+- [x] Todos los tests en verde (`make test`) — 514 tests, verde.
+- [x] `Provides` disponible; sin lógica de negocio en el router (delega en `rbac_service`/adaptadores).
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre los 3 routers — `admin_tenants.py` 12.50%,
+  `admin_users.py` 2.78%, `admin_roles.py` 6.67% survival.
+- [x] Gate `/sdd-lint` sin ERROR (1 ERROR encontrado —faltaba el escenario de no-escalada— y
+  corregido; 4 AVISO reconocidos).
+- [x] Gate de `fact-checker` (16/16 VERIFICADO).
+- [x] Documentación: docstrings (por qué `tenant.settings.manage` es de ámbito tenant, no global); session
+  log con la traza a CU-BE-09 (`.claude/context/backend/backend-routers-core-06.md`).

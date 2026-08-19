@@ -786,6 +786,15 @@ paths:
     get:
       tags: [admin]
       summary: Ajustes del tenant (incl. `auto_approve`).
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          description: >
+            Obligatorio si el subject accede en ámbito `global` (Soporte, sin tenant propio: no hay
+            forma de inferirlo); ignorado en ámbito `tenant` (usa `subject.tenant_id`) — decisión de
+            `scenario-coverage` (backend-routers-core, tarea 06).
+          schema: { type: string, format: uuid }
       responses:
         '200':
           description: Ajustes.
@@ -793,9 +802,16 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TenantSettings' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
     patch:
       tags: [admin]
       summary: Actualiza ajustes (p.ej. `auto_approve`). Default `auto_approve=false`.
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          description: Mismo criterio que en el `GET` (obligatorio en ámbito `global`).
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -808,6 +824,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TenantSettings' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   # ───────────────────────── Analytics / Notifications ─────────────────────────
   /analytics/summary:

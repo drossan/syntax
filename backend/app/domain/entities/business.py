@@ -109,8 +109,15 @@ class Resource(BaseModel):
 
 
 class AuditLogEntry(BaseModel):
-    """Entrada de auditoría append-only (data-model.md §4.2)."""
+    """Entrada de auditoría append-only (data-model.md §4.2).
 
+    `tenant_id` es obligatorio: `audit_log` es una tabla de NEGOCIO con RLS (`data-model.md` §2/§6,
+    columna `NOT NULL`) — un `AuditLogRepository` real (06) necesita el tenant de cada entrada para
+    persistirla; sin él, la única vía de detectarlo era una `IntegrityError` en el primer `INSERT` real
+    (el puerto solo se había ejercitado con fakes en `domain-services`, que no validan el shape de la
+    fila)."""
+
+    tenant_id: uuid.UUID
     action: str
     entity_type: str
     entity_id: str
