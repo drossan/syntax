@@ -1,7 +1,7 @@
 ---
 id: backend-routers-core
 package: backend
-status: active
+status: completed
 branch: plan/backend/routers-core
 created: 2026-08-19
 updated: 2026-08-19
@@ -451,3 +451,55 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   verde en el router (14.29%); el del stub, N/A documentado (0 ramas condicionales). `fact-checker`
   16/16 VERIFICADO. 602 tests verdes en el backend completo. Detalle en
   `.claude/context/backend/backend-routers-core-09.md`.
+- 2026-08-19: **plan COMPLETADO** (9/9 tareas). Ejecutado con TDD por el asistente en una sesión larga
+  continua (tareas 01+02 fusionadas por decisión del owner, 03-09 secuenciales — el owner autorizó
+  encadenar 05→09 sin pausas de confirmación intermedias). Todas las tareas: tests → gates (`ruff`+`S` /
+  `ruff format` / `mypy` strict / `cosmic-ray` / `/sdd-lint` cuando aplica / `fact-checker`) → commit en
+  la rama. **Retro (estimación vs real)**: estimado nivel integración, ~2-3 sesiones; real ~1 sesión
+  larga asistida — más lento que `domain-services` (unit con fakes) por ser la primera vez que el
+  dominio se ejercita contra Postgres real de punta a punta vía HTTP.
+  **Bugs reales de infraestructura encontrados y corregidos** (ninguno hipotético, todos confirmados
+  reproduciendo el fallo antes de arreglarlos — ninguno detectado por `domain-services`, que solo usaba
+  fakes): (05) `RoleRepository.effective_capabilities` leía el ámbito del catálogo en vez de la
+  asignación, rompiendo la precedencia `global`>`tenant`; `get_session()` nunca comiteaba (escrituras
+  vía `flush()` se perdían al cerrar la sesión); `tenant_scope`/`global_scope` abrían una transacción
+  incondicionalmente, rompiendo con el autobegin de SQLAlchemy. (07) La migración `0002` (identidad
+  multi-tenant, tareas 01/02) creaba `user_tenant` sin `GRANT` para el rol runtime `syntax_app` — el
+  `GRANT ALL TABLES` de `0001` solo cubre tablas ya existentes; el bug llevaba **oculto desde la propia
+  tarea 01/02** porque ningún test de router anterior (05, 06) usaba el rol runtime real para las
+  requests HTTP (todos usaban `superuser_engine`, que bypasa permisos) — la tarea 07 fue la primera en
+  usar `app_engine` en un test de router, exponiéndolo de inmediato. Corregido en la propia migración
+  (pre-lanzamiento, sin datos reales, mismo criterio que congelar `0001` en la tarea 01).
+  **Código muerto encontrado y eliminado** (05): un guard `if access_token is None: raise
+  HTTPException(401)` en `switch_tenant` nunca se ejecutaba (dependencia hermana ya lo cubría) —
+  detectado porque el mutation gate no lograba matar ningún mutante de ese `401` por más tests que se
+  añadieran.
+  **Huecos de puerto/adaptador cerrados sin estar nombrados explícitamente en la DoD de su tarea**
+  (autorizados por la propia decisión 3 del plan, "extensiones que los routers necesitan de verdad"):
+  `SqlAlchemyAuditLogRepository` (06, el puerto existía desde `domain-services` pero sin adaptador
+  real); `RoleRepository.assign`/`unassign_all`/`list_assigned`/`list_all_capabilities`/
+  `set_capabilities` (06, gestión de `user_role`/`role_capability` que ningún puerto cubría);
+  `SqlAlchemyMessageRepository`/`StubSlaPolicy` (07, `ticket_service.create()` los necesitaba para
+  tener dependencias reales por primera vez); `MessageRepository.get`/paginación real/filtro de
+  visibilidad a nivel de query + `Attachment` completo (08).
+  **Capacidades RBAC nuevas añadidas al catálogo** (`rbac.md`): `tenant.settings.manage` (02, ya
+  cerrada antes de este plan), `ticket.update` (07, editar campos sin cambiar de estado).
+  **Dependencia nueva autorizada por el owner**: `python-multipart` (08, requerida por FastAPI para
+  `UploadFile`/multipart).
+  **Survivors de mutación aceptados en casi todas las tareas** (documentados caso a caso en cada
+  session log): el patrón `except Exception as exc: raise PortError(...) from exc` de cada adaptador
+  (requiere inyección contrivada de fallo de infra para matarlo — mismo criterio que
+  `domain-services`); comparaciones `==`/`is`/separadores keyword-only sobre singletons — equivalentes
+  observacionales.
+  **Hallazgos de `/sdd-lint` corregidos durante el propio cierre** (no quedaron como deuda): tarea 06
+  (faltaba el escenario de "no escalar privilegios", CU-BE-09/FR-037); tarea 07 (capacidad `ticket.
+  update` prometía cubrir `csat` en `rbac.md` sin que la tarea lo mencionara explícitamente — el código
+  ya lo cableaba bien, faltaban el test y la aclaración de spec). **Huecos de `/sdd-lint` reconocidos,
+  no bloqueantes**: varios AVISO de sincronización spec↔tarea a lo largo del plan (CU-BE-01 sin FR para
+  el flujo multi-tenant; CU-BE-04 sin FR-021 propio ni cobertura de PATCH/paginación/adjuntos; ninguno
+  es una contradicción, todos son specs que no se actualizaron al mismo ritmo que las tareas que
+  consumen su contrato). **Un subagente de `/sdd-lint` semántico murió por un error de conexión de la
+  API a mitad de respuesta (tarea 08)** — se relanzó y completó con normalidad, sin afectar al
+  resultado. Todos los `fact-checker` de las 9 tareas cerraron en VERIFICADO (con 2 correcciones
+  menores de conteo de tests en session logs, ninguna de código). Total: **602 tests** de integración
+  (Postgres real) en el backend al cierre del plan.
