@@ -2,11 +2,11 @@
 id: backend-routers-core-09
 package: backend
 plan: routers-core
-status: pending
+status: done
 priority: 3
 depends_on: [backend-routers-core-05]
 estimate: 2h
-actual:
+actual: 2h
 issue:
 created: 2026-08-19
 updated: 2026-08-19
@@ -89,14 +89,14 @@ router `kb` completo, listo para que la tarea 14 sustituya el adaptador sin toca
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario tiene al menos un test de integración.
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; el router no importa nada de `app.infra.vectorstore` más allá del puerto.
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation: puede ser N/A documentado si el stub no tiene ramas condicionales reales (a
-  confirmar durante la tarea; si el router sí tiene lógica de paginación/filtros, el gate aplica a esa
-  parte).
-- [ ] Gate `/sdd-lint`: N/A (sin cambios de spec/CU, declarado en Scenarios).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstring explícito de por qué el stub devuelve vacío (no es un bug); session log.
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario tiene al menos un test de integración.
+- [x] Todos los tests en verde (`make test`) — 602 tests, verde.
+- [x] `Provides` disponible; el router no importa nada de `app.infra.vectorstore` más allá del puerto.
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation: router `kb.py` con lógica real de paginación/filtros → 14.29% survival, PASA.
+  Adaptador `stub.py`: N/A documentado (0 ramas condicionales, confirmado).
+- [x] Gate `/sdd-lint`: N/A (los 3 paths ya existían en `api-contract.yaml`, sin cambios de spec/CU).
+- [x] Gate de `fact-checker` (16/16 VERIFICADO, incl. la comprobación temporal de N/A vía `git status`).
+- [x] Documentación: docstring explícito de por qué el stub devuelve vacío (no es un bug); session log
+  (`.claude/context/backend/backend-routers-core-09.md`).

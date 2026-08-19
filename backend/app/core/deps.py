@@ -27,6 +27,7 @@ from app.core.security import JWT_ALGORITHM, decode_access_token
 from app.domain.entities.enums import TenantStatus
 from app.domain.entities.identity import Subject
 from app.domain.ports.storage import Storage
+from app.domain.ports.vectorstore import VectorStore
 from app.domain.services.auth_service import AuthService
 from app.domain.services.rbac_service import Deny, DenyReason
 from app.domain.services.ticket_service import TicketService
@@ -46,6 +47,7 @@ from app.infra.db.session import get_session, global_scope, tenant_scope
 from app.infra.email import StubEmailPort
 from app.infra.sla import StubSlaPolicy
 from app.infra.storage.local import LocalFilesystemStorage
+from app.infra.vectorstore.stub import StubVectorStore
 
 _ACCESS_TOKEN_PURPOSE = "access"  # noqa: S105 — claim `purpose`, no un secreto
 
@@ -93,6 +95,12 @@ def get_storage(settings: Settings = Depends(get_settings)) -> Storage:
     """Ensambla el adaptador de `Storage` (tarea 08) — filesystem local (`settings.storage_root`);
     nube diferida, el puerto ya lo permite sin cambiar la firma."""
     return LocalFilesystemStorage(settings.storage_root)
+
+
+def get_vector_store() -> VectorStore:
+    """Ensambla el adaptador de `VectorStore` (tarea 09) — stub sin estado hasta el retriever real
+    (tarea 14); sin parámetros de construcción, no necesita ninguna dependencia."""
+    return StubVectorStore()
 
 
 async def get_current_subject(

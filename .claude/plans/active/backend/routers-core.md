@@ -281,7 +281,7 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   (método PATCH parcial) + router `tickets` · depends_on: 05
 - [x] `backend-routers-core-08` (P2) — `MessageRepository` + puerto `Storage` (nuevo) + adaptador
   filesystem local + router `messages` (incl. attachments + descarga) · depends_on: 07
-- [ ] `backend-routers-core-09` (P3) — Puerto `VectorStore` (nuevo, recortado) + adaptador stub + router
+- [x] `backend-routers-core-09` (P3) — Puerto `VectorStore` (nuevo, recortado) + adaptador stub + router
   `kb` · depends_on: 05
 
 ## Registro de cambios del plan
@@ -442,3 +442,12 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   por un error de conexión en su primer intento y se relanzó con normalidad. `fact-checker` 17/17
   VERIFICADO. 587 tests verdes en el backend completo. Detalle en
   `.claude/context/backend/backend-routers-core-08.md`.
+- 2026-08-19: **tarea 09 cerrada — cierra el plan (9/9 tareas)**. Puerto `VectorStore` (nuevo,
+  recortado a lo que `kb` necesita hoy) + adaptador `StubVectorStore` (sin ninguna rama condicional,
+  siempre vacío/`None` — comportamiento esperado hasta el retriever real, tarea 14) + router `kb`
+  completo sobre los 3 paths ya existentes en `api-contract.yaml` (sin cambios de spec/CU: gate
+  `/sdd-lint` N/A, confirmado). Añadidos `KbEstado` (dominio, ya existía en el ORM) y `Package` (nuevo
+  en ambos lados, sin `pg_enum` real detrás — tratado como catálogo fijo del contrato). Mutation gate
+  verde en el router (14.29%); el del stub, N/A documentado (0 ramas condicionales). `fact-checker`
+  16/16 VERIFICADO. 602 tests verdes en el backend completo. Detalle en
+  `.claude/context/backend/backend-routers-core-09.md`.

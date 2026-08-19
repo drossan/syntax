@@ -68,6 +68,7 @@ _ENUM_PAIRS = [
     ("ApprovalStatus", "ApprovalStatus"),
     ("AgentRunStatus", "AgentRunStatus"),
     ("KbDomain", "KbDomain"),
+    ("KbEstado", "KbEstado"),
     ("UserStatus", "UserStatus"),
     ("TenantStatus", "TenantStatus"),
     ("RoleKind", "RoleKind"),

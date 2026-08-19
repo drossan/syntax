@@ -15,8 +15,10 @@ from app.domain.entities.enums import (
     AgentRunStatus,
     ApprovalStatus,
     KbDomain,
+    KbEstado,
     MessageVisibility,
     NotificationType,
+    Package,
     TicketPriority,
     TicketStatus,
 )
@@ -137,3 +139,29 @@ class AuditLogEntry(BaseModel):
     entity_id: str
     payload: dict[str, Any]
     actor_id: uuid.UUID | None = None
+
+
+class KBDocument(BaseModel):
+    """Documento de KB (global, sin `tenant_id` — recurso cross-tenant, `rbac.md`). `uc_id` es la
+    clave única de negocio (contrato); sin `id` propio expuesto (detalle interno de `kb_document`)."""
+
+    uc_id: str
+    domain: KbDomain
+    package: Package
+    estado: KbEstado
+    title: str
+    source_url: str
+    updated: datetime | None = None
+
+
+class KBSearchHit(BaseModel):
+    """Resultado de `VectorStore.search` — recorte de `KBDocument` + `section_type`/`score` del
+    retrieval (tarea 14: hoy el adaptador es un stub, el shape ya es el final)."""
+
+    uc_id: str
+    title: str
+    section_type: str
+    domain: KbDomain
+    estado: KbEstado
+    source_url: str
+    score: float
