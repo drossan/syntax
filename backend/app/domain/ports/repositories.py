@@ -26,7 +26,15 @@ from app.domain.entities.business import (
     Notification,
     Ticket,
 )
-from app.domain.entities.identity import AuthToken, Capability, RefreshSession, Role, Tenant, User
+from app.domain.entities.identity import (
+    AuthToken,
+    Capability,
+    RefreshSession,
+    Role,
+    Tenant,
+    User,
+    UserTenantMembership,
+)
 
 
 class TenantRepository(Protocol):
@@ -37,12 +45,28 @@ class TenantRepository(Protocol):
 
 
 class UserRepository(Protocol):
-    """Puerto de `user`."""
+    """Puerto de `user` (identidad GLOBAL desde el rediseño multi-tenant: `email` es único global,
+    sin `tenant_id` — la pertenencia a un tenant vive en `UserTenantMembershipRepository`)."""
 
     async def get(self, user_id: uuid.UUID) -> User | None: ...
-    async def get_by_email(self, tenant_id: uuid.UUID, email: str) -> User | None: ...
+    async def get_by_email(self, email: str) -> User | None: ...
     async def add(self, user: User) -> User: ...
     async def update(self, user: User) -> User: ...
+
+
+class UserTenantMembershipRepository(Protocol):
+    """Puerto de `user_tenant` (membership `user`×`tenant`, con su propio `status`)."""
+
+    async def get(
+        self, user_id: uuid.UUID, tenant_id: uuid.UUID
+    ) -> UserTenantMembership | None: ...
+
+    async def list_for_user(self, user_id: uuid.UUID) -> list[UserTenantMembership]:
+        """Todas las membresías del usuario (cualquier `status`, cualquier tenant)."""
+        ...
+
+    async def add(self, membership: UserTenantMembership) -> UserTenantMembership: ...
+    async def update(self, membership: UserTenantMembership) -> UserTenantMembership: ...
 
 
 class RoleRepository(Protocol):

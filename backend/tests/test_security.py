@@ -208,6 +208,12 @@ def test_new_opaque_token_has_enough_entropy() -> None:
     assert len(token_a) >= 32
 
 
+def test_new_opaque_token_has_exact_configured_length() -> None:
+    """new_opaque_token() mide exactamente 43 chars (`secrets.token_urlsafe(32)` — 256 bits exactos,
+    valor fijo y no derivado: un NumberReplacer sobre `_OPAQUE_TOKEN_BYTES` se detecta)."""
+    assert len(new_opaque_token()) == 43
+
+
 def test_hash_token_is_deterministic() -> None:
     """hash_token() es determinista: mismo input, mismo hash (buscable por igualdad)."""
     token = new_opaque_token()
@@ -223,3 +229,51 @@ def test_hash_token_differs_from_hash_password() -> None:
 def test_hash_token_different_inputs_differ() -> None:
     """Dos tokens distintos producen hashes distintos."""
     assert hash_token(new_opaque_token()) != hash_token(new_opaque_token())
+
+
+def test_access_token_defaults_to_access_purpose() -> None:
+    """Un token creado sin `purpose` explícito lleva `purpose=access` (comportamiento histórico)."""
+    token = create_access_token("u", "t", secret=SECRET, algorithm="HS256", ttl=900, now=NOW)
+    claims = decode_access_token(token, secret=SECRET, algorithm="HS256", now=NOW)
+    assert claims["purpose"] == "access"
+
+
+def test_identity_token_without_tenant_id_is_valid() -> None:
+    """Un identity_token (purpose=tenant_selection) no lleva tenant_id y decodifica sin error."""
+    token = create_access_token(
+        "u", None, secret=SECRET, algorithm="HS256", ttl=300, now=NOW, purpose="tenant_selection"
+    )
+    claims = decode_access_token(token, secret=SECRET, algorithm="HS256", now=NOW)
+    assert claims["purpose"] == "tenant_selection"
+    assert "tenant_id" not in claims
+
+
+def test_access_purpose_token_without_tenant_id_is_rejected() -> None:
+    """Un token con purpose=access (explícito o por defecto) SIN tenant_id se rechaza."""
+    token = create_access_token(
+        "u", None, secret=SECRET, algorithm="HS256", ttl=900, now=NOW, purpose="access"
+    )
+    with pytest.raises(jwt.InvalidTokenError):
+        decode_access_token(token, secret=SECRET, algorithm="HS256", now=NOW)
+
+
+def test_token_missing_purpose_claim_defaults_to_access_and_requires_tenant_id() -> None:
+    """Un token sin claim `purpose` en absoluto (legacy) se trata como `access`: exige tenant_id."""
+    legacy = jwt.encode(
+        {"sub": "u", "exp": int(NOW.timestamp()) + 900},
+        SECRET,
+        algorithm="HS256",
+    )
+    with pytest.raises(jwt.InvalidTokenError):
+        decode_access_token(legacy, secret=SECRET, algorithm="HS256", now=NOW)
+
+
+def test_unrecognized_purpose_before_access_alphabetically_does_not_require_tenant_id() -> None:
+    """Solo `purpose == "access"` exige tenant_id — un purpose distinto que ordena ANTES
+    alfabéticamente ('aaa' < 'access') tampoco lo exige (no es una comparación de orden)."""
+    token = create_access_token(
+        "u", None, secret=SECRET, algorithm="HS256", ttl=900, now=NOW, purpose="aaa"
+    )
+    claims = decode_access_token(token, secret=SECRET, algorithm="HS256", now=NOW)
+    assert claims["purpose"] == "aaa"
+    assert "tenant_id" not in claims

@@ -2,11 +2,11 @@
 id: backend-routers-core-02
 package: backend
 plan: routers-core
-status: pending
+status: done
 priority: 1
 depends_on: [backend-routers-core-01]
 estimate: 4h
-actual:
+actual: fusionada con backend-routers-core-01 en una sesión conjunta (ver session log); sin desglose de tiempo por separado
 issue:
 created: 2026-08-19
 updated: 2026-08-19
@@ -194,15 +194,23 @@ Feature: login multi-tenant y cambio de contraseña (ampliación de esta tarea)
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario tiene al menos un test unit (fakes de puertos, mismo nivel que `domain-services`).
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; el dominio no importa `app.infra`.
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre `auth_service.py` + `security.py` (lo tocado).
-- [ ] Gate `/sdd-lint` sin ERROR (CU-BE-01/02 Gherkin bien formados tras la actualización).
-- [ ] Gate de `fact-checker` (incl. verificar que `api-contract.yaml`/`rbac.md`/`data-model.md` quedaron
-  realmente sincronizados, no solo mencionados).
-- [ ] Documentación: docstrings (por qué el login en 2 pasos, por qué una sola contraseña global, por qué
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario tiene al menos un test unit (fakes de puertos, mismo nivel que `domain-services`).
+- [x] Todos los tests en verde (`make test`) — 392 tests, suite completa del backend.
+- [x] `Provides` disponible; el dominio no importa `app.infra`.
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre `auth_service.py` (95.33% score) + `security.py`
+  (100% score) — muy por encima del umbral.
+- [x] Gate `/sdd-lint` sin ERROR: la pasada semántica encontró 3 ERROR (2 escenarios Gherkin faltantes en
+  CU-BE-01, Precondiciones contradictorias en CU-BE-02) — corregidos y re-verificados RESUELTOS por un
+  segundo subagente independiente. 2 AVISOS reconocidos (`spec.md` sin actualizar aún para FR nuevos).
+- [x] Gate de `fact-checker`: 11/12 VERIFICADO, 1 NO VERIFICABLE reconocida (mutation session.sqlite
+  gitignored) — incl. verificación independiente de que `api-contract.yaml`/`rbac.md`/`data-model.md`
+  quedaron sincronizados de verdad (rutas nuevas, schema `User` sin `tenant_id`, comprobado con
+  `yaml.safe_load`).
+- [x] Documentación: docstrings (por qué el login en 2 pasos, por qué una sola contraseña global, por qué
   `identity_token` no lleva `tenant_id`); session log con la traza a CU-BE-01/02 y a los 3 documentos de
   spec tocados.
+
+> **Nota de cierre**: fusionada con `backend-routers-core-01` en una sola sesión de trabajo (decisión
+> del owner) — ver el Registro de cambios del plan y los session logs de ambas tareas.

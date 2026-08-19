@@ -255,10 +255,10 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
 
 ## Tasks
 
-- [ ] `backend-routers-core-01` (P1) — Migración Alembic (identidad multi-tenant: `user` global +
+- [x] `backend-routers-core-01` (P1) — Migración Alembic (identidad multi-tenant: `user` global +
   `user_tenant` + `refresh_session.tenant_id` + `tenant.auto_approve`) + entidades de dominio actualizadas
   (`User`, `UserTenantMembership`, `RefreshSession`) · depends_on: —
-- [ ] `backend-routers-core-02` (P1) — `auth_service` reescrito (`login` 2 pasos, `select_tenant`,
+- [x] `backend-routers-core-02` (P1) — `auth_service` reescrito (`login` 2 pasos, `select_tenant`,
   `switch_tenant`, `invite`/`accept_invitation` sobre membership, `change_password`, normalización de
   email, chequeo `Tenant.status`) + `security.py` (`purpose`/`tenant_id` opcional) + sincroniza
   `api-contract.yaml` (login 2 pasos, `/auth/switch-tenant` + `User`/`UserInvite`/`UserUpdate`/
@@ -350,3 +350,22 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   confirmado sin sorpresas**: rate-limiting de login/refresh/select-tenant, retriever RAG real/ingesta KB,
   storage en nube, flujo-IA (`ai-draft`/grafo), gate OpenAPI automatizado, seeds, backfill de datos —
   todos ya nombrados en el plan, el QA no propuso nada nuevo fuera de esos bullets.
+- 2026-08-19: **tareas 01+02 cerradas — fusionadas en una sola sesión de trabajo** (desviación del flujo
+  estándar "una tarea `active` a la vez", **aprobada por el owner**). Motivo: cambiar `User`/
+  `RefreshSession` en el dominio (tarea 01) rompía `auth_service.py`/`test_auth_service.py` (~8 usos de
+  `User.tenant_id`/`User.status`), que la tarea 01 declara explícitamente fuera de alcance — y el fix
+  real necesitaba el puerto `UserTenantMembershipRepository` de la tarea 04. Cerrar 01 sola habría dejado
+  el repo con tests rotos hasta cerrar 02 (violando su propia DoD "todos los tests en verde"). Presentadas
+  3 opciones (fusionar / aceptar rotura transitoria documentada / `xfail`), el owner eligió **fusionar**.
+  **Hallazgo adicional durante la fusión**: la migración `0001` (plan cerrado `database-foundation`) no
+  estaba congelada — su `upgrade()`/`downgrade()` llamaban a `Base.metadata.create_all()`/`drop_all()`
+  sobre los modelos ORM **en vivo**, así que al editar `identity.py` para esta tarea, `0001` habría
+  generado directamente el esquema NUEVO en cualquier `upgrade head` desde cero, dejando a `0002` sin
+  nada real que alterar (verificado con un `upgrade head` limpio, que falló). Presentadas 3 opciones
+  (congelar 0001 / guards de idempotencia en 0002 / squash 0001+0002), el owner eligió **congelar 0001**
+  (reescrita para definir su propio `sa.MetaData()` autocontenido con las 18 tablas explícitas,
+  reproduciendo el shape histórico exacto). Resultado: 392 tests verdes, `ruff`/`mypy` strict limpios,
+  mutation 95.33%/100% (`auth_service.py`/`security.py`, umbral 80%), `/sdd-lint` con 3 ERROR encontrados
+  y corregidos en CU-BE-01/02 (re-verificados RESUELTOS por un segundo subagente), `fact-checker` 11/12
+  VERIFICADO + 1 NO VERIFICABLE reconocida. Detalle completo en los session logs de ambas tareas
+  (`.claude/context/backend/backend-routers-core-01.md`/`-02.md`).
