@@ -2,11 +2,11 @@
 id: backend-routers-core-01
 package: backend
 plan: routers-core
-status: active
+status: done
 priority: 1
 depends_on: []
 estimate: 3h
-actual:
+actual: fusionada con backend-routers-core-02 en una sesión conjunta (ver session log); sin desglose de tiempo por separado
 issue:
 created: 2026-08-19
 updated: 2026-08-19
@@ -130,14 +130,23 @@ la tarea 02 (`auth_service`) y la 04 (adaptadores).
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario tiene al menos un test de integración (Postgres real).
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; `compare_metadata` da diff vacío; `downgrade` probado.
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation: **N/A documentado** (migración + entidades declarativas, mismo criterio M4 de
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario tiene al menos un test de integración (Postgres real).
+- [x] Todos los tests en verde (`make test`) — 392 tests, suite completa del backend.
+- [x] `Provides` disponible; `compare_metadata` da diff vacío; `downgrade` probado.
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation: **N/A documentado** (migración + entidades declarativas, mismo criterio M4 de
   `database-foundation`).
-- [ ] Gate `/sdd-lint`: N/A (sin cambios de spec/CU en esta tarea, declarado en Scenarios).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings de las entidades nuevas/modificadas; session log con la traza a esta
-  migración y su relación con `database-foundation` (revisión sobre la que aplica).
+- [x] Gate `/sdd-lint`: N/A para esta tarea (sin cambios de spec/CU aquí — los tocó la 02, con su propio
+  gate).
+- [x] Gate de `fact-checker`: 11/12 afirmaciones VERIFICADAS, 1 NO VERIFICABLE reconocida (mutation
+  session.sqlite gitignored, borrada tras el cierre).
+- [x] Documentación: docstrings de las entidades nuevas/modificadas; session log con la traza a esta
+  migración y su relación con `database-foundation` (revisión sobre la que aplica) — incl. el hallazgo
+  de que `0001` no estaba congelada (bug de arquitectura de `database-foundation`, corregido aquí con
+  aprobación del owner).
+
+> **Nota de cierre**: fusionada con `backend-routers-core-02` en una sola sesión de trabajo (decisión
+> del owner) porque el cambio de entidades de esta tarea rompía `auth_service`/`test_auth_service.py`
+> de forma irreparable dentro del alcance declarado de esta tarea sola. Ver el Registro de cambios del
+> plan y los session logs de ambas tareas.

@@ -1,7 +1,10 @@
-"""Tests de los modelos ORM de identidad/RBAC (tarea 03) — nivel metadata, unit.
+"""Tests de los modelos ORM de identidad/RBAC (tarea 03, actualizado en backend-routers-core-01) —
+nivel metadata, unit.
 
 Grupo cross-tenant de sistema: NO usa TenantMixin (no RLS de fila). Verifica registro,
 enums (conjunto exacto), PKs compuestas, unicidades, cascadas y la self-FK de rotación.
+`User` es identidad global desde `0002` (sin `tenant_id`/`status` propios); `UserTenant` es la
+membership nueva que lleva el `status` por tenant.
 """
 
 import uuid
@@ -17,6 +20,7 @@ from app.infra.db.models import (
     Tenant,
     User,
     UserRole,
+    UserTenant,
 )
 from app.infra.db.models.enums import (
     AuthTokenKind,
@@ -31,6 +35,7 @@ from sqlalchemy import UniqueConstraint
 _IDENTITY_TABLES = {
     "tenant",
     "user",
+    "user_tenant",
     "capability",
     "role",
     "role_capability",
@@ -42,6 +47,7 @@ _IDENTITY_TABLES = {
 _IDENTITY_MODELS = [
     Tenant,
     User,
+    UserTenant,
     Capability,
     Role,
     RoleCapability,
@@ -76,6 +82,7 @@ def test_no_identity_table_uses_tenant_mixin() -> None:
     [
         (RoleCapability, {"role_id", "capability_id"}),
         (UserRole, {"user_id", "role_id"}),
+        (UserTenant, {"user_id", "tenant_id"}),
     ],
 )
 def test_join_tables_have_composite_pk(model: type, columns: set[str]) -> None:
@@ -89,7 +96,7 @@ def test_join_tables_have_composite_pk(model: type, columns: set[str]) -> None:
     [
         (RefreshSession, "status", {"active", "rotated", "revoked"}),
         (AuthToken, "kind", {"password_reset", "invitation"}),
-        (User, "status", {"invited", "active", "disabled"}),
+        (UserTenant, "status", {"invited", "active", "disabled"}),
         (Tenant, "status", {"active", "disabled"}),
         (Role, "kind", {"system", "tenant"}),
         (Capability, "scope", {"tenant", "global"}),
@@ -101,9 +108,16 @@ def test_enum_has_exact_value_set(model: type, attr: str, expected: set[str]) ->
     assert set(column.type.enums) == expected
 
 
-def test_user_tenant_fk_uses_restrict() -> None:
-    """La FK user.tenant_id → tenant usa ON DELETE RESTRICT (un tenant no se hard-borra, §7)."""
-    fk = next(iter(User.__table__.c["tenant_id"].foreign_keys))
+def test_user_tenant_membership_fk_uses_restrict() -> None:
+    """La FK user_tenant.tenant_id → tenant usa ON DELETE RESTRICT (un tenant no se hard-borra, §7)."""
+    fk = next(iter(UserTenant.__table__.c["tenant_id"].foreign_keys))
+    assert fk.target_fullname == "tenant.id"
+    assert fk.ondelete == "RESTRICT"
+
+
+def test_refresh_session_tenant_fk_uses_restrict() -> None:
+    """refresh_session.tenant_id → tenant usa ON DELETE RESTRICT (una sesión es de un tenant)."""
+    fk = next(iter(RefreshSession.__table__.c["tenant_id"].foreign_keys))
     assert fk.target_fullname == "tenant.id"
     assert fk.ondelete == "RESTRICT"
 
@@ -111,7 +125,7 @@ def test_user_tenant_fk_uses_restrict() -> None:
 @pytest.mark.parametrize(
     ("model", "columns"),
     [
-        (User, {"tenant_id", "email"}),
+        (User, {"email"}),
         (Role, {"tenant_id", "name"}),
         (Capability, {"name"}),
         (RefreshSession, {"token_hash"}),
@@ -119,7 +133,8 @@ def test_user_tenant_fk_uses_restrict() -> None:
     ],
 )
 def test_unique_constraints_declared(model: type, columns: set[str]) -> None:
-    """La unicidad de negocio de cada modelo está declarada (data-model §9)."""
+    """La unicidad de negocio de cada modelo está declarada (data-model §9); `User.email` es única
+    GLOBAL (no por tenant) desde el rediseño de identidad multi-tenant."""
     assert frozenset(columns) in _unique_column_sets(model)
 
 
@@ -132,8 +147,9 @@ def test_refresh_session_parent_is_nullable_self_fk() -> None:
 
 
 def test_user_role_and_refresh_cascade_on_user_delete() -> None:
-    """user → refresh_session / auth_token: CASCADE (limpieza al borrar el usuario, §7)."""
-    for model in (RefreshSession, AuthToken):
+    """user → refresh_session / auth_token / user_tenant: CASCADE (limpieza y borrado de membresías
+    al borrar el usuario global — Gherkin de la tarea de migración)."""
+    for model in (RefreshSession, AuthToken, UserTenant):
         fk = next(iter(model.__table__.c["user_id"].foreign_keys))
         assert fk.ondelete == "CASCADE", model.__name__
 
@@ -148,10 +164,20 @@ def test_enum_python_classes_have_string_values() -> None:
     assert {m.value for m in AuthTokenKind} == {"password_reset", "invitation"}
 
 
-def test_user_has_tenant_id_but_no_rls_marker() -> None:
-    """user tiene columna tenant_id (para unicidad/ámbito) SIN heredar TenantMixin (sin RLS)."""
-    assert "tenant_id" in User.__table__.c
+def test_user_is_global_identity_without_tenant_id() -> None:
+    """user NO tiene tenant_id/status propios (identidad global) tras el rediseño multi-tenant;
+    la membership (con su tenant_id y status) vive en user_tenant, sin heredar TenantMixin (sin RLS)."""
+    assert "tenant_id" not in User.__table__.c
+    assert "status" not in User.__table__.c
     assert not issubclass(User, TenantMixin)
+    assert "tenant_id" in UserTenant.__table__.c
+    assert not issubclass(UserTenant, TenantMixin)
+
+
+def test_tenant_auto_approve_defaults_to_false() -> None:
+    """tenant.auto_approve existe con default False (lo configura el admin, consumidor: tarea 15)."""
+    column = Tenant.__table__.c["auto_approve"]
+    assert column.default.arg is False
 
 
 def test_pk_is_uuid_on_first_class_entities() -> None:
