@@ -30,6 +30,7 @@ Agrupadas por recurso. `scope` indica el ámbito máximo en que tienen sentido.
 | `ticket.reply` | Responder (mensaje `public`) | tenant/global |
 | `ticket.transition` | Cambiar estado | tenant/global |
 | `ticket.assign` | Asignar a un agente | tenant/global |
+| `ticket.update` | Editar campos (`subject`/`priority`/`category`/`csat`) sin cambiar de estado | tenant/global |
 | `note.internal.read` | Ver mensajes `internal` (Syntax) | global |
 | `note.internal.write` | Escribir notas `internal` | global |
 | `approval.decide` | Aprobar/editar/rechazar drafts IA | global |
@@ -67,7 +68,7 @@ Dos familias. La numeración normaliza el brief (1,2,4 → 1,2,3).
 |---|:--:|:--:|:--:|:--:|:--:|:--:|
 | ticket.read | ✅g | ✅g | ✅g | ✅t | ✅t | ✅t |
 | ticket.create/reply | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| ticket.transition/assign | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| ticket.transition/assign/update | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | note.internal.* | ✅ | ✅ | read | ❌ | ❌ | ❌ |
 | approval.decide / agent.trigger | ✅ | ✅ | ❌ | ❌* / ✅ | ❌ / ✅ | ❌ |
 | kb.read / analytics.read | ✅ | ✅ | ✅ | ✅ | ✅r | ❌ |

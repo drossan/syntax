@@ -62,6 +62,11 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("user_id", "tenant_id", name="pk_user_tenant"),
     )
     op.create_index("ix_user_tenant_tenant_id", "user_tenant", ["tenant_id"])
+    # `GRANT ... ON ALL TABLES` (0001) solo cubre las tablas que YA existían al ejecutarse — una
+    # tabla nueva como esta necesita su propio GRANT, o `syntax_app` (rol runtime, no-superuser)
+    # falla con "permission denied" (bug real, encontrado en `backend-routers-core-07` al ejercitar
+    # por primera vez esta tabla contra el rol runtime en vez de superuser).
+    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON user_tenant TO syntax_app")
 
     # `refresh_session`: una sesión de refresh es de un tenant concreto (elegido en select/switch_tenant).
     op.add_column("refresh_session", sa.Column("tenant_id", sa.Uuid(), nullable=False))

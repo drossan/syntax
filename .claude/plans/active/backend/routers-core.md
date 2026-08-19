@@ -277,7 +277,7 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   `tenant.settings.manage`, con `tenant_id` query param para ámbito global)/`admin_users` (`PATCH .../{id}`
   = `User.id` global)/`admin_roles` (+ `GET /admin/capabilities`) + auditoría (`AuditLogRepository`) en
   las 3 · depends_on: 05
-- [ ] `backend-routers-core-07` (P1) — `TicketRepository` (paginación/filtros/orden) + `TicketService`
+- [x] `backend-routers-core-07` (P1) — `TicketRepository` (paginación/filtros/orden) + `TicketService`
   (método PATCH parcial) + router `tickets` · depends_on: 05
 - [ ] `backend-routers-core-08` (P2) — `MessageRepository` + puerto `Storage` (nuevo) + adaptador
   filesystem local + router `messages` (incl. attachments + descarga) · depends_on: 07
@@ -407,3 +407,24 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   FR-037) — corregido con escenario + test; 4 AVISO de sincronización spec↔tarea reconocidos, no
   bloqueantes. `fact-checker` 16/16 VERIFICADO. 514 tests verdes en el backend completo. Detalle en
   `.claude/context/backend/backend-routers-core-06.md`.
+- 2026-08-19: **tarea 07 cerrada** — `TicketRepository` (paginación/filtros/orden real, antes solo
+  `list(tenant_id)`) + `TicketService.update_fields` (PATCH parcial) + router `tickets` completo:
+  primer router/adaptador de NEGOCIO (RLS real) de la sesión. Necesitó 2 adaptadores/puerto nuevos no
+  anticipados explícitamente en la DoD para que `ticket_service.create()` (ya cerrado en
+  `domain-services`) tuviera dependencias reales: `SqlAlchemyMessageRepository` (mínimo, `add`/
+  `list_by_ticket` — la tarea 08 lo amplía) y `StubSlaPolicy` (`data-model.md` §11 deja la política
+  real para la tarea 18; el stub siempre devuelve `None`, sin inventar horas por prioridad). Capacidad
+  nueva `ticket.update` añadida a `rbac.md` (el catálogo no tenía ninguna para "editar campos sin
+  cambiar de estado"). **Bug real de infraestructura encontrado**: la migración 0002 (identidad
+  multi-tenant) creó `user_tenant` sin `GRANT` para el rol runtime `syntax_app` — el `GRANT ALL TABLES`
+  de la migración 0001 solo cubre tablas ya existentes, no las que llegan después. Ninguna tarea
+  anterior lo detectó porque sus tests de router usaban `superuser_engine` (bypassa permisos) incluso
+  para las requests HTTP; esta tarea es la primera en usar `app_engine` (rol real) en un test de
+  router, lo que expuso el fallo de inmediato (`permission denied for table user_tenant` al asignar un
+  ticket). Corregido en la propia migración (pre-lanzamiento, sin datos reales). Mutation gate verde en
+  el adaptador (11.41%) y el router (7.62%); `/sdd-lint` encontró 1 hallazgo (`ticket.update` prometía
+  cubrir `csat` en `rbac.md` pero la tarea no lo mencionaba explícitamente ni lo testeaba — el código SÍ
+  lo cableaba correctamente vía `set_csat`; se corrigió añadiendo los tests/escenarios/aclaración de
+  spec que faltaban) + 2 AVISO de sincronización spec↔CU reconocidos. `fact-checker` 17/18 VERIFICADO +
+  1 INCORRECTO (conteo de tests del session log) corregido. 559 tests verdes en el backend completo.
+  Detalle en `.claude/context/backend/backend-routers-core-07.md`.

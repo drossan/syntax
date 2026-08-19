@@ -10,9 +10,10 @@ from datetime import UTC, datetime
 
 import pytest
 from app.domain.entities.business import ApprovalTask, Ticket
-from app.domain.entities.enums import ApprovalStatus, TicketPriority, TicketStatus
+from app.domain.entities.enums import ApprovalStatus, KbDomain, TicketPriority, TicketStatus
 from app.domain.errors import Conflict, InvalidTransition, NotFound, Validation
 from app.domain.ports.agent_runner import ApprovalOutcome
+from app.domain.ports.repositories import PageResult
 from app.domain.services.approval_service import ApprovalService
 from app.domain.services.ticket_service import TicketService
 
@@ -51,8 +52,33 @@ class _FakeTicketRepository:
         self.store[ticket.id] = ticket
         return ticket
 
-    async def list(self, tenant_id: uuid.UUID) -> list[Ticket]:
-        return [t for t in self.store.values() if t.tenant_id == tenant_id]
+    async def list(
+        self,
+        tenant_id: uuid.UUID,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        status: TicketStatus | None = None,
+        priority: TicketPriority | None = None,
+        domain: KbDomain | None = None,
+        assignee_id: uuid.UUID | None = None,
+        sort: str = "-updated_at",
+    ) -> PageResult[Ticket]:
+        items = [t for t in self.store.values() if t.tenant_id == tenant_id]
+        if status is not None:
+            items = [t for t in items if t.status == status]
+        if priority is not None:
+            items = [t for t in items if t.priority == priority]
+        if domain is not None:
+            items = [t for t in items if t.domain == domain]
+        if assignee_id is not None:
+            items = [t for t in items if t.assignee_id == assignee_id]
+        reverse = sort.startswith("-")
+        key = sort.lstrip("-")
+        items.sort(key=lambda t: getattr(t, key) or 0, reverse=reverse)
+        total = len(items)
+        start = (page - 1) * page_size
+        return PageResult(items=items[start : start + page_size], total=total)
 
 
 class _FakeMessageRepository:

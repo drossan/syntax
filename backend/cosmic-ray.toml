@@ -3,10 +3,10 @@
 # mantiene el gate en segundos). `test-command` corre los tests de ese módulo.
 # Sesión (SQLite) generada por `cosmic-ray init` → gitignore.
 [cosmic-ray]
-module-path = "app/api/v1/routers/admin_roles.py"
+module-path = "app/api/v1/routers/tickets.py"
 timeout = 90.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_router_admin.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_router_tickets.py"
 
 [cosmic-ray.distributor]
 name = "local"

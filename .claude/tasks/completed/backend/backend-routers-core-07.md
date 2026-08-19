@@ -2,11 +2,11 @@
 id: backend-routers-core-07
 package: backend
 plan: routers-core
-status: pending
+status: done
 priority: 1
 depends_on: [backend-routers-core-05]
 estimate: 4h
-actual:
+actual: 5h
 issue:
 created: 2026-08-19
 updated: 2026-08-19
@@ -42,7 +42,11 @@ orden — el contrato exige `page/page_size/status/priority/domain/assignee_id/s
   - `POST /tickets` (`ticket.create`) → `ticket_service.create`.
   - `GET /tickets/{id}` (`ticket.read`) → `ticket_service._get_or_raise`-equivalente vía el repo
     (tenant-scoped: fuera del tenant → 404, ya lo da la RLS+filtro app-level sin lógica extra).
-  - `PATCH /tickets/{id}` (`ticket.read`+edición) → `ticket_service.update_fields`.
+  - `PATCH /tickets/{id}` (`ticket.update`, capacidad nueva de esta tarea — ver `rbac.md`) →
+    `ticket_service.update_fields` para `subject`/`priority`/`category`; `csat` (también en
+    `TicketUpdate`, contrato) NO pasa por `update_fields` — usa el `set_csat` YA existente
+    (`domain-services`, con su propia validación 1..5), el router llama a ambos métodos según qué
+    campos traiga el payload.
   - `POST /tickets/{id}/transition` (`ticket.transition`) → `ticket_service.transition` (409 en
     `InvalidTransition`, vía el envelope de la 03).
   - `POST /tickets/{id}/assign` (`ticket.assign`) → `ticket_service.assign`.
@@ -127,6 +131,16 @@ Feature: router de tickets con paginación real y PATCH parcial
     When se hace PATCH /tickets/{id} con priority="no-es-una-prioridad"
     Then recibe 422, sin modificar el ticket
 
+  Scenario: PATCH con csat lo fija vía set_csat
+    Given un ticket existente
+    When se hace PATCH /tickets/{id} con csat=5
+    Then recibe 200 con csat=5 (misma validación 1..5 de set_csat, no update_fields)
+
+  Scenario: PATCH con csat fuera de 1..5 se rechaza
+    Given un ticket existente
+    When se hace PATCH /tickets/{id} con csat=6
+    Then recibe 422
+
   Scenario: transición inválida da 409
     Given un ticket en new
     When se hace POST /tickets/{id}/transition con status=resolved (no es una arista válida)
@@ -150,13 +164,13 @@ Feature: router de tickets con paginación real y PATCH parcial
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario tiene al menos un test de integración.
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible.
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre el adaptador y el router.
-- [ ] Gate `/sdd-lint` sin ERROR (CU-BE-04 Gherkin bien formado, enlace válido).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (por qué `update_fields` no reimplementa la máquina de estados); session
-  log con la traza a CU-BE-04.
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario tiene al menos un test de integración.
+- [x] Todos los tests en verde (`make test`) — 559 tests, verde.
+- [x] `Provides` disponible.
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre el adaptador (11.41%) y el router (7.62%).
+- [x] Gate `/sdd-lint` (1 ERROR encontrado y corregido —cobertura de `csat`—; 2 AVISO reconocidos).
+- [x] Gate de `fact-checker` (17/18 VERIFICADO, 1 INCORRECTO corregido — conteo de tests).
+- [x] Documentación: docstrings (por qué `update_fields` no reimplementa la máquina de estados); session
+  log con la traza a CU-BE-04 (`.claude/context/backend/backend-routers-core-07.md`).

@@ -26,6 +26,7 @@ from app.domain.entities.business import (
     Notification,
     Ticket,
 )
+from app.domain.entities.enums import KbDomain, TicketPriority, TicketStatus
 from app.domain.entities.identity import (
     AuthToken,
     Capability,
@@ -213,14 +214,37 @@ class AuthTokenRepository(Protocol):
     async def mark_used(self, token_id: uuid.UUID, used_at: datetime) -> AuthToken: ...
 
 
+TICKET_SORT_FIELDS: frozenset[str] = frozenset({"updated_at", "created_at", "priority", "sla_due"})
+"""Whitelist de columnas ordenables de `GET /tickets` (`api-contract.yaml`, `sort`). Única fuente de
+verdad: el router valida `sort` contra esta whitelist ANTES de llamar al puerto (422 si no está, sin
+tocar la base de datos — nunca se interpola un string arbitrario en SQL); el adaptador vuelve a
+comprobarla como defensa en profundidad antes de traducirla a una columna ORM real."""
+
+
 class TicketRepository(Protocol):
     """Puerto de `ticket`."""
 
     async def get(self, ticket_id: uuid.UUID) -> Ticket | None: ...
     async def add(self, ticket: Ticket) -> Ticket: ...
     async def update(self, ticket: Ticket) -> Ticket: ...
-    async def list(self, tenant_id: uuid.UUID) -> list[Ticket]:
-        """Orden por defecto `-updated_at` (contrato del puerto, FR-021)."""
+
+    async def list(
+        self,
+        tenant_id: uuid.UUID,
+        *,
+        page: int,
+        page_size: int,
+        status: TicketStatus | None = None,
+        priority: TicketPriority | None = None,
+        domain: KbDomain | None = None,
+        assignee_id: uuid.UUID | None = None,
+        sort: str = "-updated_at",
+    ) -> PageResult[Ticket]:
+        """Orden por defecto `-updated_at` (contrato del puerto, FR-021); `sort` es un nombre de
+        `TICKET_SORT_FIELDS` con prefijo `-` opcional (descendente) — YA validado por el llamante.
+        `domain` es un filtro funcionalmente inerte hoy (ningún ticket tiene `domain` distinto de
+        `None` hasta que exista un clasificador, planes 12/15); se implementa porque el contrato lo
+        exige, no es un bug de esta tarea."""
         ...
 
 

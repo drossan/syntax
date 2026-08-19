@@ -28,17 +28,22 @@ from app.domain.entities.enums import TenantStatus
 from app.domain.entities.identity import Subject
 from app.domain.services.auth_service import AuthService
 from app.domain.services.rbac_service import Deny, DenyReason
+from app.domain.services.ticket_service import TicketService
 from app.infra.clock import SystemClock
 from app.infra.db.repositories import (
+    SqlAlchemyAuditLogRepository,
     SqlAlchemyAuthTokenRepository,
+    SqlAlchemyMessageRepository,
     SqlAlchemyRefreshSessionRepository,
     SqlAlchemyRoleRepository,
     SqlAlchemyTenantRepository,
+    SqlAlchemyTicketRepository,
     SqlAlchemyUserRepository,
     SqlAlchemyUserTenantMembershipRepository,
 )
 from app.infra.db.session import get_session, global_scope, tenant_scope
 from app.infra.email import StubEmailPort
+from app.infra.sla import StubSlaPolicy
 
 _ACCESS_TOKEN_PURPOSE = "access"  # noqa: S105 — claim `purpose`, no un secreto
 
@@ -65,6 +70,19 @@ def get_auth_service(session: AsyncSession = Depends(get_db_session)) -> AuthSer
         refresh_sessions=SqlAlchemyRefreshSessionRepository(session),
         auth_tokens=SqlAlchemyAuthTokenRepository(session),
         email=StubEmailPort(),
+        clock=SystemClock(),
+    )
+
+
+def get_ticket_service(session: AsyncSession = Depends(get_db_session)) -> TicketService:
+    """Ensambla `TicketService` con los adaptadores reales. `SlaPolicy` es el stub de la tarea 07
+    (`data-model.md` §11: la política real de SLA es la tarea 18, aquí `sla_due` siempre queda
+    `None`)."""
+    return TicketService(
+        tickets=SqlAlchemyTicketRepository(session),
+        messages=SqlAlchemyMessageRepository(session),
+        audit_log=SqlAlchemyAuditLogRepository(session),
+        sla_policy=StubSlaPolicy(),
         clock=SystemClock(),
     )
 
