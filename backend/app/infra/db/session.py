@@ -48,9 +48,19 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """Cede un `AsyncSession` por request (lo inyecta `deps.get_db_session`, tarea 09)."""
+    """Cede un `AsyncSession` por request (lo inyecta `deps.get_db_session`, tarea 05/09).
+
+    Commit automático si el request completó sin excepción; rollback si propagó una — sin esto, un
+    `flush()` de un adaptador (que envía el SQL pero no cierra la transacción) se pierde al cerrar la
+    sesión al final del request (bug real encontrado por los tests de integración de la tarea 05: un
+    `POST /auth/password/change` en verde que no persistía el cambio)."""
     async with get_sessionmaker()() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 def _coerce_tenant_uuid(tenant_id: uuid.UUID | str) -> uuid.UUID:
@@ -67,32 +77,50 @@ def _coerce_tenant_uuid(tenant_id: uuid.UUID | str) -> uuid.UUID:
 async def tenant_scope(
     session: AsyncSession, tenant_id: uuid.UUID | str
 ) -> AsyncIterator[AsyncSession]:
-    """Abre una transacción con `app.tenant_id` fijado → RLS filtra por ese tenant.
+    """Fija `app.tenant_id` → RLS filtra por ese tenant, dentro de una transacción.
 
-    :param session: sesión async sin transacción abierta.
+    :param session: sesión async, con o sin transacción ya abierta (ver nota).
     :param tenant_id: UUID del tenant (str o `uuid.UUID`); se valida antes de tocar la DB.
     :raises ValueError: si `tenant_id` no es un UUID válido (error controlado).
 
     El GUC se fija con `set_config(..., true)` (alcance transaccional): se descarta al cerrar la
     transacción (commit o rollback), de modo que la conexión reutilizada del pool **no** arrastra
     el contexto (footgun). Bind-safe: `SET LOCAL` no admite parámetros.
+
+    Si `session` YA tiene una transacción activa (autobegin de SQLAlchemy — p.ej. `deps.
+    get_current_subject` ya leyó de la misma sesión antes de que `require_capability` abra el
+    scope) **no** se abre una nueva vía `session.begin()`, que fallaría con `InvalidRequestError:
+    A transaction is already begun` (bug real encontrado en `backend-routers-core-05`): el `SET
+    LOCAL` se aplica igual a la transacción ya activa, y su alcance transaccional lo cierra quien
+    la abrió (`get_session()`, al final del request).
     """
     validated = _coerce_tenant_uuid(tenant_id)
-    async with session.begin():
+    if session.in_transaction():
         await session.execute(
             text("SELECT set_config('app.tenant_id', :tid, true)"), {"tid": str(validated)}
         )
         yield session
+    else:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config('app.tenant_id', :tid, true)"), {"tid": str(validated)}
+            )
+            yield session
 
 
 @asynccontextmanager
 async def global_scope(session: AsyncSession) -> AsyncIterator[AsyncSession]:
-    """Abre una transacción con el bypass de RLS activado (ámbito `global` de Soporte).
+    """Fija el bypass de RLS (ámbito `global` de Soporte), dentro de una transacción.
 
     Fija `app.bypass_rls = 'on'` con alcance transaccional; el bypass **no** persiste en la
     conexión del pool. Solo el literal `'on'` activa el bypass (ver el predicado de la policy).
-    La autorización (quién puede usar `global`) es del plan de dominio (10).
+    La autorización (quién puede usar `global`) es del plan de dominio (10). Misma nota que
+    `tenant_scope` sobre reusar una transacción ya activa en vez de abrir una nueva.
     """
-    async with session.begin():
+    if session.in_transaction():
         await session.execute(text("SELECT set_config('app.bypass_rls', 'on', true)"))
         yield session
+    else:
+        async with session.begin():
+            await session.execute(text("SELECT set_config('app.bypass_rls', 'on', true)"))
+            yield session

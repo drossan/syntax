@@ -30,6 +30,11 @@ ignore = ["E501"]  # el formatter gestiona el ancho de línea
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]  # assert + secretos/contraseñas dummy permitidos en tests
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI exige `Depends(...)` como default de parámetro (lo resuelve la inyección de dependencias
+# en cada request, no una vez a nivel de import) — falso positivo de B008 sin este exempt.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
+
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 # Guardarraíl HEXAGONAL: el dominio NO importa infra. Se endurece cuando exista
 # código real (regla por-módulo). Aquí queda documentada la dirección de deps:

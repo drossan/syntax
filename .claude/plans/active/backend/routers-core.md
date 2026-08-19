@@ -270,7 +270,7 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   `list`, `auto_approve`), `UserRepository`, `UserTenantMembershipRepository` (nuevo), `RoleRepository`
   (+ `list`/`update`/`delete`, `effective_capabilities` acotado por tenant), `RefreshSessionRepository`,
   `AuthTokenRepository` · depends_on: 01, 03
-- [ ] `backend-routers-core-05` (P1) — `deps.get_current_subject`/`get_tenant_context`/
+- [x] `backend-routers-core-05` (P1) — `deps.get_current_subject`/`get_tenant_context`/
   `require_capability` (decisión de ámbito por-capacidad, precedencia global>tenant) + router `auth`
   completo (incl. `select-tenant`, `switch-tenant`, password forgot/reset/change) · depends_on: 02, 04
 - [ ] `backend-routers-core-06` (P2) — Routers `admin_tenants`(+`/admin/settings` bajo
@@ -369,3 +369,27 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   y corregidos en CU-BE-01/02 (re-verificados RESUELTOS por un segundo subagente), `fact-checker` 11/12
   VERIFICADO + 1 NO VERIFICABLE reconocida. Detalle completo en los session logs de ambas tareas
   (`.claude/context/backend/backend-routers-core-01.md`/`-02.md`).
+- 2026-08-19: tarea 03 cerrada (envelope de error `problem+json` + schemas `Page[T]`/`Problem`
+  compartidos). Tarea 04 cerrada (adaptadores SQLAlchemy de identidad: `Tenant`/`User`/
+  `UserTenantMembership`/`Role`/`RefreshSession`/`AuthToken`, con `_enum_bridge` para el mismatch
+  domain/ORM y `effective_capabilities` acotado por tenant desde el diseño). Detalle en
+  `.claude/context/backend/backend-routers-core-03.md`/`-04.md`.
+- 2026-08-19: **tarea 05 cerrada** — `app.core.deps` (`get_current_subject`/`get_tenant_context`/
+  `require_capability`) + router `auth` completo. Primera vez que se ejercita el ciclo de vida completo
+  de una request HTTP real sobre el dominio de identidad (hasta ahora solo unit-con-fakes o adaptadores
+  aislados), y aparecieron **3 bugs reales de infra** que ningún test anterior podía detectar: (1)
+  `RoleRepository.effective_capabilities` leía el ámbito del catálogo (`capability.scope`) en vez de
+  derivarlo de la asignación (`user_role.tenant_id`), rompiendo la precedencia `global`>`tenant` cuando
+  la misma capacidad llega por dos vías; (2) `get_session()` nunca hacía `commit()` — los `flush()` de
+  los adaptadores se perdían al cerrar la sesión al final del request; (3) `tenant_scope`/`global_scope`
+  abrían `session.begin()` incondicionalmente, rompiendo cuando `get_current_subject` ya había iniciado
+  una transacción en la misma sesión (autobegin). Los 3 se confirmaron reproduciendo el fallo antes de
+  arreglarlos, con test de regresión. También se encontró y eliminó código MUERTO en `switch_tenant`
+  (un `if access_token is None: raise HTTPException(401)` inalcanzable, porque `get_current_subject`
+  —dependencia hermana, mismo `oauth2_scheme` cacheado— ya rechaza `None` antes). Mutation gate del
+  router `auth` necesitó 2 rondas (29.82%→0.00% survival) tras añadir tests de los endpoints
+  `password/forgot`/`password/reset` (sin ningún test previo) y de los atributos exactos de la cookie de
+  refresh. `/sdd-lint` semántico: 0 ERROR, 4 AVISO reconocidos (huecos de spec nombrados, no bloqueantes
+  — CU-BE-01 sin FR explícito para el flujo multi-tenant, entre otros). `fact-checker`: 12/12 VERIFICADO.
+  470 tests verdes en el backend completo. Detalle en
+  `.claude/context/backend/backend-routers-core-05.md`.

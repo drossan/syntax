@@ -14,6 +14,9 @@ import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 
+JWT_ALGORITHM = "HS256"
+"""Algoritmo de firma único del proyecto (fuente única — `deps.py`/tests lo reusan, no lo repiten)."""
+
 _hasher = PasswordHasher()
 _OPAQUE_TOKEN_BYTES = 32
 """256 bits de entropía (`secrets.token_urlsafe` genera ~1.3 caracteres por byte)."""

@@ -2,11 +2,11 @@
 id: backend-routers-core-05
 package: backend
 plan: routers-core
-status: pending
+status: done
 priority: 1
 depends_on: [backend-routers-core-02, backend-routers-core-04]
 estimate: 3h
-actual:
+actual: 4h
 issue:
 created: 2026-08-19
 updated: 2026-08-19
@@ -162,13 +162,15 @@ los routers restantes (06-09). Router `auth` completo montado en `/api/v1`.
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario tiene al menos un test de integración (cliente HTTP FastAPI + Postgres real).
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; los routers 06-09 pueden importar `deps` sin más cambios.
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre `deps.py` y el router `auth`.
-- [ ] Gate `/sdd-lint` sin ERROR (CU-BE-01/03 Gherkin bien formados, enlaces válidos).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (por qué la decisión de scope es por-capacidad, no por-subject); session
-  log con la traza a CU-BE-01/03.
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario tiene al menos un test de integración (cliente HTTP FastAPI + Postgres real).
+- [x] Todos los tests en verde (`make test`) — 470 tests, verde.
+- [x] `Provides` disponible; los routers 06-09 pueden importar `deps` sin más cambios.
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre `deps.py` (12.82% survival) y el router `auth`
+  (0.00% survival tras endurecer tests y eliminar código muerto en `switch_tenant`).
+- [x] Gate `/sdd-lint` sin ERROR (0 ERROR, 4 AVISO reconocidos — CU-BE-01/03 Gherkin bien formados,
+  enlaces válidos).
+- [x] Gate de `fact-checker` (12/12 VERIFICADO).
+- [x] Documentación: docstrings (por qué la decisión de scope es por-capacidad, no por-subject); session
+  log con la traza a CU-BE-01/03 (`.claude/context/backend/backend-routers-core-05.md`).

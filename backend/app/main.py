@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.errors import problem_response, register_exception_handlers
+from app.api.v1.routers.auth import router as auth_router
 from app.core.config import Settings, get_settings
 from app.core.logging import RequestIDMiddleware, configure_logging
 from app.core.readiness import ReadinessError, check_database_ready
@@ -90,6 +91,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)
     register_exception_handlers(app)
     app.add_exception_handler(Exception, _unhandled_exception_handler)
+
+    app.include_router(auth_router, prefix="/api/v1")
 
     @app.get("/health/live")
     async def health_live() -> dict[str, str]:

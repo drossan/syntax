@@ -52,19 +52,24 @@ from sqlalchemy.ext.asyncio import (
 _NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
+_TRUNCATE_IDENTITY_TABLES = (
+    "TRUNCATE user_tenant, refresh_session, auth_token, user_role, role_capability, "
+    'capability, "user", role, tenant RESTART IDENTITY CASCADE'
+)
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _clean_identity_tables(superuser_engine: AsyncEngine) -> AsyncIterator[None]:
-    """Trunca las tablas de identidad/RBAC antes de cada test (no llevan RLS/tenant_id → sin
-    aislamiento natural entre tests). Sin seeds cargados todavía (tarea 17): `capability`/`role`
-    están vacías salvo lo que siembre cada test, así que también se truncan."""
+    """Trunca las tablas de identidad/RBAC antes y DESPUÉS de cada test (no llevan RLS/tenant_id →
+    sin aislamiento natural entre tests). Sin seeds cargados todavía (tarea 17): `capability`/`role`
+    están vacías salvo lo que siembre cada test, así que también se truncan. El truncate posterior
+    evita contaminar OTRAS suites (p.ej. `test_migration.py`, que asume `user` vacía) si esta suite
+    fuera la última en tocar estas tablas dentro de una ejecución completa de `pytest`."""
     async with superuser_engine.begin() as conn:
-        await conn.execute(
-            text(
-                "TRUNCATE user_tenant, refresh_session, auth_token, user_role, role_capability, "
-                'capability, "user", role, tenant RESTART IDENTITY CASCADE'
-            )
-        )
+        await conn.execute(text(_TRUNCATE_IDENTITY_TABLES))
     yield
+    async with superuser_engine.begin() as conn:
+        await conn.execute(text(_TRUNCATE_IDENTITY_TABLES))
 
 
 @pytest_asyncio.fixture
@@ -414,6 +419,47 @@ async def test_effective_capabilities_is_scoped_to_the_session_tenant(
     capabilities_in_a = await role_repo.effective_capabilities(user.id, tenant_a.id)
 
     assert capabilities_in_a == {("ticket.reply", "tenant")}
+
+
+async def test_effective_capabilities_scope_comes_from_the_assignment_not_the_catalog(
+    session: AsyncSession,
+) -> None:
+    """La MISMA capacidad concedida vía un rol `system` (global) Y un rol `tenant` produce AMBAS
+    tuplas `(cap, "global")` y `(cap, "tenant")` — el `scope` de la tupla se deriva de
+    `user_role.tenant_id` (NULL=global), no del `capability.scope` fijo del catálogo (bug real:
+    leer el catálogo colapsaba ambas vías a un único valor, rompiendo la precedencia
+    global>tenant de `get_tenant_context`, backend-routers-core-05)."""
+    tenant_repo = SqlAlchemyTenantRepository(session)
+    role_repo = SqlAlchemyRoleRepository(session)
+    user_repo = SqlAlchemyUserRepository(session)
+    tenant = await tenant_repo.add(_make_tenant())
+    user = await user_repo.add(_make_user())
+
+    tenant_role = await role_repo.add(
+        Role(id=uuid.uuid4(), name="tenant-role", kind=RoleKind.tenant, tenant_id=tenant.id)
+    )
+    global_role = await role_repo.add(
+        Role(id=uuid.uuid4(), name="global-role", kind=RoleKind.system, tenant_id=None)
+    )
+    cap = await _seed_capability(session, name="ticket.reply", scope=CapabilityScope.tenant)
+    for role in (tenant_role, global_role):
+        await session.execute(
+            text("INSERT INTO role_capability (role_id, capability_id) VALUES (:r, :c)"),
+            {"r": role.id, "c": cap},
+        )
+    await session.execute(
+        text("INSERT INTO user_role (user_id, role_id, tenant_id) VALUES (:u, :r, :t)"),
+        {"u": user.id, "r": tenant_role.id, "t": tenant.id},
+    )
+    await session.execute(
+        text("INSERT INTO user_role (user_id, role_id, tenant_id) VALUES (:u, :r, :t)"),
+        {"u": user.id, "r": global_role.id, "t": None},
+    )
+    await session.commit()
+
+    capabilities = await role_repo.effective_capabilities(user.id, tenant.id)
+
+    assert capabilities == {("ticket.reply", "tenant"), ("ticket.reply", "global")}
 
 
 # ── RefreshSessionRepository ──

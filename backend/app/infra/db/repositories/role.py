@@ -5,6 +5,16 @@
 ámbito `global` (`user_role.tenant_id IS NULL` — Soporte, aplica en cualquier sesión). Acotar por
 `tenant_id` es un fix de seguridad (scenario-coverage): sin él, un usuario con roles distintos en dos
 tenants filtraría capacidades de un tenant a la sesión activa en otro.
+
+El `scope` de cada tupla `(capability, scope)` efectiva se deriva de la ASIGNACIÓN
+(`user_role.tenant_id IS NULL` → `"global"`, si no → `"tenant"`), **no** de `capability.scope`
+(catálogo): el catálogo declara el ámbito MÁXIMO permitido para esa capacidad (lo valida
+`rbac_service.validate_role_composition` al componer un rol custom), pero la MISMA capacidad puede
+llegar a un subject por dos vías distintas (un rol `system` global y un rol `tenant`), y
+`Subject.capabilities` necesita distinguir ambas — bug real encontrado en `backend-routers-core-05`
+al conectar el router `auth`: leer `capability.scope` colapsaba ambas vías a un único valor fijo,
+rompiendo la precedencia `global > tenant` de `get_tenant_context` cuando el subject tenía la misma
+capacidad concedida en los dos ámbitos.
 """
 
 import uuid
@@ -117,7 +127,7 @@ class SqlAlchemyRoleRepository:
     ) -> set[tuple[str, str]]:
         try:
             rows = await self._session.execute(
-                select(CapabilityModel.name, CapabilityModel.scope)
+                select(CapabilityModel.name, UserRoleModel.tenant_id)
                 .join(RoleCapabilityModel, RoleCapabilityModel.capability_id == CapabilityModel.id)
                 .join(UserRoleModel, UserRoleModel.role_id == RoleCapabilityModel.role_id)
                 .where(
@@ -128,7 +138,10 @@ class SqlAlchemyRoleRepository:
             )
         except Exception as exc:
             raise PortError("fallo al resolver capacidades efectivas") from exc
-        return {(name, scope.value) for name, scope in rows}
+        return {
+            (name, "global" if assignment_tenant_id is None else "tenant")
+            for name, assignment_tenant_id in rows
+        }
 
     async def list(self, tenant_id: uuid.UUID) -> list[Role]:
         try:

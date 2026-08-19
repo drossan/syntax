@@ -26,6 +26,10 @@ SUPPORTED_LANGS = ("es", "en")
 
 # Mensajes del envelope localizados por status (``es`` = idioma base, ``en`` = alterno).
 MESSAGES: dict[int, dict[str, dict[str, str]]] = {
+    401: {
+        "es": {"title": "No autenticado", "detail": "Credenciales inválidas o ausentes."},
+        "en": {"title": "Unauthorized", "detail": "Invalid or missing credentials."},
+    },
     403: {
         "es": {"title": "Prohibido", "detail": "No tienes capacidad para esta acción."},
         "en": {"title": "Forbidden", "detail": "You lack the capability for this action."},
@@ -126,6 +130,13 @@ def problem_response(
     return JSONResponse(status_code=status, content=body, media_type=PROBLEM_MEDIA_TYPE)
 
 
+_AUTHENTICATION_FAILURE_CODE = "auth.invalid_credentials"
+"""`Validation.code` que `auth_service` usa para credenciales/tokens de sesión inválidos (login,
+select_tenant, switch_tenant) — semánticamente 401 (falla la AUTENTICACIÓN), no 422 (el resto de
+`Validation` sí son fallos de validación de negocio genéricos). Único acoplamiento código↔status de
+este módulo; documentado aquí porque el status 401 no tiene su propia subclase de `DomainError`."""
+
+
 def _status_for_domain_error(exc: DomainError) -> int:
     """Resuelve el status HTTP de una `DomainError` — orden por especificidad (`InvalidTransition` es
     una `Conflict`, ambas 409, así que el orden entre ellas no importa; sí importa comprobar cada base
@@ -135,6 +146,8 @@ def _status_for_domain_error(exc: DomainError) -> int:
     if isinstance(exc, Conflict):
         return 409
     if isinstance(exc, Validation):
+        if exc.code == _AUTHENTICATION_FAILURE_CODE:
+            return 401
         return 422
     if isinstance(exc, PortError):
         return 502
