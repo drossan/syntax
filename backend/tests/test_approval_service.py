@@ -85,8 +85,16 @@ class _FakeMessageRepository:
     async def add(self, message: object) -> object:
         return message
 
-    async def list_by_ticket(self, ticket_id: uuid.UUID) -> list[object]:
-        return []
+    async def list_by_ticket(
+        self, ticket_id: uuid.UUID, *, page: int = 1, page_size: int = 20
+    ) -> PageResult[object]:
+        return PageResult(items=[], total=0)
+
+    async def add_attachment(self, attachment: object) -> object:
+        return attachment
+
+    async def get_attachment(self, attachment_id: uuid.UUID) -> object | None:
+        return None
 
 
 class _FakeAuditLogRepository:

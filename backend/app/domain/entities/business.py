@@ -53,6 +53,20 @@ class Message(BaseModel):
     created_at: datetime | None = None
 
 
+class Attachment(BaseModel):
+    """Adjunto de un mensaje. El binario vive fuera de Postgres (`storage_key` → puerto `Storage`,
+    tarea 08); `tenant_id` propio (no derivado del mensaje) porque la tabla lleva `TenantMixin`/RLS."""
+
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    message_id: uuid.UUID
+    filename: str
+    content_type: str
+    size_bytes: int
+    storage_key: str
+    created_at: datetime | None = None
+
+
 class ApprovalTask(BaseModel):
     """Tarea HITL: draft del agente que un humano aprueba/edita/rechaza."""
 

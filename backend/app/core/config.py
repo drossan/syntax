@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     `embedding.vector` coincide con la config. El modelo ORM usa `Vector(1536)` literal.
     """
 
+    storage_root: str = "./var/storage"
+    """Directorio raíz de `LocalFilesystemStorage` (tarea 08) — relativo al cwd del proceso en dev."""
+
+    max_upload_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
+    """Tamaño máximo de un adjunto (10 MiB por defecto) — por encima, `POST .../attachments` → 413."""
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors_origins(cls, value: object) -> object:

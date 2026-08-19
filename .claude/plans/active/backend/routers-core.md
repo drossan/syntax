@@ -279,7 +279,7 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   las 3 · depends_on: 05
 - [x] `backend-routers-core-07` (P1) — `TicketRepository` (paginación/filtros/orden) + `TicketService`
   (método PATCH parcial) + router `tickets` · depends_on: 05
-- [ ] `backend-routers-core-08` (P2) — `MessageRepository` + puerto `Storage` (nuevo) + adaptador
+- [x] `backend-routers-core-08` (P2) — `MessageRepository` + puerto `Storage` (nuevo) + adaptador
   filesystem local + router `messages` (incl. attachments + descarga) · depends_on: 07
 - [ ] `backend-routers-core-09` (P3) — Puerto `VectorStore` (nuevo, recortado) + adaptador stub + router
   `kb` · depends_on: 05
@@ -428,3 +428,17 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   spec que faltaban) + 2 AVISO de sincronización spec↔CU reconocidos. `fact-checker` 17/18 VERIFICADO +
   1 INCORRECTO (conteo de tests del session log) corregido. 559 tests verdes en el backend completo.
   Detalle en `.claude/context/backend/backend-routers-core-07.md`.
+- 2026-08-19: **tarea 08 cerrada** — puerto `Storage` (nuevo, filesystem local) + `MessageRepository`
+  ampliado para adjuntos (`Attachment`, nueva entidad) + router `messages` completo (hilo con filtro de
+  visibilidad server-side a nivel de query, subida/descarga de adjuntos). Se pidió permiso al owner
+  para añadir `python-multipart` (dependencia nueva, requerida por FastAPI para `UploadFile`/multipart
+  — el endpoint de subida ya estaba en el contrato desde antes de esta tarea) — autorizada. La
+  capacidad de escritura de un mensaje/adjunto (`ticket.reply` vs `note.internal.write`) se decide en
+  RUNTIME por su `visibility`, no en tiempo de definición de ruta — no encajaba en
+  `Depends(require_capability(...))`, resuelto invocando `get_tenant_context` directamente y
+  comprobando la capacidad específica a mano. Mutation gate verde en el adaptador de storage (2.94%) y
+  el router (7.69% tras un refuerzo). `/sdd-lint`: 0 ERROR, 2 AVISO (mismo origen: `spec.md`/CU-BE-04
+  no anticipan adjuntos, funcionalidad nacida directamente del contrato) — el subagente semántico murió
+  por un error de conexión en su primer intento y se relanzó con normalidad. `fact-checker` 17/17
+  VERIFICADO. 587 tests verdes en el backend completo. Detalle en
+  `.claude/context/backend/backend-routers-core-08.md`.

@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest_asyncio
-from app.domain.entities.business import Message, Ticket
+from app.domain.entities.business import Attachment, Message, Ticket
 from app.domain.entities.enums import (
     KbDomain,
     MessageVisibility,
@@ -27,7 +27,7 @@ from app.infra.db.repositories import (
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-_TRUNCATE_TABLES = 'TRUNCATE message, ticket, tenant, "user" RESTART IDENTITY CASCADE'
+_TRUNCATE_TABLES = 'TRUNCATE attachment, message, ticket, tenant, "user" RESTART IDENTITY CASCADE'
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -279,10 +279,11 @@ async def test_message_add_and_list_by_ticket(session: AsyncSession) -> None:
     )
     await session.commit()
 
-    messages = await repo.list_by_ticket(ticket.id)
+    page = await repo.list_by_ticket(ticket.id)
 
-    assert len(messages) == 1
-    assert messages[0].body == "hola"
+    assert len(page.items) == 1
+    assert page.items[0].body == "hola"
+    assert page.total == 1
 
 
 async def test_message_list_by_ticket_orders_by_created_at(session: AsyncSession) -> None:
@@ -311,9 +312,9 @@ async def test_message_list_by_ticket_orders_by_created_at(session: AsyncSession
     )
     await session.commit()
 
-    messages = await repo.list_by_ticket(ticket.id)
+    page = await repo.list_by_ticket(ticket.id)
 
-    assert [m.id for m in messages] == [first.id, second.id]
+    assert [m.id for m in page.items] == [first.id, second.id]
 
 
 async def test_message_list_by_ticket_does_not_leak_another_tickets_messages(
@@ -373,6 +374,99 @@ async def test_message_list_by_ticket_does_not_leak_another_tickets_messages(
     )
     await session.commit()
 
-    messages = await repo.list_by_ticket(target.id)
+    page = await repo.list_by_ticket(target.id)
 
-    assert messages == []
+    assert page.items == []
+
+
+# ── SqlAlchemyMessageRepository: attachments ──
+
+
+async def test_add_attachment_and_get_it_back(session: AsyncSession) -> None:
+    tenant = await _make_tenant(session)
+    ticket = await SqlAlchemyTicketRepository(session).add(_make_ticket(tenant.id))
+    await session.commit()
+    message_repo = SqlAlchemyMessageRepository(session)
+    message = await message_repo.add(
+        Message(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            ticket_id=ticket.id,
+            visibility=MessageVisibility.public,
+            body="con adjunto",
+        )
+    )
+    await session.commit()
+
+    attachment = await message_repo.add_attachment(
+        Attachment(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            message_id=message.id,
+            filename="informe.pdf",
+            content_type="application/pdf",
+            size_bytes=1234,
+            storage_key=f"{tenant.id}/{message.id}/a1-informe.pdf",
+        )
+    )
+    await session.commit()
+
+    found = await message_repo.get_attachment(attachment.id)
+
+    assert found is not None
+    assert found.filename == "informe.pdf"
+    assert found.size_bytes == 1234
+    assert found.storage_key == attachment.storage_key
+
+
+async def test_get_attachment_on_a_nonexistent_id_returns_none(session: AsyncSession) -> None:
+    assert await SqlAlchemyMessageRepository(session).get_attachment(uuid.uuid4()) is None
+
+
+async def test_two_attachments_with_the_same_filename_get_distinct_storage_keys(
+    session: AsyncSession,
+) -> None:
+    """Dos adjuntos con el MISMO `filename` al MISMO mensaje no colisionan — la `storage_key` incluye
+    un identificador único del adjunto (su propio `id`), no solo el nombre."""
+    tenant = await _make_tenant(session)
+    ticket = await SqlAlchemyTicketRepository(session).add(_make_ticket(tenant.id))
+    await session.commit()
+    message_repo = SqlAlchemyMessageRepository(session)
+    message = await message_repo.add(
+        Message(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            ticket_id=ticket.id,
+            visibility=MessageVisibility.public,
+            body="dos adjuntos",
+        )
+    )
+    await session.commit()
+
+    first = await message_repo.add_attachment(
+        Attachment(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            message_id=message.id,
+            filename="informe.pdf",
+            content_type="application/pdf",
+            size_bytes=10,
+            storage_key=f"{tenant.id}/{message.id}/{uuid.uuid4()}-informe.pdf",
+        )
+    )
+    second = await message_repo.add_attachment(
+        Attachment(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            message_id=message.id,
+            filename="informe.pdf",
+            content_type="application/pdf",
+            size_bytes=20,
+            storage_key=f"{tenant.id}/{message.id}/{uuid.uuid4()}-informe.pdf",
+        )
+    )
+    await session.commit()
+
+    assert first.storage_key != second.storage_key
+    assert await message_repo.get_attachment(first.id) is not None
+    assert await message_repo.get_attachment(second.id) is not None

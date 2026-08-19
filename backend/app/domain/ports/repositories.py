@@ -21,12 +21,13 @@ from typing import Protocol
 from app.domain.entities.business import (
     AgentRun,
     ApprovalTask,
+    Attachment,
     AuditLogEntry,
     Message,
     Notification,
     Ticket,
 )
-from app.domain.entities.enums import KbDomain, TicketPriority, TicketStatus
+from app.domain.entities.enums import KbDomain, MessageVisibility, TicketPriority, TicketStatus
 from app.domain.entities.identity import (
     AuthToken,
     Capability,
@@ -249,12 +250,32 @@ class TicketRepository(Protocol):
 
 
 class MessageRepository(Protocol):
-    """Puerto de `message`."""
+    """Puerto de `message` + `attachment` (adjuntos, tarea 08 — el binario vive fuera de Postgres,
+    vía el puerto `Storage`; aquí solo el metadato)."""
 
     async def add(self, message: Message) -> Message: ...
-    async def list_by_ticket(self, ticket_id: uuid.UUID) -> list[Message]:
-        """Orden `created_at` (contrato del puerto)."""
+
+    async def get(self, message_id: uuid.UUID) -> Message | None: ...
+
+    async def list_by_ticket(
+        self,
+        ticket_id: uuid.UUID,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        visibilities: list[MessageVisibility] | None = None,
+    ) -> PageResult[Message]:
+        """Orden `created_at` ascendente (contrato del puerto, `GET /tickets/{id}/messages`).
+
+        `visibilities`: filtro a nivel de QUERY (no post-filtrado en el router) — sin él, `page.total`/
+        el número de `items` de una página quedarían inconsistentes si el router descartara mensajes
+        `internal` después de paginar. El router lo resuelve a `[public]` para un subject sin
+        `note.internal.read`, o lo deja `None` (sin filtrar) si lo tiene."""
         ...
+
+    async def add_attachment(self, attachment: Attachment) -> Attachment: ...
+
+    async def get_attachment(self, attachment_id: uuid.UUID) -> Attachment | None: ...
 
 
 class ApprovalRepository(Protocol):

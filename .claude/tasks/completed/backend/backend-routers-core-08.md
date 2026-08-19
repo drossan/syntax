@@ -2,11 +2,11 @@
 id: backend-routers-core-08
 package: backend
 plan: routers-core
-status: pending
+status: done
 priority: 2
 depends_on: [backend-routers-core-07]
 estimate: 4h
-actual:
+actual: 5h
 issue:
 created: 2026-08-19
 updated: 2026-08-19
@@ -154,13 +154,14 @@ descarga de adjuntos.
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario tiene al menos un test de integración.
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; el dominio no importa detalles de filesystem (solo el puerto).
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre el adaptador de storage y el router.
-- [ ] Gate `/sdd-lint` sin ERROR (CU-BE-04 Gherkin bien formado, enlace válido).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (por qué el puerto `Storage` no expone filesystem al router, la defensa
-  anti path-traversal); session log con la traza a CU-BE-04.
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario tiene al menos un test de integración.
+- [x] Todos los tests en verde (`make test`) — 587 tests, verde.
+- [x] `Provides` disponible; el dominio no importa detalles de filesystem (solo el puerto).
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre el adaptador de storage (2.94%) y el router
+  (7.69%).
+- [x] Gate `/sdd-lint` (0 ERROR, 2 AVISO reconocidos — ausencia de FR de adjuntos en `spec.md`).
+- [x] Gate de `fact-checker` (17/17 VERIFICADO).
+- [x] Documentación: docstrings (por qué el puerto `Storage` no expone filesystem al router, la defensa
+  anti path-traversal); session log con la traza a CU-BE-04 (`.claude/context/backend/backend-routers-core-08.md`).
