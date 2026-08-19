@@ -106,7 +106,7 @@ class _FakeMembershipRepository:
     async def get(self, user_id: uuid.UUID, tenant_id: uuid.UUID) -> UserTenantMembership | None:
         return self.store.get((user_id, tenant_id))
 
-    async def list_for_user(self, user_id: uuid.UUID) -> list[UserTenantMembership]:
+    async def list_by_user(self, user_id: uuid.UUID) -> list[UserTenantMembership]:
         return [m for (uid, _), m in self.store.items() if uid == user_id]
 
     async def add(self, membership: UserTenantMembership) -> UserTenantMembership:

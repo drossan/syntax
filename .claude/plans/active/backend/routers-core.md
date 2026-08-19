@@ -266,7 +266,7 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   depends_on: 01
 - [x] `backend-routers-core-03` (P1) — Envelope de error (`DomainError`+`Deny`→problem+json) + schemas
   compartidos (`Page[T]`, `Problem`) · depends_on: —
-- [ ] `backend-routers-core-04` (P1) — Adaptadores SQLAlchemy de identidad: `TenantRepository` (+
+- [x] `backend-routers-core-04` (P1) — Adaptadores SQLAlchemy de identidad: `TenantRepository` (+
   `list`, `auto_approve`), `UserRepository`, `UserTenantMembershipRepository` (nuevo), `RoleRepository`
   (+ `list`/`update`/`delete`, `effective_capabilities` acotado por tenant), `RefreshSessionRepository`,
   `AuthTokenRepository` · depends_on: 01, 03

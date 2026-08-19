@@ -79,6 +79,12 @@ class _FakeTenantRepository:
     async def add(self, tenant: object) -> object:
         return tenant
 
+    async def update(self, tenant: object) -> object:
+        return tenant
+
+    async def list(self, *, page: int, page_size: int) -> object:
+        return None
+
 
 class _FakeClock:
     def now(self) -> datetime:

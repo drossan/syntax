@@ -37,11 +37,24 @@ from app.domain.entities.identity import (
 )
 
 
+@dataclass(frozen=True)
+class PageResult[T]:
+    """Resultado de un `list*` paginado: los `items` de la página pedida + el `total` sin paginar."""
+
+    items: list[T]
+    total: int
+
+
 class TenantRepository(Protocol):
     """Puerto de `tenant`."""
 
     async def get(self, tenant_id: uuid.UUID) -> Tenant | None: ...
     async def add(self, tenant: Tenant) -> Tenant: ...
+    async def update(self, tenant: Tenant) -> Tenant: ...
+
+    async def list(self, *, page: int, page_size: int) -> PageResult[Tenant]:
+        """Orden determinista por `slug` (contrato del puerto)."""
+        ...
 
 
 class UserRepository(Protocol):
@@ -61,8 +74,15 @@ class UserTenantMembershipRepository(Protocol):
         self, user_id: uuid.UUID, tenant_id: uuid.UUID
     ) -> UserTenantMembership | None: ...
 
-    async def list_for_user(self, user_id: uuid.UUID) -> list[UserTenantMembership]:
-        """Todas las membresías del usuario (cualquier `status`, cualquier tenant)."""
+    async def list_by_user(self, user_id: uuid.UUID) -> list[UserTenantMembership]:
+        """Todas las membresías del usuario (cualquier `status`, cualquier tenant); sin paginar
+        (el número de tenants de un usuario es acotado, a diferencia de usuarios de un tenant)."""
+        ...
+
+    async def list_by_tenant(
+        self, tenant_id: uuid.UUID, *, page: int, page_size: int
+    ) -> PageResult[UserTenantMembership]:
+        """Membresías de ese tenant, paginadas (lo usa `admin_users`, 06). Orden por `created_at`."""
         ...
 
     async def add(self, membership: UserTenantMembership) -> UserTenantMembership: ...
@@ -74,9 +94,32 @@ class RoleRepository(Protocol):
 
     async def get(self, role_id: uuid.UUID) -> Role | None: ...
     async def add(self, role: Role) -> Role: ...
+    async def update(self, role: Role) -> Role: ...
+
+    async def delete(self, role_id: uuid.UUID) -> bool:
+        """Borra un rol `tenant` (custom). True si borró una fila, False si no existía. Los roles
+        `system` son inmutables por invariante de `rbac_service`/`validate_role_composition` — este
+        puerto no lo comprueba, solo persiste."""
+        ...
+
     async def list_capabilities(self, role_id: uuid.UUID) -> list[Capability]: ...
-    async def effective_capabilities(self, user_id: uuid.UUID) -> set[tuple[str, str]]:
-        """Conjunto `(capability_name, scope)` resuelto server-side para el usuario (A1.7)."""
+
+    async def effective_capabilities(
+        self, user_id: uuid.UUID, tenant_id: uuid.UUID
+    ) -> set[tuple[str, str]]:
+        """Conjunto `(capability_name, scope)` resuelto server-side, **acotado a `tenant_id`**
+        (A1.7): sin este acotamiento, un usuario con roles distintos en dos tenants (ya soportado
+        por `user_role.tenant_id`) filtraría capacidades de un tenant a la sesión activa en otro —
+        fix de seguridad de `scenario-coverage`, no una ampliación discrecional."""
+        ...
+
+    async def list(self, tenant_id: uuid.UUID) -> list[Role]:
+        """Roles visibles para `tenant_id`: la semilla `system` (`tenant_id IS NULL`) + los custom
+        del propio tenant. Definido AL FINAL de la clase a propósito: nombrar un método `list`
+        vincula ese nombre en el namespace del cuerpo de la clase, y sombrea el builtin `list` para
+        cualquier anotación `list[...]` que aparezca DESPUÉS en el mismo cuerpo (peculiaridad de
+        scoping de las class bodies de Python — `TypeError: 'function' object is not subscriptable`
+        si se declara antes)."""
         ...
 
 

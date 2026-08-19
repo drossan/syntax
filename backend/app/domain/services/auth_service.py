@@ -292,7 +292,7 @@ class AuthService:
             raise _unusable_token_error()
         user.password_hash = hash_password(password)
         await self._users.update(user)
-        for membership in await self._memberships.list_for_user(user.id):
+        for membership in await self._memberships.list_by_user(user.id):
             if membership.status is UserStatus.invited:
                 membership.status = UserStatus.active
                 await self._memberships.update(membership)
@@ -304,7 +304,7 @@ class AuthService:
         """Membresías `active` cuyo tenant NO está `disabled` (una membership `active` de un tenant
         deshabilitado no cuenta, scenario-coverage)."""
         eligible: list[tuple[UserTenantMembership, Tenant]] = []
-        for membership in await self._memberships.list_for_user(user_id):
+        for membership in await self._memberships.list_by_user(user_id):
             if membership.status is not UserStatus.active:
                 continue
             tenant = await self._tenants.get(membership.tenant_id)

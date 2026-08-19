@@ -1,0 +1,144 @@
+"""app.infra.db.repositories.role — adaptador SQLAlchemy de `RoleRepository`.
+
+`effective_capabilities(user_id, tenant_id)` resuelve vía join `user_role`→`role_capability`→
+`capability`, incluyendo asignaciones de ámbito `tenant` (`user_role.tenant_id = tenant_id`) Y de
+ámbito `global` (`user_role.tenant_id IS NULL` — Soporte, aplica en cualquier sesión). Acotar por
+`tenant_id` es un fix de seguridad (scenario-coverage): sin él, un usuario con roles distintos en dos
+tenants filtraría capacidades de un tenant a la sesión activa en otro.
+"""
+
+import uuid
+
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.domain.entities.enums import CapabilityScope, RoleKind
+from app.domain.entities.identity import Capability, Role
+from app.domain.errors import PortError
+from app.infra.db.models import Capability as CapabilityModel
+from app.infra.db.models import Role as RoleModel
+from app.infra.db.models import RoleCapability as RoleCapabilityModel
+from app.infra.db.models import UserRole as UserRoleModel
+from app.infra.db.models.enums import RoleKind as RoleKindOrm
+from app.infra.db.repositories._enum_bridge import to_domain, to_orm
+
+
+def _role_to_domain(row: RoleModel) -> Role:
+    return Role(
+        id=row.id,
+        name=row.name,
+        kind=to_domain(RoleKind, row.kind),
+        tenant_id=row.tenant_id,
+        description=row.description,
+    )
+
+
+def _capability_to_domain(row: CapabilityModel) -> Capability:
+    return Capability(
+        id=row.id,
+        name=row.name,
+        scope=to_domain(CapabilityScope, row.scope),
+        description=row.description,
+    )
+
+
+class SqlAlchemyRoleRepository:
+    """Adaptador de `RoleRepository` (`app.domain.ports.repositories`)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(self, role_id: uuid.UUID) -> Role | None:
+        try:
+            row = await self._session.get(RoleModel, role_id)
+        except Exception as exc:
+            raise PortError("fallo al leer role") from exc
+        return _role_to_domain(row) if row is not None else None
+
+    async def add(self, role: Role) -> Role:
+        row = RoleModel(
+            id=role.id,
+            name=role.name,
+            kind=to_orm(RoleKindOrm, role.kind),
+            tenant_id=role.tenant_id,
+            description=role.description,
+        )
+        self._session.add(row)
+        try:
+            await self._session.flush()
+        except Exception as exc:
+            raise PortError("fallo al crear role") from exc
+        return _role_to_domain(row)
+
+    async def update(self, role: Role) -> Role:
+        """Persiste `name`/`description` — `kind`/`tenant_id` son de identidad, no se reasignan."""
+        try:
+            row = await self._session.get(RoleModel, role.id)
+        except Exception as exc:
+            raise PortError("fallo al leer role") from exc
+        if row is None:
+            raise PortError(f"role {role.id} no existe")
+        row.name = role.name
+        row.description = role.description
+        try:
+            await self._session.flush()
+        except Exception as exc:
+            raise PortError("fallo al actualizar role") from exc
+        return _role_to_domain(row)
+
+    async def delete(self, role_id: uuid.UUID) -> bool:
+        try:
+            row = await self._session.get(RoleModel, role_id)
+            if row is None:
+                return False
+            await self._session.delete(row)
+            await self._session.flush()
+        except Exception as exc:
+            raise PortError("fallo al borrar role") from exc
+        return True
+
+    async def list_capabilities(self, role_id: uuid.UUID) -> list[Capability]:
+        try:
+            rows = (
+                await self._session.execute(
+                    select(CapabilityModel)
+                    .join(
+                        RoleCapabilityModel, RoleCapabilityModel.capability_id == CapabilityModel.id
+                    )
+                    .where(RoleCapabilityModel.role_id == role_id)
+                )
+            ).scalars()
+        except Exception as exc:
+            raise PortError("fallo al listar capabilities del role") from exc
+        return [_capability_to_domain(row) for row in rows]
+
+    async def effective_capabilities(
+        self, user_id: uuid.UUID, tenant_id: uuid.UUID
+    ) -> set[tuple[str, str]]:
+        try:
+            rows = await self._session.execute(
+                select(CapabilityModel.name, CapabilityModel.scope)
+                .join(RoleCapabilityModel, RoleCapabilityModel.capability_id == CapabilityModel.id)
+                .join(UserRoleModel, UserRoleModel.role_id == RoleCapabilityModel.role_id)
+                .where(
+                    UserRoleModel.user_id == user_id,
+                    or_(UserRoleModel.tenant_id == tenant_id, UserRoleModel.tenant_id.is_(None)),
+                )
+                .distinct()
+            )
+        except Exception as exc:
+            raise PortError("fallo al resolver capacidades efectivas") from exc
+        return {(name, scope.value) for name, scope in rows}
+
+    async def list(self, tenant_id: uuid.UUID) -> list[Role]:
+        try:
+            rows = (
+                await self._session.execute(
+                    select(RoleModel).where(
+                        or_(RoleModel.tenant_id == tenant_id, RoleModel.tenant_id.is_(None))
+                    )
+                )
+            ).scalars()
+        except Exception as exc:
+            raise PortError("fallo al listar roles") from exc
+        return [_role_to_domain(row) for row in rows]

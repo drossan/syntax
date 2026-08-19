@@ -2,11 +2,11 @@
 id: backend-routers-core-04
 package: backend
 plan: routers-core
-status: pending
+status: done
 priority: 1
 depends_on: [backend-routers-core-01, backend-routers-core-03]
 estimate: 4h
-actual:
+actual: 4h
 issue:
 created: 2026-08-19
 updated: 2026-08-19
@@ -142,14 +142,14 @@ Adaptadores concretos de `TenantRepository`, `UserRepository`, `UserTenantMember
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario tiene al menos un test de integración (Postgres real, `docker compose up -d db`).
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible; ningún adaptador deja pasar una excepción de infra cruda.
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre los adaptadores con lógica condicional real (CAS,
-  `effective_capabilities`); los CRUD triviales pueden ser N/A documentado.
-- [ ] Gate `/sdd-lint`: N/A (sin cambios de spec/CU, declarado en Scenarios).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (por qué `BaseRepository` no aplica aquí, el CAS como sentencia única);
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario tiene al menos un test de integración (Postgres real, `docker compose up -d db`).
+- [x] Todos los tests en verde (`make test`) — 446 tests, suite completa del backend.
+- [x] `Provides` disponible; ningún adaptador deja pasar una excepción de infra cruda.
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre los adaptadores con lógica condicional real:
+  `refresh_session.py` 84.9% score, `role.py` 86.8% score (ambos re-verificados por `fact-checker`).
+- [x] Gate `/sdd-lint`: N/A (sin cambios de spec/CU, declarado en Scenarios).
+- [x] Gate de `fact-checker`: 9/9 VERIFICADO.
+- [x] Documentación: docstrings (por qué `BaseRepository` no aplica aquí, el CAS como sentencia única);
   session log.
