@@ -2,11 +2,11 @@
 id: backend-routers-core-03
 package: backend
 plan: routers-core
-status: pending
+status: done
 priority: 1
 depends_on: []
 estimate: 2h
-actual:
+actual: 1.5h
 issue:
 created: 2026-08-19
 updated: 2026-08-19
@@ -112,14 +112,14 @@ propia; `app.api.v1.schemas.common.Page[T]`. Consumido por **todos** los routers
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (Red → Green → Refactor).
-- [ ] Cada escenario tiene al menos un test (nivel integración: cliente HTTP de FastAPI contra un endpoint
+- [x] Tests escritos ANTES de la implementación (Red → Green → Refactor).
+- [x] Cada escenario tiene al menos un test (nivel integración: cliente HTTP de FastAPI contra un endpoint
   de prueba mínimo que lanza cada excepción a propósito).
-- [ ] Todos los tests en verde (`make test`).
-- [ ] `Provides` disponible.
-- [ ] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
-- [ ] Gate de mutation `cosmic-ray` (`break: 80`) sobre el módulo de handlers.
-- [ ] Gate `/sdd-lint`: N/A (sin cambios de spec/CU, declarado en Scenarios).
-- [ ] Gate de `fact-checker`.
-- [ ] Documentación: docstrings (por qué `PortError`→502 y no 500, por qué `Deny` necesita un tipo propio
+- [x] Todos los tests en verde (`make test`) — 422 tests, suite completa del backend.
+- [x] `Provides` disponible.
+- [x] `ruff check` (+`S`) + `ruff format --check` + `mypy` strict OK.
+- [x] Gate de mutation `cosmic-ray` (`break: 80`) sobre el módulo de handlers — 100% mutation score.
+- [x] Gate `/sdd-lint`: N/A (sin cambios de spec/CU, declarado en Scenarios).
+- [x] Gate de `fact-checker`: 9/9 VERIFICADO.
+- [x] Documentación: docstrings (por qué `PortError`→502 y no 500, por qué `Deny` necesita un tipo propio
   en vez de mapear directo); session log.

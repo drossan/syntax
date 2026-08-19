@@ -264,7 +264,7 @@ completo de los 8 hallazgos críticos y las decisiones tomadas):
   `api-contract.yaml` (login 2 pasos, `/auth/switch-tenant` + `User`/`UserInvite`/`UserUpdate`/
   `/admin/users`) + `data-model.md`/`rbac.md` (+ capacidad `tenant.settings.manage`)/CU-BE-01 ·
   depends_on: 01
-- [ ] `backend-routers-core-03` (P1) — Envelope de error (`DomainError`+`Deny`→problem+json) + schemas
+- [x] `backend-routers-core-03` (P1) — Envelope de error (`DomainError`+`Deny`→problem+json) + schemas
   compartidos (`Page[T]`, `Problem`) · depends_on: —
 - [ ] `backend-routers-core-04` (P1) — Adaptadores SQLAlchemy de identidad: `TenantRepository` (+
   `list`, `auto_approve`), `UserRepository`, `UserTenantMembershipRepository` (nuevo), `RoleRepository`
