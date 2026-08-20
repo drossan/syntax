@@ -36,6 +36,7 @@ from app.domain.ports.vectorstore import VectorStore
 from app.domain.services.agent_service import AgentService
 from app.domain.services.approval_service import ApprovalService
 from app.domain.services.auth_service import AuthService
+from app.domain.services.notification_service import NotificationService
 from app.domain.services.rbac_service import Deny, DenyReason
 from app.domain.services.ticket_service import TicketService
 from app.infra.agent_runner.stub import StubAgentRunner
@@ -46,6 +47,7 @@ from app.infra.db.repositories import (
     SqlAlchemyAuditLogRepository,
     SqlAlchemyAuthTokenRepository,
     SqlAlchemyMessageRepository,
+    SqlAlchemyNotificationRepository,
     SqlAlchemyRefreshSessionRepository,
     SqlAlchemyRoleRepository,
     SqlAlchemyTenantRepository,
@@ -145,6 +147,15 @@ def get_approval_service(session: AsyncSession = Depends(get_db_session)) -> App
         approvals=SqlAlchemyApprovalRepository(session),
         ticket_service=get_ticket_service(session),
         agent_runner=StubAgentRunner(SqlAlchemyAgentRunRepository(session)),
+    )
+
+
+def get_notification_service(
+    session: AsyncSession = Depends(get_db_session),
+) -> NotificationService:
+    """Ensambla `NotificationService` (tarea 12) con el adaptador real de `NotificationRepository`."""
+    return NotificationService(
+        notifications=SqlAlchemyNotificationRepository(session), clock=SystemClock()
     )
 
 

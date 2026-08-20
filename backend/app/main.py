@@ -34,6 +34,7 @@ from app.api.v1.routers.approvals import router as approvals_router
 from app.api.v1.routers.auth import router as auth_router
 from app.api.v1.routers.kb import router as kb_router
 from app.api.v1.routers.messages import router as messages_router
+from app.api.v1.routers.notifications import router as notifications_router
 from app.api.v1.routers.tickets import router as tickets_router
 from app.core.config import Settings, get_settings
 from app.core.logging import RequestIDMiddleware, configure_logging
@@ -109,6 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(kb_router, prefix="/api/v1")
     app.include_router(agent_router, prefix="/api/v1")
     app.include_router(approvals_router, prefix="/api/v1")
+    app.include_router(notifications_router, prefix="/api/v1")
 
     @app.get("/health/live")
     async def health_live() -> dict[str, str]:

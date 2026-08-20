@@ -300,7 +300,7 @@ existe todavía — es intencional: este plan solo conecta HTTP↔dominio hasta 
   reemplaza `list_pending`) + actualiza `tests/test_approval_service.py` + adaptador
   `SqlAlchemyApprovalRepository` + `approval_service` (ampliación de cola) + router `approvals.py`
   completo · depends_on: —
-- [ ] `backend-routers-flujo-ia-03` (P2) — `NotificationRepository` ampliado (paginación + `unread`) +
+- [x] `backend-routers-flujo-ia-03` (P2) — `NotificationRepository` ampliado (paginación + `unread`) +
   adaptador `SqlAlchemyNotificationRepository` + `notification_service` (ampliación de listado) + router
   `notifications.py` completo · depends_on: —
 - [ ] `backend-routers-flujo-ia-04` (P2) — Cierra FR-038: cablea `notification_service.emit()` en

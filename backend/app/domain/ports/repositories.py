@@ -356,8 +356,18 @@ class NotificationRepository(Protocol):
 
     async def add(self, notification: Notification) -> Notification: ...
 
-    async def list_for_user(self, user_id: uuid.UUID) -> list[Notification]:
-        """Orden `-created_at` (contrato del puerto, CU-BE-10)."""
+    async def get(self, notification_id: uuid.UUID) -> Notification | None:
+        """Sin filtrar por `user_id` (el servicio decide el 404 comparando `user_id`, tarea 12) —
+        distingue "no existe" de "es de otro usuario" para que el router pueda dar 404 en ambos casos
+        sin revelar cuál, y a la vez permitir el `mark_read` idempotente (200) cuando SÍ es del
+        usuario y ya estaba leída."""
+        ...
+
+    async def list_for_user(
+        self, user_id: uuid.UUID, *, unread: bool | None = None, page: int, page_size: int
+    ) -> PageResult[Notification]:
+        """Orden `-created_at` (contrato del puerto, CU-BE-10). `unread=True` solo no leídas,
+        `unread=False` solo leídas (filtro simétrico, `scenario-coverage`), `None`/ausente sin filtro."""
         ...
 
     async def mark_read(

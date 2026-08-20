@@ -14,6 +14,7 @@ from app.infra.db.repositories.audit_log import SqlAlchemyAuditLogRepository
 from app.infra.db.repositories.auth_token import SqlAlchemyAuthTokenRepository
 from app.infra.db.repositories.base import BaseRepository, TenantScoped
 from app.infra.db.repositories.message import SqlAlchemyMessageRepository
+from app.infra.db.repositories.notification import SqlAlchemyNotificationRepository
 from app.infra.db.repositories.refresh_session import SqlAlchemyRefreshSessionRepository
 from app.infra.db.repositories.role import SqlAlchemyRoleRepository
 from app.infra.db.repositories.tenant import SqlAlchemyTenantRepository
@@ -28,6 +29,7 @@ __all__ = [
     "SqlAlchemyAuditLogRepository",
     "SqlAlchemyAuthTokenRepository",
     "SqlAlchemyMessageRepository",
+    "SqlAlchemyNotificationRepository",
     "SqlAlchemyRefreshSessionRepository",
     "SqlAlchemyRoleRepository",
     "SqlAlchemyTenantRepository",
