@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -108,6 +109,12 @@ class AgentRun(TenantMixin, Base):
     __table_args__ = (
         Index("ix_agent_run_ticket_seq", "ticket_id", "run_seq"),
         Index("ix_agent_run_thread", "langgraph_thread_id"),
+        Index(
+            "ix_agent_run_active_per_ticket",
+            "ticket_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running')"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

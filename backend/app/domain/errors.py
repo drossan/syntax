@@ -50,5 +50,16 @@ class PortError(DomainError):
         super().__init__(message, code="port.external_service_error", details=details)
 
 
+class RateLimited(DomainError):
+    """Se excedió un límite de peticiones (mapeo HTTP futuro: 429).
+
+    `code` fijo (mismo patrón que `PortError`): un único motivo posible, sin variantes que un
+    llamante necesite discriminar por `code`.
+    """
+
+    def __init__(self, message: str, *, details: dict[str, object] | None = None) -> None:
+        super().__init__(message, code="rate_limited", details=details)
+
+
 ExternalServiceError = PortError
 """Alias — algunos puertos lo referencian con este nombre (más descriptivo en su contexto)."""

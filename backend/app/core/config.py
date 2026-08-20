@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     jwt_secret: str
     login_max_attempts: int = 5
     login_window_seconds: int = 300
-    ai_draft_max_per_ticket: int = 10
+    ai_draft_rate_limit_per_minute: int = 10
+    """Límite de `POST /tickets/{id}/ai-draft` por tenant, ventana fija de 1 minuto, in-memory por
+    proceso (`InMemoryRateLimiter`, tarea 12) — sustituye a `ai_draft_max_per_ticket` (B.1, nunca
+    implementado, semántica por-ticket/de-por-vida redundante con el CAS del índice único parcial de
+    `agent_run`)."""
     cors_origins: Annotated[list[str], NoDecode] = []
 
     database_url: str = "postgresql+asyncpg://syntax_app:syntax_app@localhost:5432/syntax"

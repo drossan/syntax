@@ -76,6 +76,7 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-029** — Si un nodo del grafo falla, entonces el sistema DEBERÁ marcar `agent_run.status=failed` con `error`, dejando el checkpoint consistente (sin `approval_task` si no se interrumpió).
 - **FR-030** — Cuando se reabre un ticket, el sistema DEBERÁ lanzar un **run nuevo** (`run_seq=n+1`, thread nuevo), dejando el anterior superado.
 - **FR-031** — El sistema DEBERÁ tratar el contenido del ticket como **input no confiable** (aislado del system-prompt; sin ejecutar instrucciones embebidas) y persistir la traza en `agent_run.langsmith_trace_url`.
+- **FR-040** — Si ya hay un `agent_run` no-terminal (`queued`/`running`) para el ticket, o el tenant excede el límite de tasa de `ai-draft` en la ventana actual, entonces el sistema DEBERÁ rechazar el disparo (**409**/**429** respectivamente) sin crear un `agent_run` nuevo.
 
 ### KB: ingestión y retrieval — [[../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]]
 

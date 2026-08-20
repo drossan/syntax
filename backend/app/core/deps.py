@@ -7,6 +7,9 @@ capacidad requerida** (no por un flag fijo del subject, decisión de `grilling`)
 `(cap, "global")` → abre `global_scope` (precedencia sobre `tenant`, aunque tenga ambos); si no y
 tiene `(cap, "tenant")` → `tenant_scope(subject.tenant_id)`; si ninguno → `Deny(no_capability)`.
 `require_capability` es la factory que los routers 06-09 reutilizan sin repetir esta lógica.
+`require_any_capability` (tarea 12) es su variante OR: concede acceso si el subject tiene CUALQUIERA
+de las capacidades dadas — primer caso de capacidad compuesta del backend (`GET /agent-runs/{id}`,
+`agent.trigger` OR `ticket.read`).
 
 Anti-patrón: resolver permisos desde el JWT (las capacidades se resuelven server-side, por request);
 capturar el tenant en estado global compartido entre requests.
@@ -15,6 +18,7 @@ capturar el tenant en estado global compartido entre requests.
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from functools import lru_cache
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -26,13 +30,17 @@ from app.core.config import Settings, get_settings
 from app.core.security import JWT_ALGORITHM, decode_access_token
 from app.domain.entities.enums import TenantStatus
 from app.domain.entities.identity import Subject
+from app.domain.ports.rate_limiter import RateLimiter
 from app.domain.ports.storage import Storage
 from app.domain.ports.vectorstore import VectorStore
+from app.domain.services.agent_service import AgentService
 from app.domain.services.auth_service import AuthService
 from app.domain.services.rbac_service import Deny, DenyReason
 from app.domain.services.ticket_service import TicketService
+from app.infra.agent_runner.stub import StubAgentRunner
 from app.infra.clock import SystemClock
 from app.infra.db.repositories import (
+    SqlAlchemyAgentRunRepository,
     SqlAlchemyAuditLogRepository,
     SqlAlchemyAuthTokenRepository,
     SqlAlchemyMessageRepository,
@@ -45,6 +53,7 @@ from app.infra.db.repositories import (
 )
 from app.infra.db.session import get_session, global_scope, tenant_scope
 from app.infra.email import StubEmailPort
+from app.infra.rate_limit.in_memory import InMemoryRateLimiter
 from app.infra.sla import StubSlaPolicy
 from app.infra.storage.local import LocalFilesystemStorage
 from app.infra.vectorstore.stub import StubVectorStore
@@ -103,6 +112,30 @@ def get_vector_store() -> VectorStore:
     return StubVectorStore()
 
 
+@lru_cache
+def _rate_limiter_singleton(limit: int) -> RateLimiter:
+    """Instancia ÚNICA de `InMemoryRateLimiter` por valor de `limit` (proceso) — `lru_cache` evita
+    crear un contador nuevo en cada request, que nunca acumularía cuota (mismo criterio que
+    `get_settings`, cacheada por argumento en vez de sin argumentos)."""
+    return InMemoryRateLimiter(limit=limit)
+
+
+def get_agent_service(
+    session: AsyncSession = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+) -> AgentService:
+    """Ensambla `AgentService` (tarea 12) con `StubAgentRunner` (sin grafo real hasta 15/16 — persiste
+    el `AgentRun` vía el MISMO `AgentRunRepository`, sin duplicar instancias sobre la misma sesión) y el
+    `RateLimiter` singleton de proceso (`ai_draft_rate_limit_per_minute`)."""
+    agent_runs = SqlAlchemyAgentRunRepository(session)
+    return AgentService(
+        tickets=SqlAlchemyTicketRepository(session),
+        agent_runs=agent_runs,
+        agent_runner=StubAgentRunner(agent_runs),
+        rate_limiter=_rate_limiter_singleton(settings.ai_draft_rate_limit_per_minute),
+    )
+
+
 async def get_current_subject(
     token: str | None = Depends(oauth2_scheme),
     session: AsyncSession = Depends(get_db_session),
@@ -136,21 +169,35 @@ async def get_current_subject(
 
 
 @asynccontextmanager
+async def _scope_for_any_capability(
+    session: AsyncSession, subject: Subject, capabilities: tuple[str, ...]
+) -> AsyncIterator[AsyncSession]:
+    """Abre `global_scope`/`tenant_scope` según el ámbito CONCEDIDO de CUALQUIERA de `capabilities`
+    (OR) para `subject` (nunca por un flag fijo del subject). Con una sola capacidad, este es el
+    comportamiento de `get_tenant_context`; con varias, basta con que UNA la conceda — precedencia de
+    ámbito (`scenario-coverage` #7): si CUALQUIERA de las capacidades la concede en `global`, gana
+    `global` (el orden de `capabilities` no importa); si no, y CUALQUIERA la concede en `tenant`, abre
+    `tenant_scope`; si ninguna concede ninguna, `Deny(no_capability)`."""
+    if any((cap, "global") in subject.capabilities for cap in capabilities):
+        async with global_scope(session) as scoped:
+            yield scoped
+        return
+    if any((cap, "tenant") in subject.capabilities for cap in capabilities):
+        async with tenant_scope(session, subject.tenant_id) as scoped:
+            yield scoped
+        return
+    raise AuthorizationDenied(Deny(DenyReason.no_capability))
+
+
+@asynccontextmanager
 async def get_tenant_context(
     session: AsyncSession, subject: Subject, capability: str
 ) -> AsyncIterator[AsyncSession]:
     """Abre `global_scope`/`tenant_scope` según el ámbito CONCEDIDO de `capability` para `subject`
     (nunca por un flag fijo del subject). Si el subject tiene la capacidad en ambos ámbitos, gana
     `global`. `Deny(no_capability)` si no la tiene en ninguno."""
-    if (capability, "global") in subject.capabilities:
-        async with global_scope(session) as scoped:
-            yield scoped
-        return
-    if (capability, "tenant") in subject.capabilities:
-        async with tenant_scope(session, subject.tenant_id) as scoped:
-            yield scoped
-        return
-    raise AuthorizationDenied(Deny(DenyReason.no_capability))
+    async with _scope_for_any_capability(session, subject, (capability,)) as scoped:
+        yield scoped
 
 
 def require_capability(
@@ -163,6 +210,22 @@ def require_capability(
         session: AsyncSession = Depends(get_db_session),
     ) -> AsyncIterator[tuple[Subject, AsyncSession]]:
         async with get_tenant_context(session, subject, capability) as scoped:
+            yield subject, scoped
+
+    return _dependency
+
+
+def require_any_capability(
+    *capabilities: str,
+) -> Callable[..., AsyncIterator[tuple[Subject, AsyncSession]]]:
+    """Factory de dependencia: exige CUALQUIERA de `capabilities` (OR, tarea 12) — primer caso de
+    capacidad compuesta del backend (`GET /agent-runs/{id}`, `agent.trigger` OR `ticket.read`)."""
+
+    async def _dependency(
+        subject: Subject = Depends(get_current_subject),
+        session: AsyncSession = Depends(get_db_session),
+    ) -> AsyncIterator[tuple[Subject, AsyncSession]]:
+        async with _scope_for_any_capability(session, subject, capabilities) as scoped:
             yield subject, scoped
 
     return _dependency

@@ -29,6 +29,7 @@ from app.api.errors import problem_response, register_exception_handlers
 from app.api.v1.routers.admin_roles import router as admin_roles_router
 from app.api.v1.routers.admin_tenants import router as admin_tenants_router
 from app.api.v1.routers.admin_users import router as admin_users_router
+from app.api.v1.routers.agent import router as agent_router
 from app.api.v1.routers.auth import router as auth_router
 from app.api.v1.routers.kb import router as kb_router
 from app.api.v1.routers.messages import router as messages_router
@@ -105,6 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tickets_router, prefix="/api/v1")
     app.include_router(messages_router, prefix="/api/v1")
     app.include_router(kb_router, prefix="/api/v1")
+    app.include_router(agent_router, prefix="/api/v1")
 
     @app.get("/health/live")
     async def health_live() -> dict[str, str]:

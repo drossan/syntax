@@ -1,15 +1,15 @@
 """app.api.errors — envelope de error único (`application/problem+json`, RFC 9457) para toda la API.
 
-Traduce las 5 `DomainError` de `app.domain.errors` y el `Deny` de `rbac_service.authorize` al mismo
+Traduce las 6 `DomainError` de `app.domain.errors` y el `Deny` de `rbac_service.authorize` al mismo
 envelope que ya usaba `app.main` para 404/405/422/500/503 (localizado por `Accept-Language`, es/en) —
 este módulo es ahora la fuente única de esos mensajes; `app.main` los reusa para no divergir.
 
 Mapeo de status: `NotFound`→404, `Conflict`/`InvalidTransition`→409, `Validation`→422, `PortError`→502
 (fallo de un proveedor externo — no es culpa del cliente, tampoco un 500 genérico que sugeriría un bug
-propio). `Deny` de `rbac_service.authorize` **no es una excepción** (el "no" es el camino esperado, no
-un error de dominio) — `AuthorizationDenied` la envuelve para que un router la traduzca lanzándola, sin
-un `if` ad-hoc por router: `no_capability`→403, `out_of_scope`→404 (no revela que el recurso existe en
-otro tenant, CU-BE-03 RN-3).
+propio), `RateLimited`→429 (tarea 12, rate-limiting de `ai-draft`). `Deny` de `rbac_service.authorize`
+**no es una excepción** (el "no" es el camino esperado, no un error de dominio) — `AuthorizationDenied`
+la envuelve para que un router la traduzca lanzándola, sin un `if` ad-hoc por router: `no_capability`→403,
+`out_of_scope`→404 (no revela que el recurso existe en otro tenant, CU-BE-03 RN-3).
 """
 
 from typing import Any, cast
@@ -17,7 +17,7 @@ from typing import Any, cast
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.domain.errors import Conflict, DomainError, NotFound, PortError, Validation
+from app.domain.errors import Conflict, DomainError, NotFound, PortError, RateLimited, Validation
 from app.domain.services.rbac_service import Deny, DenyReason
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
@@ -55,6 +55,13 @@ MESSAGES: dict[int, dict[str, dict[str, str]]] = {
     422: {
         "es": {"title": "Error de validación", "detail": "La petición no supera la validación."},
         "en": {"title": "Validation Error", "detail": "The request failed validation."},
+    },
+    429: {
+        "es": {
+            "title": "Demasiadas peticiones",
+            "detail": "Se ha excedido el límite de peticiones.",
+        },
+        "en": {"title": "Too Many Requests", "detail": "The rate limit has been exceeded."},
     },
     500: {
         "es": {"title": "Error interno del servidor", "detail": "Ha ocurrido un error inesperado."},
@@ -151,6 +158,8 @@ def _status_for_domain_error(exc: DomainError) -> int:
         return 422
     if isinstance(exc, PortError):
         return 502
+    if isinstance(exc, RateLimited):
+        return 429
     return 500
 
 
@@ -195,4 +204,5 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Conflict, domain_error_handler)
     app.add_exception_handler(Validation, domain_error_handler)
     app.add_exception_handler(PortError, domain_error_handler)
+    app.add_exception_handler(RateLimited, domain_error_handler)
     app.add_exception_handler(AuthorizationDenied, authorization_denied_handler)

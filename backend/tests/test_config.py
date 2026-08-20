@@ -71,7 +71,7 @@ def test_unknow_env_var_is_ignored(monkeypatch) -> None:
     [
         ("LOGIN_MAX_ATTEMPTS", "login_max_attempts", 5),
         ("LOGIN_WINDOW_SECONDS", "login_window_seconds", 300),
-        ("AI_DRAFT_MAX_PER_TICKET", "ai_draft_max_per_ticket", 10),
+        ("AI_DRAFT_RATE_LIMIT_PER_MINUTE", "ai_draft_rate_limit_per_minute", 10),
     ],
 )
 def test_b1_limits_have_defaults(monkeypatch, env_var, attr, default) -> None:

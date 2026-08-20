@@ -20,6 +20,7 @@ from app.domain.errors import (
     InvalidTransition,
     NotFound,
     PortError,
+    RateLimited,
     Validation,
 )
 from app.domain.services.rbac_service import Deny, DenyReason
@@ -44,6 +45,7 @@ def _client(app: FastAPI, *, raise_app_exceptions: bool = True) -> httpx.AsyncCl
         (lambda: InvalidTransition("transición inválida", code="x.invalid_transition"), 409),
         (lambda: Validation("inválido", code="x.validation"), 422),
         (lambda: PortError("proveedor externo falló"), 502),
+        (lambda: RateLimited("límite excedido"), 429),
     ],
 )
 async def test_each_domain_error_maps_to_its_status(
@@ -184,6 +186,20 @@ async def test_conflict_title_is_localized_to_conflicto() -> None:
     assert r.json()["title"] == "Conflicto"
 
 
+async def test_rate_limited_title_is_localized_to_too_many_requests() -> None:
+    """El título de un RateLimited (429) usa su propio mensaje, no el genérico de fallback."""
+    app = create_app(_settings())
+
+    @app.get("/_test/rate-limited-title")
+    async def _raise() -> None:
+        raise RateLimited("límite excedido")
+
+    async with _client(app, raise_app_exceptions=False) as c:
+        r = await c.get("/_test/rate-limited-title")
+
+    assert r.json()["title"] == "Demasiadas peticiones"
+
+
 async def test_port_error_title_is_localized_to_upstream() -> None:
     """El título de un PortError (502) usa el mensaje propio, no el genérico de fallback."""
     app = create_app(_settings())
@@ -206,6 +222,7 @@ async def test_port_error_title_is_localized_to_upstream() -> None:
         (405, "Método no permitido"),
         (409, "Conflicto"),
         (422, "Error de validación"),
+        (429, "Demasiadas peticiones"),
         (500, "Error interno del servidor"),
         (502, "Error de proveedor externo"),
         (503, "Servicio no disponible"),

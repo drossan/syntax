@@ -310,6 +310,17 @@ class AgentRunRepository(Protocol):
     async def update_status(self, agent_run_id: uuid.UUID, status: str) -> AgentRun: ...
     async def next_run_seq(self, ticket_id: uuid.UUID) -> int: ...
 
+    async def get_active_for_ticket(self, ticket_id: uuid.UUID) -> AgentRun | None:
+        """El `AgentRun` NO terminal (`queued`/`running`) de `ticket_id`, si existe.
+
+        Pre-check **best-effort** (`agent_service.trigger`, tarea 12): da un uso real a este método
+        antes de gastar cuota de rate-limit o tocar la constraint de BD en un disparo que va a fallar
+        gratis. **No** es la garantía atómica real bajo concurrencia — eso lo da el índice único
+        parcial de `agent_run` que `add()` traduce a `Conflict` (check-then-act con ventana de carrera,
+        aceptado: dos requests concurrentes pueden ver ambas `None` aquí y solo una gana en `add()`).
+        """
+        ...
+
 
 class NotificationRepository(Protocol):
     """Puerto de `notification`."""
