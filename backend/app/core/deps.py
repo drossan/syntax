@@ -34,6 +34,7 @@ from app.domain.ports.rate_limiter import RateLimiter
 from app.domain.ports.storage import Storage
 from app.domain.ports.vectorstore import VectorStore
 from app.domain.services.agent_service import AgentService
+from app.domain.services.approval_service import ApprovalService
 from app.domain.services.auth_service import AuthService
 from app.domain.services.rbac_service import Deny, DenyReason
 from app.domain.services.ticket_service import TicketService
@@ -41,6 +42,7 @@ from app.infra.agent_runner.stub import StubAgentRunner
 from app.infra.clock import SystemClock
 from app.infra.db.repositories import (
     SqlAlchemyAgentRunRepository,
+    SqlAlchemyApprovalRepository,
     SqlAlchemyAuditLogRepository,
     SqlAlchemyAuthTokenRepository,
     SqlAlchemyMessageRepository,
@@ -133,6 +135,16 @@ def get_agent_service(
         agent_runs=agent_runs,
         agent_runner=StubAgentRunner(agent_runs),
         rate_limiter=_rate_limiter_singleton(settings.ai_draft_rate_limit_per_minute),
+    )
+
+
+def get_approval_service(session: AsyncSession = Depends(get_db_session)) -> ApprovalService:
+    """Ensambla `ApprovalService` (tarea 12) con `TicketService`/`StubAgentRunner` reales — `decide()`
+    ya estaba cerrado en `domain-services`, esta tarea solo le da adaptadores de verdad."""
+    return ApprovalService(
+        approvals=SqlAlchemyApprovalRepository(session),
+        ticket_service=get_ticket_service(session),
+        agent_runner=StubAgentRunner(SqlAlchemyAgentRunRepository(session)),
     )
 
 

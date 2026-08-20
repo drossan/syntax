@@ -27,7 +27,13 @@ from app.domain.entities.business import (
     Notification,
     Ticket,
 )
-from app.domain.entities.enums import KbDomain, MessageVisibility, TicketPriority, TicketStatus
+from app.domain.entities.enums import (
+    ApprovalStatus,
+    KbDomain,
+    MessageVisibility,
+    TicketPriority,
+    TicketStatus,
+)
 from app.domain.entities.identity import (
     AuthToken,
     Capability,
@@ -278,13 +284,36 @@ class MessageRepository(Protocol):
     async def get_attachment(self, attachment_id: uuid.UUID) -> Attachment | None: ...
 
 
+APPROVAL_SORT_FIELDS: frozenset[str] = frozenset({"sla_due,confidence"})
+"""Whitelist de `sort` de `GET /approvals` (`api-contract.yaml`): un ÚNICO valor literal válido (decisión
+del owner, `scenario-coverage` — sin flexibilidad no pedida), no una lista de columnas componibles como
+`TICKET_SORT_FIELDS`. El router valida `sort` contra esta whitelist ANTES de llamar al puerto (422 si no
+coincide)."""
+
+
 class ApprovalRepository(Protocol):
     """Puerto de `approval_task`, con CAS en `decide_if_pending`."""
 
     async def add(self, task: ApprovalTask) -> ApprovalTask: ...
 
-    async def list_pending(self, tenant_id: uuid.UUID) -> list[ApprovalTask]:
-        """Orden `sla_due,confidence` (contrato del puerto, `api-contract.yaml`)."""
+    async def list(
+        self,
+        tenant_id: uuid.UUID | None,
+        *,
+        status: ApprovalStatus | None = None,
+        sort: str = "sla_due,confidence",
+        page: int,
+        page_size: int,
+    ) -> PageResult[ApprovalTask]:
+        """Cola de aprobación paginada (reemplaza `list_pending`, tarea 12).
+
+        `tenant_id=None` agrega **cross-tenant** (`scenario-coverage` #4, bug real corregido antes de
+        implementar: `approval.decide` es una capacidad EXCLUSIVAMENTE `global` — `rbac.md §3`, solo
+        Soporte, tenant `syntax` — pero las `ApprovalTask` pertenecen a los tenants CLIENTE, nunca a
+        `syntax`; con `tenant_id` obligatorio, Soporte no vería jamás ninguna aprobación). Sin `status`
+        filtra solo `pending` (preserva el comportamiento de `list_pending`); `sort` ya validado por el
+        router contra `APPROVAL_SORT_FIELDS` antes de llegar aquí.
+        """
         ...
 
     async def decide_if_pending(

@@ -296,7 +296,7 @@ existe todavía — es intencional: este plan solo conecta HTTP↔dominio hasta 
   `InMemoryRateLimiter` + error `RateLimited`→429 + elimina `ai_draft_max_per_ticket` + `agent_service`
   (rate-limit → 409 si hay run en curso → trigger; get con scope por tenant) + capacidad compuesta
   `agent.trigger` OR `ticket.read` en `deps.py` + router `agent.py` completo · depends_on: —
-- [ ] `backend-routers-flujo-ia-02` (P1) — `ApprovalRepository` ampliado (cola paginada/filtrable,
+- [x] `backend-routers-flujo-ia-02` (P1) — `ApprovalRepository` ampliado (cola paginada/filtrable,
   reemplaza `list_pending`) + actualiza `tests/test_approval_service.py` + adaptador
   `SqlAlchemyApprovalRepository` + `approval_service` (ampliación de cola) + router `approvals.py`
   completo · depends_on: —

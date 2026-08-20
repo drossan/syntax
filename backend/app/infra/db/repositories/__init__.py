@@ -9,6 +9,7 @@ entidades ORM crudas al dominio; dejar pasar una excepción de infra cruda (envo
 """
 
 from app.infra.db.repositories.agent_run import SqlAlchemyAgentRunRepository
+from app.infra.db.repositories.approval import SqlAlchemyApprovalRepository
 from app.infra.db.repositories.audit_log import SqlAlchemyAuditLogRepository
 from app.infra.db.repositories.auth_token import SqlAlchemyAuthTokenRepository
 from app.infra.db.repositories.base import BaseRepository, TenantScoped
@@ -23,6 +24,7 @@ from app.infra.db.repositories.user_tenant import SqlAlchemyUserTenantMembership
 __all__ = [
     "BaseRepository",
     "SqlAlchemyAgentRunRepository",
+    "SqlAlchemyApprovalRepository",
     "SqlAlchemyAuditLogRepository",
     "SqlAlchemyAuthTokenRepository",
     "SqlAlchemyMessageRepository",
