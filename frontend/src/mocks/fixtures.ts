@@ -153,7 +153,6 @@ export function tokenFixture(over: Partial<TokenResponse> = {}): TokenResponse {
 export function userFixture(over: Partial<User> = {}): User {
   return {
     id: "33333333-3333-3333-3333-333333333333",
-    tenant_id: "22222222-2222-2222-2222-222222222222",
     email: "soporte@syntax.io",
     status: "active",
     roles: ["agent"],
@@ -161,10 +160,11 @@ export function userFixture(over: Partial<User> = {}): User {
   };
 }
 
-/** Fixture del sujeto autenticado (`GET /auth/me`): usuario + capacidades efectivas. */
+/** Fixture del sujeto autenticado (`GET /auth/me`): usuario + tenant de sesión + capacidades. */
 export function meFixture(over: Partial<Me> = {}): Me {
   return {
     user: userFixture(),
+    active_tenant_id: "22222222-2222-2222-2222-222222222222",
     capabilities: [
       { capability: "ticket.reply", scope: "tenant" },
       { capability: "approval.decide", scope: "tenant" },

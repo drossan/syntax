@@ -23,7 +23,8 @@ const KEY = ticketKey(TENANT, ID);
 
 /** me con tenant conocido (== TENANT) para que `activeTenantId` y la queryKey sean deterministas. */
 const me = meFixture({
-  user: userFixture({ tenant_id: TENANT }),
+  user: userFixture(),
+  active_tenant_id: TENANT,
   capabilities: [{ capability: "ticket.read", scope: "tenant" }],
 });
 

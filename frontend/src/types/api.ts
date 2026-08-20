@@ -13,7 +13,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Login (email+password) → access token en body + refresh en cookie httpOnly */
+    /** Login (email+password, sin tenant_id — identidad global). 1 sola membership `active` en un tenant no-`disabled` → tokens reales (body). 2+ → `identity_token` corto + lista de tenants (SIN cookie de refresh); el cliente completa con `POST /auth/select-tenant`. */
     post: {
       parameters: {
         query?: never;
@@ -27,10 +27,60 @@ export interface paths {
         };
       };
       responses: {
-        /** @description Autenticado. Set-Cookie con el refresh token (httpOnly, Secure, SameSite). */
+        /** @description Autenticado. Con 1 tenant: Set-Cookie con el refresh token (httpOnly, Secure, SameSite) + `TokenResponse`. Con 2+: SOLO `LoginTenantSelection` (identity_token), sin Set-Cookie. */
         200: {
           headers: {
-            /** @description refresh_token httpOnly (rotación + reuse-detection, ver rbac/data-model). */
+            /** @description refresh_token httpOnly (rotación + reuse-detection, ver rbac/data-model). Ausente si la respuesta es `LoginTenantSelection` (2+ tenants, aún sin tenant elegido). */
+            "Set-Cookie"?: string;
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json":
+              | components["schemas"]["TokenResponse"]
+              | components["schemas"]["LoginTenantSelection"];
+          };
+        };
+        401: components["responses"]["Unauthorized"];
+        422: components["responses"]["ValidationError"];
+        429: components["responses"]["RateLimited"];
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/select-tenant": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Canjea un `identity_token` (login con 2+ tenants) por el `TokenResponse` real del tenant elegido — exige que la membership de ese tenant siga `active` y el tenant no `disabled`. */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": {
+            identity_token: string;
+            /** Format: uuid */
+            tenant_id: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Autenticado en el tenant elegido. Set-Cookie con el refresh token. */
+        200: {
+          headers: {
             "Set-Cookie"?: string;
             [name: string]: unknown;
           };
@@ -40,7 +90,52 @@ export interface paths {
         };
         401: components["responses"]["Unauthorized"];
         422: components["responses"]["ValidationError"];
-        429: components["responses"]["RateLimited"];
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/switch-tenant": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cambia de tenant con una sesión ya autenticada (access token válido), sin repetir credenciales — a diferencia de `select-tenant`, parte de un access token, no de un `identity_token` post-login. */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            tenant_id: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Tokens nuevos para el tenant elegido. Set-Cookie con el refresh token. */
+        200: {
+          headers: {
+            "Set-Cookie"?: string;
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TokenResponse"];
+          };
+        };
+        401: components["responses"]["Unauthorized"];
+        403: components["responses"]["Forbidden"];
       };
     };
     delete?: never;
@@ -645,8 +740,71 @@ export interface paths {
           };
         };
         403: components["responses"]["Forbidden"];
+        404: components["responses"]["NotFound"];
+        /** @description El adjunto excede `max_upload_bytes` configurado. */
+        413: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["Problem"];
+          };
+        };
+        /** @description Fallo del puerto `Storage` (IO, disco lleno) — envuelto, nunca un 500 crudo. */
+        502: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["Problem"];
+          };
+        };
       };
     };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/messages/{id}/attachments/{attachment_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["IdPath"];
+        attachment_id: string;
+      };
+      cookie?: never;
+    };
+    /** Descarga el contenido de un adjunto (misma capacidad de lectura que el mensaje al que pertenece — ampliación del contrato, tarea 08: sin este endpoint, un adjunto subido nunca se podía recuperar por HTTP). */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: components["parameters"]["IdPath"];
+          attachment_id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Contenido del adjunto (binario), `Content-Type` = el original del adjunto. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/octet-stream": string;
+          };
+        };
+        403: components["responses"]["Forbidden"];
+        404: components["responses"]["NotFound"];
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1430,7 +1588,10 @@ export interface paths {
     /** Ajustes del tenant (incl. `auto_approve`). */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Obligatorio si el subject accede en ámbito `global` (Soporte, sin tenant propio: no hay forma de inferirlo); ignorado en ámbito `tenant` (usa `subject.tenant_id`) — decisión de `scenario-coverage` (backend-routers-core, tarea 06). */
+          tenant_id?: string;
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -1447,6 +1608,7 @@ export interface paths {
           };
         };
         403: components["responses"]["Forbidden"];
+        422: components["responses"]["ValidationError"];
       };
     };
     put?: never;
@@ -1457,7 +1619,10 @@ export interface paths {
     /** Actualiza ajustes (p.ej. `auto_approve`). Default `auto_approve=false`. */
     patch: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Mismo criterio que en el `GET` (obligatorio en ámbito `global`). */
+          tenant_id?: string;
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -1478,6 +1643,7 @@ export interface paths {
           };
         };
         403: components["responses"]["Forbidden"];
+        422: components["responses"]["ValidationError"];
       };
     };
     trace?: never;
@@ -1684,8 +1850,26 @@ export interface components {
       /** @description TTL del access en segundos. */
       expires_in?: number;
     };
+    /** @description Un tenant elegible en el paso 2 del login (identidad global, 2+ membresías). */
+    TenantChoice: {
+      /** Format: uuid */
+      id: string;
+      slug: string;
+      name: string;
+    };
+    /** @description Login con 2+ membresías `active` en tenants no-`disabled`: hay que elegir tenant (`POST /auth/select-tenant`) antes de recibir tokens reales — sin refresh-cookie todavía. */
+    LoginTenantSelection: {
+      /** @description JWT corto (`purpose=tenant_selection`), reutilizable dentro de su TTL. */
+      identity_token: string;
+      tenants: components["schemas"]["TenantChoice"][];
+    };
     Me: {
       user: components["schemas"]["User"];
+      /**
+       * Format: uuid
+       * @description Tenant de la sesión activa (el resuelto en `/auth/login`, `/auth/select-tenant` o `/auth/switch-tenant`). El `User` es identidad global sin tenant propio: este es el único campo donde el frontend puede leer el tenant del sujeto en la sesión actual.
+       */
+      active_tenant_id: string;
       /** @description Capacidades efectivas (capability@scope) resueltas server-side. */
       capabilities: {
         /** @example ticket.reply */
@@ -1705,21 +1889,22 @@ export interface components {
       /** @default false */
       auto_approve: boolean;
     };
+    /** @description Identidad GLOBAL (email único, sin `tenant_id` propio — un usuario puede pertenecer a varios tenants con una sola contraseña). `status` en las respuestas de `/admin/users*` es el de la MEMBRESÍA del tenant consultado (`UserTenantMembership.status`), no un atributo global del usuario. */
     User: {
       /** Format: uuid */
       id?: string;
-      /** Format: uuid */
-      tenant_id?: string;
       /** Format: email */
       email?: string;
       status?: components["schemas"]["UserStatus"];
       roles?: string[];
     };
+    /** @description Invita un email al tenant del subject (`POST /admin/users`); crea el `User` global si no existía, o solo la membership si ya existía. */
     UserInvite: {
       /** Format: email */
       email: string;
       roles: string[];
     };
+    /** @description `status` actualiza la MEMBRESÍA del usuario en el tenant del subject (`{id}` es el `User.id` global; sin membership en ese tenant → 404), no un atributo global del usuario. */
     UserUpdate: {
       status?: components["schemas"]["UserStatus"];
       roles?: string[];

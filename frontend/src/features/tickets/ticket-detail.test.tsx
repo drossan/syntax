@@ -17,7 +17,8 @@ const internalMsg = messageFixture({ id: "i", visibility: "internal", body: "Not
 
 /** me de cliente (sin note.internal.read) y de soporte (con note.internal.read global). */
 const clientMe = meFixture({
-  user: userFixture({ tenant_id: "cliente-a", roles: ["client_agent"] }),
+  user: userFixture({ roles: ["client_agent"] }),
+  active_tenant_id: "cliente-a",
   capabilities: [{ capability: "ticket.read", scope: "tenant" }],
 });
 const supportMe = meFixture({
