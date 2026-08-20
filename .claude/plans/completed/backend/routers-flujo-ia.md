@@ -1,7 +1,7 @@
 ---
 id: backend-routers-flujo-ia
 package: backend
-status: active
+status: completed
 branch: plan/backend/routers-flujo-ia
 created: 2026-08-19
 updated: 2026-08-20
@@ -305,7 +305,7 @@ existe todavía — es intencional: este plan solo conecta HTTP↔dominio hasta 
   `notifications.py` completo · depends_on: —
 - [x] `backend-routers-flujo-ia-04` (P2) — Cierra FR-038: cablea `notification_service.emit()` en
   `tickets.py` (`assign`→`ticket_assigned`) y `messages.py` (reply público→`ticket_reply`) · depends_on: 03
-- [ ] `backend-routers-flujo-ia-05` (P3) — Puerto+adaptador `AnalyticsRepository` (agregados SQL) + FR
+- [x] `backend-routers-flujo-ia-05` (P3) — Puerto+adaptador `AnalyticsRepository` (agregados SQL) + FR
   nueva en `spec.md` + router `analytics.py` completo · depends_on: 01, 02
 
 ## Registro de cambios del plan
@@ -387,3 +387,30 @@ existe todavía — es intencional: este plan solo conecta HTTP↔dominio hasta 
   HTTP, tipos de notificación no cableados, retry/compensación de `emit()`, ausencia de CU de analytics,
   caché de analytics, gate OpenAPI automatizado) ya estaban todos nombrados explícitamente en el plan o en
   su tarea correspondiente — ninguno requirió ampliar el plan ni generó una decisión nueva del owner.
+- 2026-08-20: **Plan cerrado (5/5 tareas)**. Retro:
+  - **Estimación vs. real**: `estimate` global "~2 sesiones asistidas" — real: una sola sesión continua
+    para las 5 tareas. Por tarea, `estimate`/`actual` coincidieron casi exactamente (01: 6h/6h, 02: 4h/4h,
+    03: 4h/4h, 04: 3h/3h, 05: 4h/4h) — la calibración de `grilling`/`design-review`/`scenario-coverage`
+    previa a la implementación fue precisa; ninguna tarea se quedó corta en alcance.
+  - **Precondición no documentada, resuelta con el owner**: al arrancar, `plan/backend/routers-core`
+    (plan anterior, 9/9 tareas) estaba completado pero sin mergear a `main` ni pusheado a `origin`, y el
+    repo no tiene rama `dev` (el flujo canónico asume una). Resuelto con autorización explícita del owner:
+    fast-forward de `routers-core` a `main` (limpio, sin conflictos), y `main` confirmado como la rama de
+    integración real de este repo — desviación del flujo estándar documentada aquí para las próximas
+    sesiones (no asumir `dev`, verificar el estado de la rama anterior antes de ramificar).
+  - **Incidentes de mutation testing (`cosmic-ray`) — causa raíz identificada y corregida durante el
+    plan**: en las tareas 01/03/04 se detectaron mutaciones aplicadas en disco sin revertir tras
+    ejecuciones de `cosmic-ray exec` interrumpidas (por el comando `timeout` de shell matando el proceso,
+    o por `session.sqlite` borrado mientras el proceso seguía vivo). Ninguna llegó a commitearse (detectadas
+    y corregidas antes del cierre de cada tarea, releyendo el fichero completo tras cada corrida). Lección
+    consolidada para planes futuros: nunca envolver `cosmic-ray exec` en `timeout N` de shell; dejar que el
+    mecanismo de "movido a background" del propio tool gestione la espera (no mata el proceso).
+  - **Bug real de test (no de producción) en la tarea 02**: el helper de siembra de capacidades asignaba
+    el rol con `tenant_id` fijo incluso para capacidades `scope=global`, ocultando que "Soporte ve todas
+    las aprobaciones" no se estaba ejercitando de verdad en el primer intento del test. Corregido
+    comparando contra el patrón ya probado de `test_router_admin.py`.
+  - **Dependencias no vistas**: ninguna material. Las `depends_on` declaradas (02→01/02 para 05, 03 para
+    04) fueron correctas y suficientes; ninguna tarea necesitó reabrir una anterior ya cerrada.
+  - **Qué haría distinto**: para el gate de mutation con `deps.py` (fichero compartido entre las 5 tareas),
+    fijar desde la tarea 01 el criterio "test-command = todos los routers que lo ejercitan" en vez de
+    ir ampliando la lista tarea a tarea — habría ahorrado alguna repetición de contexto entre corridas.

@@ -2,11 +2,11 @@
 id: backend-routers-flujo-ia-05
 package: backend
 plan: routers-flujo-ia
-status: pending
+status: done
 priority: 3
 depends_on: [backend-routers-flujo-ia-01, backend-routers-flujo-ia-02]
 estimate: 4h
-actual:
+actual: 4h
 issue:
 created: 2026-08-20
 updated: 2026-08-20
@@ -121,15 +121,15 @@ Feature: resumen de analytics agregado por tenant
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break:80`) — la función `summary()` sin ramas
-  condicionales propias puede ser N/A parcial documentado si el agregado es 100% SQL
-- [ ] Gate `sdd-lint` superado (FR nueva en `spec.md` presente y trazable; "sin CU" declarado, no un hueco
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break:80`) — `analytics.py` (servicio) 0.00%
+  directo (passthrough sin ramas); el resto sí entró en el gate con refuerzo
+- [x] Gate `sdd-lint` superado (FR-041 en `spec.md` presente y trazable; "sin CU" declarado, no un hueco
   silencioso)
-- [ ] Gate `fact-checker` superado
-- [ ] Documentación — TSDoc + doc técnica (`spec.md`) + session log
-- [ ] Docs de dev/usuario donde aplique
+- [x] Gate `fact-checker` superado (11/11 afirmaciones VERIFICADO)
+- [x] Documentación — TSDoc + doc técnica (`spec.md`) + session log
+- [x] Docs de dev/usuario donde aplique (N/A — sin superficie de usuario final nueva, solo API)

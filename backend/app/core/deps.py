@@ -30,6 +30,7 @@ from app.core.config import Settings, get_settings
 from app.core.security import JWT_ALGORITHM, decode_access_token
 from app.domain.entities.enums import TenantStatus
 from app.domain.entities.identity import Subject
+from app.domain.ports.analytics import AnalyticsRepository
 from app.domain.ports.rate_limiter import RateLimiter
 from app.domain.ports.storage import Storage
 from app.domain.ports.vectorstore import VectorStore
@@ -43,6 +44,7 @@ from app.infra.agent_runner.stub import StubAgentRunner
 from app.infra.clock import SystemClock
 from app.infra.db.repositories import (
     SqlAlchemyAgentRunRepository,
+    SqlAlchemyAnalyticsRepository,
     SqlAlchemyApprovalRepository,
     SqlAlchemyAuditLogRepository,
     SqlAlchemyAuthTokenRepository,
@@ -157,6 +159,13 @@ def get_notification_service(
     return NotificationService(
         notifications=SqlAlchemyNotificationRepository(session), clock=SystemClock()
     )
+
+
+def get_analytics_repository(
+    session: AsyncSession = Depends(get_db_session),
+) -> AnalyticsRepository:
+    """Ensambla el adaptador real de `AnalyticsRepository` (tarea 12)."""
+    return SqlAlchemyAnalyticsRepository(session)
 
 
 async def get_current_subject(

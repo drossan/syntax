@@ -91,6 +91,12 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-037** — Cuando un sujeto con `role.manage` compone un rol custom, el sistema DEBERÁ **rechazar** capacidades de ámbito `global` o que el componedor no posea (no escalada), y limitar el rol a su tenant.
 - **FR-038** — Cuando ocurre un evento notificable (aprobación pedida, asignación, respuesta, SLA), el sistema DEBERÁ crear una `notification` in-app para el destinatario (entrega por polling).
 - **FR-039** — Mientras un ticket no resuelto tenga `sla_due` vencido o inminente, el scheduler DEBERÁ notificar/escalar de forma **idempotente** (una sola vez por `sla_breached_at`).
+- **FR-041** — Cuando un sujeto con `analytics.read` consulta el resumen, el sistema DEBERÁ devolver,
+  acotado a su ámbito (tenant, o cross-tenant si `global`): tickets agrupados por `status` (las 6 claves
+  de `TicketStatus` siempre presentes, `0` donde no hay datos), el número de `ApprovalTask` `pending`,
+  la confianza media de `AgentRun.confidence` (`null` si no hay runs con confianza) y el número de
+  tickets con SLA vencido (`sla_due < now()` estricto y no `resolved`/`closed`; un `sla_due` `null`
+  nunca cuenta).
 
 ## Requisitos no funcionales
 

@@ -165,3 +165,14 @@ class KBSearchHit(BaseModel):
     estado: KbEstado
     source_url: str
     score: float
+
+
+class AnalyticsSummary(BaseModel):
+    """Resumen agregado del dashboard (FR-041, `GET /analytics/summary`). `tickets_by_status` trae
+    SIEMPRE las 6 claves de `TicketStatus` (con `0` donde no hay datos); `avg_confidence` es `None`
+    (nunca `NaN`) si no hay ningún `AgentRun` con `confidence` no nulo."""
+
+    tickets_by_status: dict[str, int]
+    approvals_pending: int
+    avg_confidence: float | None = None
+    sla_breaches: int
