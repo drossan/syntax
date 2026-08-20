@@ -2,11 +2,11 @@
 id: backend-routers-flujo-ia-04
 package: backend
 plan: routers-flujo-ia
-status: pending
+status: done
 priority: 2
 depends_on: [backend-routers-flujo-ia-03]
 estimate: 3h
-actual:
+actual: 3h
 issue:
 created: 2026-08-20
 updated: 2026-08-20
@@ -117,13 +117,13 @@ Feature: notificaciones automáticas tras asignar o responder un ticket
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break:80`)
-- [ ] Gate `sdd-lint` superado (declarar "sin cambios de spec/CU" — wiring puro, sin nuevo Gherkin de CU)
-- [ ] Gate `fact-checker` superado
-- [ ] Documentación — TSDoc + doc técnica + session log
-- [ ] Docs de dev/usuario donde aplique
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break:80`)
+- [x] Gate `sdd-lint` superado (sin cambios de spec/CU; sincronía verificada contra FR-038)
+- [x] Gate `fact-checker` superado (8/8 afirmaciones VERIFICADO tras corregir 2 incidentes de mutation)
+- [x] Documentación — TSDoc + doc técnica + session log
+- [x] Docs de dev/usuario donde aplique (N/A — sin superficie de usuario final nueva, solo wiring)

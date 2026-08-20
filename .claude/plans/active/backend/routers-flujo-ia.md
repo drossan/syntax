@@ -303,7 +303,7 @@ existe todavía — es intencional: este plan solo conecta HTTP↔dominio hasta 
 - [x] `backend-routers-flujo-ia-03` (P2) — `NotificationRepository` ampliado (paginación + `unread`) +
   adaptador `SqlAlchemyNotificationRepository` + `notification_service` (ampliación de listado) + router
   `notifications.py` completo · depends_on: —
-- [ ] `backend-routers-flujo-ia-04` (P2) — Cierra FR-038: cablea `notification_service.emit()` en
+- [x] `backend-routers-flujo-ia-04` (P2) — Cierra FR-038: cablea `notification_service.emit()` en
   `tickets.py` (`assign`→`ticket_assigned`) y `messages.py` (reply público→`ticket_reply`) · depends_on: 03
 - [ ] `backend-routers-flujo-ia-05` (P3) — Puerto+adaptador `AnalyticsRepository` (agregados SQL) + FR
   nueva en `spec.md` + router `analytics.py` completo · depends_on: 01, 02

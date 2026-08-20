@@ -13,10 +13,11 @@ from datetime import UTC, datetime
 import httpx
 import pytest_asyncio
 from app.core.config import Settings, get_settings
-from app.core.deps import get_db_session
+from app.core.deps import get_db_session, get_notification_service
 from app.core.security import JWT_ALGORITHM, create_access_token, hash_password
 from app.domain.entities.business import Ticket
 from app.domain.entities.enums import (
+    NotificationType,
     RoleKind,
     TenantStatus,
     TicketPriority,
@@ -24,7 +25,11 @@ from app.domain.entities.enums import (
     UserStatus,
 )
 from app.domain.entities.identity import Role, Tenant, User, UserTenantMembership
+from app.domain.errors import PortError
+from app.domain.services.notification_service import NotificationService
+from app.infra.clock import SystemClock
 from app.infra.db.repositories import (
+    SqlAlchemyNotificationRepository,
     SqlAlchemyRoleRepository,
     SqlAlchemyTenantRepository,
     SqlAlchemyTicketRepository,
@@ -45,8 +50,8 @@ def _settings() -> Settings:
 
 
 _TRUNCATE_TABLES = (
-    "TRUNCATE message, ticket, audit_log, user_tenant, refresh_session, auth_token, user_role, "
-    'role_capability, capability, "user", role, tenant RESTART IDENTITY CASCADE'
+    "TRUNCATE notification, message, ticket, audit_log, user_tenant, refresh_session, auth_token, "
+    'user_role, role_capability, capability, "user", role, tenant RESTART IDENTITY CASCADE'
 )
 
 
@@ -584,6 +589,167 @@ async def test_assigning_within_the_same_tenant_succeeds(app: FastAPI, db: Async
     await db.commit()
     _agent, token = await _agent_with_capabilities(
         db, tenant=tenant, capabilities=["ticket.assign"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/assign",
+            json={"assignee_id": str(assignee.id)},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 200
+    assert r.json()["assignee_id"] == str(assignee.id)
+
+
+# ── POST /tickets/{id}/assign: notifica ticket_assigned (FR-038, tarea backend-routers-flujo-ia-04) ──
+
+
+class _FailingNotificationRepository:
+    """Fake que hace fallar `emit()` con `PortError` — para probar que un fallo de notificación no
+    tumba la respuesta de la operación principal ya confirmada."""
+
+    async def add(self, notification: object) -> object:
+        raise PortError("fallo simulado de infra")
+
+
+async def _notifications_for(db: AsyncSession, user_id: uuid.UUID) -> list[object]:
+    result = await SqlAlchemyNotificationRepository(db).list_for_user(
+        user_id, page=1, page_size=100
+    )
+    return list(result.items)
+
+
+async def test_assigning_to_a_new_agent_notifies_them(app: FastAPI, db: AsyncSession) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    assignee = await _make_user(db)
+    await _add_membership(db, user_id=assignee.id, tenant_id=tenant.id)
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.assign"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/assign",
+            json={"assignee_id": str(assignee.id)},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 200
+    notifications = await _notifications_for(db, assignee.id)
+    assert len(notifications) == 1
+    assert notifications[0].type is NotificationType.ticket_assigned
+
+
+async def test_reassigning_only_notifies_the_new_agent(app: FastAPI, db: AsyncSession) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    old_assignee = await _make_user(db)
+    new_assignee = await _make_user(db)
+    await _add_membership(db, user_id=old_assignee.id, tenant_id=tenant.id)
+    await _add_membership(db, user_id=new_assignee.id, tenant_id=tenant.id)
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        _make_ticket_entity(tenant.id, assignee_id=old_assignee.id)
+    )
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.assign"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/assign",
+            json={"assignee_id": str(new_assignee.id)},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 200
+    assert len(await _notifications_for(db, new_assignee.id)) == 1
+    assert await _notifications_for(db, old_assignee.id) == []
+
+
+async def test_self_assigning_does_not_notify(app: FastAPI, db: AsyncSession) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    agent, token = await _agent_with_capabilities(db, tenant=tenant, capabilities=["ticket.assign"])
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/assign",
+            json={"assignee_id": str(agent.id)},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 200
+    assert await _notifications_for(db, agent.id) == []
+
+
+async def test_unassigning_does_not_notify_anyone(app: FastAPI, db: AsyncSession) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    assignee = await _make_user(db)
+    await _add_membership(db, user_id=assignee.id, tenant_id=tenant.id)
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        _make_ticket_entity(tenant.id, assignee_id=assignee.id)
+    )
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.assign"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/assign",
+            json={"assignee_id": None},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 200
+    assert await _notifications_for(db, assignee.id) == []
+
+
+async def test_a_rejected_assignment_does_not_notify(app: FastAPI, db: AsyncSession) -> None:
+    tenant_a = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    tenant_b = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant_a.id))
+    user_of_b = await _make_user(db)
+    await _add_membership(db, user_id=user_of_b.id, tenant_id=tenant_b.id)
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant_a, capabilities=["ticket.assign"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/assign",
+            json={"assignee_id": str(user_of_b.id)},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code in (409, 422)
+    assert await _notifications_for(db, user_of_b.id) == []
+
+
+async def test_a_notification_failure_does_not_affect_the_assign_response(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    assignee = await _make_user(db)
+    await _add_membership(db, user_id=assignee.id, tenant_id=tenant.id)
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.assign"]
+    )
+    app.dependency_overrides[get_notification_service] = lambda: NotificationService(
+        notifications=_FailingNotificationRepository(), clock=SystemClock()
     )
 
     async with _client(app) as c:

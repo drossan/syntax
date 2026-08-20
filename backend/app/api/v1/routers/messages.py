@@ -12,10 +12,16 @@ fichero de 0 bytes se ACEPTA (adjunto vacío válido, decisión explícita — n
 justificar). El límite de tamaño (`settings.max_upload_bytes`) se aplica leyendo el `UploadFile` antes
 de tocar `Storage.save` — por encima, 413 vía `fastapi.HTTPException` directa (no hay ninguna
 `DomainError` para "payload demasiado grande", y el proyecto ya soporta ese patrón en `app.core.deps`).
+
+`create_message` cierra FR-038 (tarea 12) para mensajes `public`: notifica a `{ticket.requester_id,
+ticket.assignee_id} - {subject.id, None}` (resta de conjuntos, sin `if` ad-hoc — cubre autor=assignee,
+autor=requester y un tercer agente que notifica a ambos). Mensajes `internal` no notifican.
+`notification_service.emit()` es best-effort: un `PortError` se loguea y no tumba el 201 ya confirmado.
 """
 
 import uuid
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +35,7 @@ from app.core.config import Settings, get_settings
 from app.core.deps import (
     get_current_subject,
     get_db_session,
+    get_notification_service,
     get_storage,
     get_tenant_context,
     get_ticket_service,
@@ -36,10 +43,11 @@ from app.core.deps import (
 )
 from app.domain.entities.business import Attachment as AttachmentEntity
 from app.domain.entities.business import Message as MessageEntity
-from app.domain.entities.enums import MessageVisibility
+from app.domain.entities.enums import MessageVisibility, NotificationType
 from app.domain.entities.identity import Subject
-from app.domain.errors import NotFound, Validation
+from app.domain.errors import NotFound, PortError, Validation
 from app.domain.ports.storage import Storage
+from app.domain.services.notification_service import NotificationService
 from app.domain.services.rbac_service import Deny, DenyReason
 from app.domain.services.ticket_service import TicketService
 from app.infra.db.repositories import SqlAlchemyMessageRepository
@@ -48,6 +56,8 @@ router = APIRouter(tags=["messages"])
 
 _READ_CAPABILITY = "ticket.read"
 _INTERNAL_READ_CAPABILITY = "note.internal.read"
+
+_logger = structlog.get_logger()
 
 
 def _to_message_schema(message: MessageEntity) -> MessageSchema:
@@ -130,10 +140,11 @@ async def create_message(
     subject: Subject = Depends(get_current_subject),
     session: AsyncSession = Depends(get_db_session),
     ticket_service: TicketService = Depends(get_ticket_service),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> MessageSchema:
     visibility = _parse_visibility(payload.visibility)
     async with get_tenant_context(session, subject, _capability_for_visibility(visibility)):
-        await ticket_service.get(id)
+        ticket = await ticket_service.get(id)
         message = await SqlAlchemyMessageRepository(session).add(
             MessageEntity(
                 id=uuid.uuid4(),
@@ -144,6 +155,26 @@ async def create_message(
                 body=payload.body,
             )
         )
+        if visibility is MessageVisibility.public:
+            recipients: set[uuid.UUID] = {
+                recipient
+                for recipient in ({ticket.requester_id, ticket.assignee_id} - {subject.id, None})
+                if recipient is not None
+            }
+            for recipient_id in recipients:
+                try:
+                    await notification_service.emit(
+                        subject.tenant_id,
+                        recipient_id,
+                        NotificationType.ticket_reply,
+                        {"ticket_id": str(id)},
+                    )
+                except PortError:
+                    _logger.warning(
+                        "notification_emit_failed",
+                        ticket_id=str(id),
+                        recipient_id=str(recipient_id),
+                    )
     return _to_message_schema(message)
 
 

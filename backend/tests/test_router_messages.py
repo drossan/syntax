@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 import pytest_asyncio
 from app.core.config import Settings, get_settings
 from app.core.deps import get_db_session, get_storage
@@ -15,6 +16,7 @@ from app.core.security import JWT_ALGORITHM, create_access_token, hash_password
 from app.domain.entities.business import Message, Ticket
 from app.domain.entities.enums import (
     MessageVisibility,
+    NotificationType,
     RoleKind,
     TenantStatus,
     TicketPriority,
@@ -25,6 +27,7 @@ from app.domain.entities.identity import Role, Tenant, User, UserTenantMembershi
 from app.domain.errors import PortError
 from app.infra.db.repositories import (
     SqlAlchemyMessageRepository,
+    SqlAlchemyNotificationRepository,
     SqlAlchemyRoleRepository,
     SqlAlchemyTenantRepository,
     SqlAlchemyTicketRepository,
@@ -52,8 +55,8 @@ def _settings(*, storage_root: str, max_upload_bytes: int = 10 * 1024 * 1024) ->
 
 
 _TRUNCATE_TABLES = (
-    "TRUNCATE attachment, message, ticket, audit_log, user_tenant, refresh_session, auth_token, "
-    'user_role, role_capability, capability, "user", role, tenant RESTART IDENTITY CASCADE'
+    "TRUNCATE notification, attachment, message, ticket, audit_log, user_tenant, refresh_session, "
+    'auth_token, user_role, role_capability, capability, "user", role, tenant RESTART IDENTITY CASCADE'
 )
 
 
@@ -441,6 +444,135 @@ async def test_replying_with_an_invalid_visibility_is_rejected(
 
     assert r.status_code == 422
     assert r.headers["content-type"].startswith("application/problem+json")
+
+
+# ── POST /tickets/{id}/messages: notifica ticket_reply (FR-038, tarea backend-routers-flujo-ia-04) ──
+
+
+async def _notifications_for(db: AsyncSession, user_id: uuid.UUID) -> list[object]:
+    result = await SqlAlchemyNotificationRepository(db).list_for_user(
+        user_id, page=1, page_size=100
+    )
+    return list(result.items)
+
+
+@pytest.mark.parametrize(
+    ("author_role", "expected_recipient_role"),
+    [("assignee", "requester"), ("requester", "assignee")],
+)
+async def test_replying_public_notifies_the_other_party(
+    app: FastAPI, db: AsyncSession, author_role: str, expected_recipient_role: str
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    requester = await _make_user(db)
+    assignee = await _make_user(db)
+    await _add_membership(db, user_id=requester.id, tenant_id=tenant.id)
+    await _add_membership(db, user_id=assignee.id, tenant_id=tenant.id)
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        Ticket(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            subject="s",
+            status=TicketStatus.new,
+            priority=TicketPriority.normal,
+            requester_id=requester.id,
+            assignee_id=assignee.id,
+        )
+    )
+    await db.commit()
+    authors = {"requester": requester, "assignee": assignee}
+    recipients = {"requester": requester, "assignee": assignee}
+    author = authors[author_role]
+    expected_recipient = recipients[expected_recipient_role]
+    await _grant_capability(db, user_id=author.id, tenant_id=tenant.id, capability="ticket.read")
+    await _grant_capability(db, user_id=author.id, tenant_id=tenant.id, capability="ticket.reply")
+    token = _access_token(author.id, tenant.id)
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/messages",
+            json={"body": "respuesta", "visibility": "public"},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 201
+    notifications = await _notifications_for(db, expected_recipient.id)
+    assert len(notifications) == 1
+    assert notifications[0].type is NotificationType.ticket_reply
+    assert await _notifications_for(db, author.id) == []
+
+
+async def test_a_third_agent_replying_notifies_both_requester_and_assignee(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    requester = await _make_user(db)
+    assignee = await _make_user(db)
+    await _add_membership(db, user_id=requester.id, tenant_id=tenant.id)
+    await _add_membership(db, user_id=assignee.id, tenant_id=tenant.id)
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        Ticket(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            subject="s",
+            status=TicketStatus.new,
+            priority=TicketPriority.normal,
+            requester_id=requester.id,
+            assignee_id=assignee.id,
+        )
+    )
+    await db.commit()
+    _third_agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.read", "ticket.reply"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/messages",
+            json={"body": "respuesta", "visibility": "public"},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 201
+    assert len(await _notifications_for(db, requester.id)) == 1
+    assert len(await _notifications_for(db, assignee.id)) == 1
+
+
+async def test_writing_an_internal_note_does_not_notify(app: FastAPI, db: AsyncSession) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    requester = await _make_user(db)
+    assignee = await _make_user(db)
+    await _add_membership(db, user_id=requester.id, tenant_id=tenant.id)
+    await _add_membership(db, user_id=assignee.id, tenant_id=tenant.id)
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        Ticket(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            subject="s",
+            status=TicketStatus.new,
+            priority=TicketPriority.normal,
+            requester_id=requester.id,
+            assignee_id=assignee.id,
+        )
+    )
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.read", "note.internal.write", "note.internal.read"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/messages",
+            json={"body": "nota", "visibility": "internal"},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 201
+    assert await _notifications_for(db, requester.id) == []
+    assert await _notifications_for(db, assignee.id) == []
 
 
 # ── POST /messages/{id}/attachments · GET /messages/{id}/attachments/{attachment_id} ──

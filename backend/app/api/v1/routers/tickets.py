@@ -8,10 +8,17 @@ invisible para la sesión, no un caso especial a programar).
 
 `PATCH /tickets/{id}` se protege con `ticket.update` (capacidad nueva de esta tarea, `rbac.md`):
 ningún rol del catálogo la concede sin `ticket.read`, así que basta una capacidad, no dos.
+
+`assign_ticket` cierra FR-038 (tarea 12): tras asignar con éxito, notifica al nuevo `assignee_id` — la
+resta de conjuntos `{assignee_id} - {subject.id, None}` cubre autoasignación y desasignación sin `if`
+ad-hoc (ambas dan un conjunto vacío de destinatarios). `notification_service.emit()` es best-effort: un
+`PortError` se loguea y NO tumba la respuesta 200 ya confirmada (la notificación no es atómica con la
+asignación).
 """
 
 import uuid
 
+import structlog
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,16 +30,19 @@ from app.api.v1.schemas.tickets import (
     TicketTransitionRequest,
     TicketUpdate,
 )
-from app.core.deps import get_ticket_service, require_capability
+from app.core.deps import get_notification_service, get_ticket_service, require_capability
 from app.domain.entities.business import Ticket as TicketEntity
-from app.domain.entities.enums import KbDomain, TicketPriority, TicketStatus
+from app.domain.entities.enums import KbDomain, NotificationType, TicketPriority, TicketStatus
 from app.domain.entities.identity import Subject
-from app.domain.errors import Validation
+from app.domain.errors import PortError, Validation
 from app.domain.ports.repositories import TICKET_SORT_FIELDS
+from app.domain.services.notification_service import NotificationService
 from app.domain.services.ticket_service import TicketService
 from app.infra.db.repositories import SqlAlchemyUserTenantMembershipRepository
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
+
+_logger = structlog.get_logger()
 
 
 def _to_schema(ticket: TicketEntity) -> Ticket:
@@ -191,6 +201,7 @@ async def assign_ticket(
     payload: TicketAssignRequest,
     subject_session: tuple[Subject, AsyncSession] = Depends(require_capability("ticket.assign")),
     ticket_service: TicketService = Depends(get_ticket_service),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> Ticket:
     subject, session = subject_session
     assignee_tenant_id: uuid.UUID | None = None
@@ -201,4 +212,23 @@ async def assign_ticket(
         if membership is not None:
             assignee_tenant_id = subject.tenant_id
     ticket = await ticket_service.assign(id, payload.assignee_id, assignee_tenant_id)
+
+    recipients: set[uuid.UUID] = {
+        recipient
+        for recipient in ({payload.assignee_id} - {subject.id, None})
+        if recipient is not None
+    }
+    for recipient_id in recipients:
+        try:
+            await notification_service.emit(
+                subject.tenant_id,
+                recipient_id,
+                NotificationType.ticket_assigned,
+                {"ticket_id": str(id)},
+            )
+        except PortError:
+            _logger.warning(
+                "notification_emit_failed", ticket_id=str(id), recipient_id=str(recipient_id)
+            )
+
     return _to_schema(ticket)
