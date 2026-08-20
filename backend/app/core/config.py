@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     jwt_secret: str
     login_max_attempts: int = 5
     login_window_seconds: int = 300
-    ai_draft_max_per_ticket: int = 10
+    ai_draft_rate_limit_per_minute: int = 10
+    """Límite de `POST /tickets/{id}/ai-draft` por tenant, ventana fija de 1 minuto, in-memory por
+    proceso (`InMemoryRateLimiter`, tarea 12) — sustituye a `ai_draft_max_per_ticket` (B.1, nunca
+    implementado, semántica por-ticket/de-por-vida redundante con el CAS del índice único parcial de
+    `agent_run`)."""
     cors_origins: Annotated[list[str], NoDecode] = []
 
     database_url: str = "postgresql+asyncpg://syntax_app:syntax_app@localhost:5432/syntax"
@@ -37,6 +41,12 @@ class Settings(BaseSettings):
     La consume `/health/ready` para asertar que la dimensión viva de la columna
     `embedding.vector` coincide con la config. El modelo ORM usa `Vector(1536)` literal.
     """
+
+    storage_root: str = "./var/storage"
+    """Directorio raíz de `LocalFilesystemStorage` (tarea 08) — relativo al cwd del proceso en dev."""
+
+    max_upload_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
+    """Tamaño máximo de un adjunto (10 MiB por defecto) — por encima, `POST .../attachments` → 413."""
 
     @field_validator("cors_origins", mode="before")
     @classmethod

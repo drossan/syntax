@@ -29,6 +29,7 @@ from app.infra.db.models.identity import (
     Tenant,
     User,
     UserRole,
+    UserTenant,
 )
 from app.infra.db.models.kb import Embedding, KBChunk, KBDocument
 
@@ -51,4 +52,5 @@ __all__ = [
     "Ticket",
     "User",
     "UserRole",
+    "UserTenant",
 ]

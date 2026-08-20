@@ -14,6 +14,9 @@ import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 
+JWT_ALGORITHM = "HS256"
+"""Algoritmo de firma único del proyecto (fuente única — `deps.py`/tests lo reusan, no lo repiten)."""
+
 _hasher = PasswordHasher()
 _OPAQUE_TOKEN_BYTES = 32
 """256 bits de entropía (`secrets.token_urlsafe` genera ~1.3 caracteres por byte)."""
@@ -53,19 +56,27 @@ def verify_password(password: str, hash: str) -> bool:
         return False
 
 
+_ACCESS_PURPOSE = "access"
+"""Purpose de un token de sesión normal (exige `tenant_id`) — valor por defecto histórico."""
+
+
 def create_access_token(
     sub: str,
-    tenant_id: str,
+    tenant_id: str | None,
     *,
     secret: str,
     algorithm: str,
     ttl: int,
     now: datetime,
+    purpose: str = _ACCESS_PURPOSE,
 ) -> str:
-    """Emite un JWT de acceso. Claims: ``sub``, ``tenant_id``, ``iat`` (=now), ``exp`` (=now+ttl).
-    NO incluye capacidades (se resuelven server-side por request)."""
+    """Emite un JWT. Claims: ``sub``, ``purpose``, ``iat`` (=now), ``exp`` (=now+ttl), y ``tenant_id``
+    si se da uno (un `identity_token` de `purpose=tenant_selection` aún no tiene tenant elegido). NO
+    incluye capacidades (se resuelven server-side por request)."""
     issued = int(now.timestamp())
-    payload = {"sub": sub, "tenant_id": tenant_id, "iat": issued, "exp": issued + ttl}
+    payload: dict[str, Any] = {"sub": sub, "purpose": purpose, "iat": issued, "exp": issued + ttl}
+    if tenant_id is not None:
+        payload["tenant_id"] = tenant_id
     return jwt.encode(payload, secret, algorithm=algorithm)
 
 
@@ -77,13 +88,20 @@ def decode_access_token(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Decodifica y valida el JWT. Fija ``algorithms=[algorithm]`` (rechaza alg=none/confusión) y
-    comprueba la expiración contra ``now`` (o el reloj real si ``now`` es None). ``exp <= now`` → expirado."""
+    comprueba la expiración contra ``now`` (o el reloj real si ``now`` es None). ``exp <= now`` →
+    expirado. ``tenant_id`` solo es obligatorio cuando ``purpose == "access"`` (un token sin
+    ``purpose`` se trata como `"access"`, comportamiento histórico) — un `identity_token`
+    (`purpose="tenant_selection"`) aún no tiene tenant elegido."""
     claims: dict[str, Any] = jwt.decode(
         token,
         secret,
         algorithms=[algorithm],
-        options={"require": ["exp", "sub", "tenant_id"], "verify_exp": False},
+        options={"require": ["exp", "sub"], "verify_exp": False},
     )
+
+    if claims.get("purpose", _ACCESS_PURPOSE) == _ACCESS_PURPOSE and "tenant_id" not in claims:
+        raise jwt.MissingRequiredClaimError("tenant_id")
+
     current = int((now or datetime.now(tz=UTC)).timestamp())
 
     if current >= claims["exp"]:

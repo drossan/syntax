@@ -15,10 +15,12 @@ from app.domain.errors import (
     InvalidTransition,
     NotFound,
     PortError,
+    RateLimited,
     Validation,
 )
 from app.domain.ports.clock import Clock
 from app.domain.ports.email import EmailPort
+from app.domain.ports.rate_limiter import RateLimiter
 from app.domain.ports.repositories import (
     AgentRunRepository,
     ApprovalRepository,
@@ -63,6 +65,13 @@ def test_port_error_exists() -> None:
     assert issubclass(PortError, DomainError)
 
 
+def test_rate_limited_exists_with_fixed_code() -> None:
+    """RateLimited existe (mapeo HTTP futuro: 429) con `code` fijo, como PortError."""
+    assert issubclass(RateLimited, DomainError)
+    exc = RateLimited("límite excedido")
+    assert exc.code == "rate_limited"
+
+
 def test_port_error_preserves_original_exception() -> None:
     """PortError.__cause__ es la excepción original (raise ... from exc)."""
     original = TimeoutError("boom")
@@ -79,6 +88,12 @@ class _FakeTenantRepository:
     async def add(self, tenant: object) -> object:
         return tenant
 
+    async def update(self, tenant: object) -> object:
+        return tenant
+
+    async def list(self, *, page: int, page_size: int) -> object:
+        return None
+
 
 class _FakeClock:
     def now(self) -> datetime:
@@ -90,12 +105,18 @@ class _FakeEmailPort:
         return None
 
 
+class _FakeRateLimiter:
+    async def check_and_increment(self, key: str) -> bool:
+        return True
+
+
 @pytest.mark.parametrize(
     ("protocol", "fake"),
     [
         (TenantRepository, _FakeTenantRepository()),
         (Clock, _FakeClock()),
         (EmailPort, _FakeEmailPort()),
+        (RateLimiter, _FakeRateLimiter()),
     ],
 )
 def test_fake_satisfies_protocol_structurally(protocol: type, fake: object) -> None:

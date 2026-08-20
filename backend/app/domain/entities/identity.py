@@ -26,21 +26,30 @@ class Tenant(BaseModel):
     slug: str
     name: str
     status: TenantStatus
+    auto_approve: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
 class User(BaseModel):
-    """Usuario de un tenant."""
+    """Identidad global (email único, sin `tenant_id`/`status` propios — viven en
+    `UserTenantMembership`). Una sola contraseña compartida entre todas sus membresías."""
 
     id: uuid.UUID
-    tenant_id: uuid.UUID
     email: str
     password_hash: str | None = None
-    status: UserStatus
     sso_subject: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class UserTenantMembership(BaseModel):
+    """Membership `user`×`tenant`: el `status` (`invited`/`active`/`disabled`) vive AQUÍ, por tenant."""
+
+    user_id: uuid.UUID
+    tenant_id: uuid.UUID
+    status: UserStatus
+    created_at: datetime | None = None
 
 
 class Capability(BaseModel):
@@ -63,10 +72,14 @@ class Role(BaseModel):
 
 
 class RefreshSession(BaseModel):
-    """Sesión de refresh: rotación por `family_id`/`parent_id` + reuse-detection."""
+    """Sesión de refresh: rotación por `family_id`/`parent_id` + reuse-detection.
+
+    `tenant_id`: una sesión de refresh es de un tenant concreto (el elegido en
+    `select_tenant`/`switch_tenant` cuando el usuario tiene varias membresías)."""
 
     id: uuid.UUID
     user_id: uuid.UUID
+    tenant_id: uuid.UUID
     token_hash: str
     family_id: uuid.UUID
     parent_id: uuid.UUID | None = None

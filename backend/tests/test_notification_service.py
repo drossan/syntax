@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 import pytest
 from app.domain.entities.business import Notification
 from app.domain.entities.enums import NotificationType
+from app.domain.errors import NotFound
+from app.domain.ports.repositories import PageResult
 from app.domain.services.notification_service import NotificationService
 
 _FIXED_NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -29,9 +31,26 @@ class _FakeNotificationRepository:
         self.store[notification.id] = notification
         return notification
 
-    async def list_for_user(self, user_id: uuid.UUID) -> list[Notification]:
+    async def get(self, notification_id: uuid.UUID) -> Notification | None:
+        return self.store.get(notification_id)
+
+    async def list_for_user(
+        self,
+        user_id: uuid.UUID,
+        *,
+        unread: bool | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> PageResult[Notification]:
         items = [n for n in self.store.values() if n.user_id == user_id]
-        return sorted(items, key=lambda n: n.created_at or _FIXED_NOW, reverse=True)
+        if unread is True:
+            items = [n for n in items if n.read_at is None]
+        elif unread is False:
+            items = [n for n in items if n.read_at is not None]
+        items = sorted(items, key=lambda n: n.created_at or _FIXED_NOW, reverse=True)
+        total = len(items)
+        start = (page - 1) * page_size
+        return PageResult(items=items[start : start + page_size], total=total)
 
     async def mark_read(
         self, notification_id: uuid.UUID, user_id: uuid.UUID, read_at: datetime
@@ -60,12 +79,14 @@ async def test_emit_creates_notification(service: tuple) -> None:
     assert notification.id in repo.store
 
 
-async def test_list_for_user_returns_empty_list_when_none() -> None:
-    """Listar sin notificaciones devuelve lista vacía (no None, no excepción)."""
+async def test_list_for_user_returns_an_empty_page_when_none() -> None:
+    """Listar sin notificaciones devuelve una página vacía (no None, no excepción)."""
     repo = _FakeNotificationRepository()
     svc = NotificationService(notifications=repo, clock=_FakeClock())
     result = await svc.list_for_user(uuid.uuid4())
-    assert result == []
+    assert isinstance(result, PageResult)
+    assert result.items == []
+    assert result.total == 0
 
 
 async def test_list_for_user_orders_most_recent_first(service: tuple) -> None:
@@ -75,7 +96,59 @@ async def test_list_for_user_orders_most_recent_first(service: tuple) -> None:
     await svc.emit(_TENANT, user_id, NotificationType.ticket_assigned, {})
     await svc.emit(_TENANT, user_id, NotificationType.ticket_reply, {})
     result = await svc.list_for_user(user_id)
-    assert len(result) == 2
+    assert len(result.items) == 2
+    assert result.total == 2
+
+
+async def test_list_for_user_filters_unread_true(service: tuple) -> None:
+    svc, _ = service
+    user_id = uuid.uuid4()
+    unread_n = await svc.emit(_TENANT, user_id, NotificationType.ticket_assigned, {})
+    read_n = await svc.emit(_TENANT, user_id, NotificationType.ticket_reply, {})
+    await svc.mark_read(read_n.id, user_id)
+
+    result = await svc.list_for_user(user_id, unread=True)
+
+    assert [n.id for n in result.items] == [unread_n.id]
+
+
+async def test_list_for_user_filters_unread_false(service: tuple) -> None:
+    svc, _ = service
+    user_id = uuid.uuid4()
+    await svc.emit(_TENANT, user_id, NotificationType.ticket_assigned, {})
+    read_n = await svc.emit(_TENANT, user_id, NotificationType.ticket_reply, {})
+    await svc.mark_read(read_n.id, user_id)
+
+    result = await svc.list_for_user(user_id, unread=False)
+
+    assert [n.id for n in result.items] == [read_n.id]
+
+
+async def test_get_returns_own_notification(service: tuple) -> None:
+    svc, _ = service
+    user_id = uuid.uuid4()
+    notification = await svc.emit(_TENANT, user_id, NotificationType.ticket_assigned, {})
+
+    fetched = await svc.get(notification.id, user_id)
+
+    assert fetched.id == notification.id
+
+
+async def test_get_of_a_nonexistent_notification_raises_not_found(service: tuple) -> None:
+    svc, _ = service
+    with pytest.raises(NotFound):
+        await svc.get(uuid.uuid4(), uuid.uuid4())
+
+
+async def test_get_of_another_users_notification_raises_not_found(service: tuple) -> None:
+    """No revela si existe: mismo NotFound que un id inexistente."""
+    svc, _ = service
+    owner = uuid.uuid4()
+    intruder = uuid.uuid4()
+    notification = await svc.emit(_TENANT, owner, NotificationType.ticket_assigned, {})
+
+    with pytest.raises(NotFound):
+        await svc.get(notification.id, intruder)
 
 
 async def test_mark_read_marks_notification() -> None:

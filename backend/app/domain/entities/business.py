@@ -15,8 +15,10 @@ from app.domain.entities.enums import (
     AgentRunStatus,
     ApprovalStatus,
     KbDomain,
+    KbEstado,
     MessageVisibility,
     NotificationType,
+    Package,
     TicketPriority,
     TicketStatus,
 )
@@ -50,6 +52,20 @@ class Message(BaseModel):
     visibility: MessageVisibility
     is_ai_draft: bool = False
     body: str
+    created_at: datetime | None = None
+
+
+class Attachment(BaseModel):
+    """Adjunto de un mensaje. El binario vive fuera de Postgres (`storage_key` → puerto `Storage`,
+    tarea 08); `tenant_id` propio (no derivado del mensaje) porque la tabla lleva `TenantMixin`/RLS."""
+
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    message_id: uuid.UUID
+    filename: str
+    content_type: str
+    size_bytes: int
+    storage_key: str
     created_at: datetime | None = None
 
 
@@ -109,10 +125,54 @@ class Resource(BaseModel):
 
 
 class AuditLogEntry(BaseModel):
-    """Entrada de auditoría append-only (data-model.md §4.2)."""
+    """Entrada de auditoría append-only (data-model.md §4.2).
 
+    `tenant_id` es obligatorio: `audit_log` es una tabla de NEGOCIO con RLS (`data-model.md` §2/§6,
+    columna `NOT NULL`) — un `AuditLogRepository` real (06) necesita el tenant de cada entrada para
+    persistirla; sin él, la única vía de detectarlo era una `IntegrityError` en el primer `INSERT` real
+    (el puerto solo se había ejercitado con fakes en `domain-services`, que no validan el shape de la
+    fila)."""
+
+    tenant_id: uuid.UUID
     action: str
     entity_type: str
     entity_id: str
     payload: dict[str, Any]
     actor_id: uuid.UUID | None = None
+
+
+class KBDocument(BaseModel):
+    """Documento de KB (global, sin `tenant_id` — recurso cross-tenant, `rbac.md`). `uc_id` es la
+    clave única de negocio (contrato); sin `id` propio expuesto (detalle interno de `kb_document`)."""
+
+    uc_id: str
+    domain: KbDomain
+    package: Package
+    estado: KbEstado
+    title: str
+    source_url: str
+    updated: datetime | None = None
+
+
+class KBSearchHit(BaseModel):
+    """Resultado de `VectorStore.search` — recorte de `KBDocument` + `section_type`/`score` del
+    retrieval (tarea 14: hoy el adaptador es un stub, el shape ya es el final)."""
+
+    uc_id: str
+    title: str
+    section_type: str
+    domain: KbDomain
+    estado: KbEstado
+    source_url: str
+    score: float
+
+
+class AnalyticsSummary(BaseModel):
+    """Resumen agregado del dashboard (FR-041, `GET /analytics/summary`). `tickets_by_status` trae
+    SIEMPRE las 6 claves de `TicketStatus` (con `0` donde no hay datos); `avg_confidence` es `None`
+    (nunca `NaN`) si no hay ningún `AgentRun` con `confidence` no nulo."""
+
+    tickets_by_status: dict[str, int]
+    approvals_pending: int
+    avg_confidence: float | None = None
+    sla_breaches: int

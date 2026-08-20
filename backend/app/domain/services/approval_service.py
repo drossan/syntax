@@ -27,7 +27,7 @@ from app.domain.entities.business import ApprovalTask
 from app.domain.entities.enums import ApprovalStatus, TicketStatus
 from app.domain.errors import Conflict, Validation
 from app.domain.ports.agent_runner import AgentRunner, ApprovalOutcome
-from app.domain.ports.repositories import ApprovalRepository
+from app.domain.ports.repositories import ApprovalRepository, PageResult
 from app.domain.services.ticket_service import TicketService
 
 Decision = Literal["approve", "edit", "reject"]
@@ -53,10 +53,24 @@ class ApprovalService:
         self._ticket_service = ticket_service
         self._agent_runner = agent_runner
 
-    async def list_pending(self, tenant_id: uuid.UUID) -> list[ApprovalTask]:
-        """Cola de `tenant_id`, orden `sla_due,confidence` (contrato del puerto). Aislada por tenant:
-        el filtro lo aplica el puerto, este servicio no filtra en memoria."""
-        return await self._approvals.list_pending(tenant_id)
+    async def list_queue(
+        self,
+        tenant_id: uuid.UUID | None,
+        *,
+        status: ApprovalStatus | None = None,
+        sort: str = "sla_due,confidence",
+        page: int = 1,
+        page_size: int = 20,
+    ) -> PageResult[ApprovalTask]:
+        """Cola de aprobación paginada (tarea 12 — reemplaza `list_pending`).
+
+        `tenant_id=None` agrega **cross-tenant** (Soporte, ámbito `global` de `approval.decide`); con
+        `tenant_id` fijo, aislada a ese tenant. Sin `status`, el puerto filtra solo `pending` (mismo
+        comportamiento por defecto que el `list_pending` anterior). El filtro/orden/paginación los
+        aplica el puerto, este servicio no filtra en memoria."""
+        return await self._approvals.list(
+            tenant_id, status=status, sort=sort, page=page, page_size=page_size
+        )
 
     async def decide(
         self,

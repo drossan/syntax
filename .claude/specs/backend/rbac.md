@@ -30,12 +30,14 @@ Agrupadas por recurso. `scope` indica el ámbito máximo en que tienen sentido.
 | `ticket.reply` | Responder (mensaje `public`) | tenant/global |
 | `ticket.transition` | Cambiar estado | tenant/global |
 | `ticket.assign` | Asignar a un agente | tenant/global |
+| `ticket.update` | Editar campos (`subject`/`priority`/`category`/`csat`) sin cambiar de estado | tenant/global |
 | `note.internal.read` | Ver mensajes `internal` (Syntax) | global |
 | `note.internal.write` | Escribir notas `internal` | global |
 | `approval.decide` | Aprobar/editar/rechazar drafts IA | global |
 | `agent.trigger` | Disparar generación de draft IA | tenant/global |
 | `kb.read` | Buscar/leer la base de conocimiento | tenant/global |
 | `tenant.manage` | CRUD de tenants (clientes) | global |
+| `tenant.settings.manage` | Gestiona `TenantSettings` (`auto_approve`) del PROPIO tenant | tenant |
 | `user.manage` | Alta/baja/invitación de usuarios | tenant/global |
 | `role.manage` | Asignar roles y componer roles custom | tenant/global |
 | `analytics.read` | Ver el dashboard | tenant/global |
@@ -66,7 +68,7 @@ Dos familias. La numeración normaliza el brief (1,2,4 → 1,2,3).
 |---|:--:|:--:|:--:|:--:|:--:|:--:|
 | ticket.read | ✅g | ✅g | ✅g | ✅t | ✅t | ✅t |
 | ticket.create/reply | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| ticket.transition/assign | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| ticket.transition/assign/update | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | note.internal.* | ✅ | ✅ | read | ❌ | ❌ | ❌ |
 | approval.decide / agent.trigger | ✅ | ✅ | ❌ | ❌* / ✅ | ❌ / ✅ | ❌ |
 | kb.read / analytics.read | ✅ | ✅ | ✅ | ✅ | ✅r | ❌ |
@@ -106,6 +108,14 @@ authorize(subject, capability, scope, resource) -> Allow | Deny
 - Decide por **capacidad + ámbito**, **nunca por el nombre del rol**.
 - **Capacidades resueltas server-side por request** desde la BD (no desde el JWT): un cambio/revocación de
   rol surte efecto en la siguiente request; el TTL corto del access acota la obsolescencia de pertenencia.
+- **Acotadas por la sesión activa** (11): `effective_capabilities(user_id, tenant_id)` se resuelve para
+  el `tenant_id` de la sesión — un usuario con roles distintos en dos tenants NUNCA ve las capacidades
+  del otro tenant en su sesión activa (fix de seguridad de `scenario-coverage`, no una decisión
+  discrecional).
+- `get_tenant_context` decide `tenant_scope`/`global_scope` por el **ámbito concedido de la capacidad
+  requerida** (no por un flag fijo del `Subject`): si `(cap, "global") in subject.capabilities` →
+  `global_scope()`; si no, `tenant_scope(subject.tenant_id)`. Con la misma capacidad en ambos ámbitos,
+  gana `global`.
 - **`resource`** aporta el `tenant_id`/dueño para validar el ámbito (p.ej. `ticket.reply` en `scope=tenant`
   solo aplica a tickets de ESE tenant).
 - **Deny → HTTP 403** con el envelope de error estándar (ver 06).

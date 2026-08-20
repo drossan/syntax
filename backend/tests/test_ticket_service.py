@@ -9,8 +9,9 @@ from datetime import UTC, datetime
 
 import pytest
 from app.domain.entities.business import Ticket
-from app.domain.entities.enums import TicketPriority, TicketStatus
+from app.domain.entities.enums import KbDomain, TicketPriority, TicketStatus
 from app.domain.errors import InvalidTransition, NotFound, Validation
+from app.domain.ports.repositories import PageResult
 from app.domain.services.ticket_service import TicketService
 
 _FIXED_NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -48,8 +49,33 @@ class _FakeTicketRepository:
         self.store[ticket.id] = ticket
         return ticket
 
-    async def list(self, tenant_id: uuid.UUID) -> list[Ticket]:
-        return [t for t in self.store.values() if t.tenant_id == tenant_id]
+    async def list(
+        self,
+        tenant_id: uuid.UUID,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        status: TicketStatus | None = None,
+        priority: TicketPriority | None = None,
+        domain: KbDomain | None = None,
+        assignee_id: uuid.UUID | None = None,
+        sort: str = "-updated_at",
+    ) -> PageResult[Ticket]:
+        items = [t for t in self.store.values() if t.tenant_id == tenant_id]
+        if status is not None:
+            items = [t for t in items if t.status == status]
+        if priority is not None:
+            items = [t for t in items if t.priority == priority]
+        if domain is not None:
+            items = [t for t in items if t.domain == domain]
+        if assignee_id is not None:
+            items = [t for t in items if t.assignee_id == assignee_id]
+        reverse = sort.startswith("-")
+        key = sort.lstrip("-")
+        items.sort(key=lambda t: getattr(t, key) or 0, reverse=reverse)
+        total = len(items)
+        start = (page - 1) * page_size
+        return PageResult(items=items[start : start + page_size], total=total)
 
 
 class _FakeMessageRepository:
@@ -60,8 +86,16 @@ class _FakeMessageRepository:
         self.added.append(message)
         return message
 
-    async def list_by_ticket(self, ticket_id: uuid.UUID) -> list[object]:
-        return self.added
+    async def list_by_ticket(
+        self, ticket_id: uuid.UUID, *, page: int = 1, page_size: int = 20
+    ) -> PageResult[object]:
+        return PageResult(items=self.added, total=len(self.added))
+
+    async def add_attachment(self, attachment: object) -> object:
+        return attachment
+
+    async def get_attachment(self, attachment_id: uuid.UUID) -> object | None:
+        return None
 
 
 class _FakeAuditLogRepository:
@@ -114,6 +148,25 @@ async def test_create_ticket_sets_sla_due_from_policy(service: tuple) -> None:
     svc, *_ = service
     ticket = await _make_ticket(svc)
     assert ticket.sla_due == _FIXED_SLA_DUE
+
+
+async def test_create_ticket_defaults_to_normal_priority(service: tuple) -> None:
+    svc, *_ = service
+    ticket = await _make_ticket(svc)
+    assert ticket.priority is TicketPriority.normal
+
+
+async def test_create_ticket_with_an_explicit_priority_uses_it(service: tuple) -> None:
+    svc, _, _messages, _audit, sla = service
+    ticket = await svc.create(
+        tenant_id=_TENANT,
+        requester_id=_REQUESTER,
+        subject="s",
+        body="b",
+        priority=TicketPriority.urgent,
+    )
+    assert ticket.priority is TicketPriority.urgent
+    assert sla.calls[-1][0] is TicketPriority.urgent
 
 
 @pytest.mark.parametrize(
@@ -255,3 +308,79 @@ async def test_every_mutation_is_audited(service: tuple) -> None:
     await svc.assign(ticket.id, uuid.uuid4(), assignee_tenant_id=_TENANT)
     await svc.set_csat(ticket.id, 5)
     assert len(audit.entries) == count_after_create + 3
+
+
+async def test_update_fields_only_changes_the_fields_passed(service: tuple) -> None:
+    svc, tickets, *_ = service
+    ticket = await _make_ticket(svc)
+
+    updated = await svc.update_fields(ticket.id, priority=TicketPriority.high)
+
+    assert updated.priority is TicketPriority.high
+    assert updated.subject == ticket.subject
+    assert updated.category is None
+    assert (await tickets.get(ticket.id)).priority is TicketPriority.high
+
+
+async def test_update_fields_with_no_fields_is_a_noop(service: tuple) -> None:
+    svc, _tickets, _messages, audit, _sla = service
+    ticket = await _make_ticket(svc)
+    count_before = len(audit.entries)
+
+    updated = await svc.update_fields(ticket.id)
+
+    assert updated == ticket
+    assert len(audit.entries) == count_before
+
+
+async def test_update_fields_does_not_touch_status(service: tuple) -> None:
+    """`update_fields` nunca muta `status` — eso sigue siendo exclusivo de `transition`."""
+    svc, _tickets, *_ = service
+    ticket = await _make_ticket(svc)
+
+    updated = await svc.update_fields(ticket.id, subject="nuevo asunto")
+
+    assert updated.status is TicketStatus.new
+    assert updated.subject == "nuevo asunto"
+
+
+async def test_update_fields_on_a_nonexistent_ticket_raises_not_found(service: tuple) -> None:
+    svc, *_ = service
+    with pytest.raises(NotFound):
+        await svc.update_fields(uuid.uuid4(), subject="x")
+
+
+async def test_update_fields_is_audited(service: tuple) -> None:
+    svc, _tickets, _messages, audit, _sla = service
+    ticket = await _make_ticket(svc)
+    count_before = len(audit.entries)
+
+    await svc.update_fields(ticket.id, category="billing")
+
+    assert len(audit.entries) == count_before + 1
+
+
+async def test_get_returns_the_ticket(service: tuple) -> None:
+    svc, *_ = service
+    ticket = await _make_ticket(svc)
+
+    found = await svc.get(ticket.id)
+
+    assert found.id == ticket.id
+
+
+async def test_get_on_a_nonexistent_ticket_raises_not_found(service: tuple) -> None:
+    svc, *_ = service
+    with pytest.raises(NotFound):
+        await svc.get(uuid.uuid4())
+
+
+async def test_list_tickets_delegates_to_the_repository_port(service: tuple) -> None:
+    svc, tickets, *_ = service
+    await _make_ticket(svc)
+
+    result = await tickets.list(_TENANT, page=1, page_size=20)
+    via_service = await svc.list_tickets(_TENANT, page=1, page_size=20)
+
+    assert {t.id for t in via_service.items} == {t.id for t in result.items}
+    assert via_service.total == result.total

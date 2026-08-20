@@ -68,6 +68,7 @@ _ENUM_PAIRS = [
     ("ApprovalStatus", "ApprovalStatus"),
     ("AgentRunStatus", "AgentRunStatus"),
     ("KbDomain", "KbDomain"),
+    ("KbEstado", "KbEstado"),
     ("UserStatus", "UserStatus"),
     ("TenantStatus", "TenantStatus"),
     ("RoleKind", "RoleKind"),
@@ -109,6 +110,7 @@ def test_resource_exposes_nullable_tenant_id() -> None:
 def test_audit_log_entry_shape() -> None:
     """AuditLogEntry expone action, entity_type, entity_id, payload y actor_id (nullable)."""
     entry = domain_business.AuditLogEntry(
+        tenant_id=uuid.uuid4(),
         action="ticket.created",
         entity_type="ticket",
         entity_id=str(uuid.uuid4()),

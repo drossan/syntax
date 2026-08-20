@@ -16,6 +16,7 @@
 # ── Web / ASGI ───────────────────────────────────────────────────────────────
 fastapi                     # framework HTTP async; genera el OpenAPI (contrato = fuente de verdad)
 uvicorn[standard]           # servidor ASGI (uvloop/httptools) para dev y contenedor
+python-multipart            # requerido por FastAPI para UploadFile/multipart (adjuntos, tarea 08)
 
 # ── Validación / settings ────────────────────────────────────────────────────
 pydantic                    # v2 — schemas de dominio y de API (models Pydantic v2)

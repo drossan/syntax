@@ -9,9 +9,14 @@ en ``.claude/specs/general/api-contract.md``) y expone ``GET /health/live``. Exp
 ``GET /health/ready`` y el alias ``GET /health`` comprueban DB alcanzable + extensión pgvector + dimensión
 viva == ``settings.embedding_dim`` (200) o **503 problem+json** con el detalle del fallo (chequeo en
 ``app.core.readiness``, acotado por timeout). ``GET /health/live`` no toca DB.
+
+Los mensajes localizados y el builder del envelope viven en ``app.api.errors`` (fuente única, reusada
+también por los handlers de ``DomainError``/``AuthorizationDenied`` que routers de tareas posteriores
+disparan) — este módulo solo los reusa para 404/405/422/500/503 de infraestructura HTTP (ruta
+desconocida, método no permitido, validación de request, excepción no controlada, readiness).
 """
 
-from typing import Any, cast
+from typing import cast
 
 import structlog
 from fastapi import FastAPI, Request
@@ -20,93 +25,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.errors import problem_response, register_exception_handlers
+from app.api.v1.routers.admin_roles import router as admin_roles_router
+from app.api.v1.routers.admin_tenants import router as admin_tenants_router
+from app.api.v1.routers.admin_users import router as admin_users_router
+from app.api.v1.routers.agent import router as agent_router
+from app.api.v1.routers.analytics import router as analytics_router
+from app.api.v1.routers.approvals import router as approvals_router
+from app.api.v1.routers.auth import router as auth_router
+from app.api.v1.routers.kb import router as kb_router
+from app.api.v1.routers.messages import router as messages_router
+from app.api.v1.routers.notifications import router as notifications_router
+from app.api.v1.routers.tickets import router as tickets_router
 from app.core.config import Settings, get_settings
 from app.core.logging import RequestIDMiddleware, configure_logging
 from app.core.readiness import ReadinessError, check_database_ready
 
-_PROBLEM_MEDIA_TYPE = "application/problem+json"
-_DEFAULT_LANG = "es"
-_SUPPORTED_LANGS = ("es", "en")
-
-# Mensajes del envelope localizados por status (``es`` = idioma base, ``en`` = alterno).
-_MESSAGES: dict[int, dict[str, dict[str, str]]] = {
-    404: {
-        "es": {"title": "No encontrado", "detail": "El recurso solicitado no existe."},
-        "en": {"title": "Not Found", "detail": "The requested resource does not exist."},
-    },
-    405: {
-        "es": {
-            "title": "Método no permitido",
-            "detail": "El método HTTP no está permitido en esta ruta.",
-        },
-        "en": {
-            "title": "Method Not Allowed",
-            "detail": "The HTTP method is not allowed on this route.",
-        },
-    },
-    422: {
-        "es": {"title": "Error de validación", "detail": "La petición no supera la validación."},
-        "en": {"title": "Validation Error", "detail": "The request failed validation."},
-    },
-    500: {
-        "es": {"title": "Error interno del servidor", "detail": "Ha ocurrido un error inesperado."},
-        "en": {"title": "Internal Server Error", "detail": "An unexpected error occurred."},
-    },
-    503: {
-        "es": {"title": "Servicio no disponible", "detail": "El servicio no está listo."},
-        "en": {"title": "Service Unavailable", "detail": "The service is not ready."},
-    },
-}
-_GENERIC_MESSAGE: dict[str, dict[str, str]] = {
-    "es": {"title": "Error", "detail": "La petición no se pudo completar."},
-    "en": {"title": "Error", "detail": "The request could not be completed."},
-}
-
 _logger = structlog.get_logger()
-
-
-def _negotiate_language(accept_language: str | None) -> str:
-    """Elige un idioma soportado desde ``Accept-Language``; fallback al idioma base (``es``)."""
-    if not accept_language:
-        return _DEFAULT_LANG
-    for part in accept_language.split(","):
-        primary = part.split(";")[0].strip().lower().split("-")[0]
-        if primary in _SUPPORTED_LANGS:
-            return primary
-    return _DEFAULT_LANG
-
-
-def _localized_messages(status: int, lang: str) -> dict[str, str]:
-    """Devuelve ``{title, detail}`` para el ``status`` en ``lang`` (fallback al base)."""
-    entry = _MESSAGES.get(status, _GENERIC_MESSAGE)
-    return entry.get(lang, entry[_DEFAULT_LANG])
-
-
-def _problem_response(
-    *,
-    status: int,
-    request: Request,
-    detail: str | None = None,
-    errors: list[dict[str, str]] | None = None,
-) -> JSONResponse:
-    """Construye una respuesta ``application/problem+json`` (RFC 9457) localizada por ``Accept-Language``."""
-    lang = _negotiate_language(request.headers.get("Accept-Language"))
-    messages = _localized_messages(status, lang)
-    body: dict[str, Any] = {
-        "type": "about:blank",
-        "title": messages["title"],
-        "status": status,
-        "detail": detail if detail is not None else messages["detail"],
-    }
-    if errors is not None:
-        body["errors"] = errors
-    return JSONResponse(status_code=status, content=body, media_type=_PROBLEM_MEDIA_TYPE)
 
 
 async def _http_exception_handler(request: Request, exc: Exception) -> Response:
     """``HTTPException``/``StarletteHTTPException`` (incl. 404/405) → problem+json localizado."""
     http_exc = cast(StarletteHTTPException, exc)
-    return _problem_response(status=http_exc.status_code, request=request)
+    return problem_response(status=http_exc.status_code, request=request)
 
 
 async def _validation_exception_handler(request: Request, exc: Exception) -> Response:
@@ -120,12 +61,12 @@ async def _validation_exception_handler(request: Request, exc: Exception) -> Res
         }
         for err in validation_exc.errors()
     ]
-    return _problem_response(status=422, request=request, errors=errors)
+    return problem_response(status=422, request=request, errors=errors)
 
 
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> Response:
     """Excepción no controlada → 500 problem+json (no la traza por defecto de FastAPI/Starlette)."""
-    return _problem_response(status=500, request=request)
+    return problem_response(status=500, request=request)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -158,7 +99,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)
+    register_exception_handlers(app)
     app.add_exception_handler(Exception, _unhandled_exception_handler)
+
+    app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(admin_tenants_router, prefix="/api/v1")
+    app.include_router(admin_users_router, prefix="/api/v1")
+    app.include_router(admin_roles_router, prefix="/api/v1")
+    app.include_router(tickets_router, prefix="/api/v1")
+    app.include_router(messages_router, prefix="/api/v1")
+    app.include_router(kb_router, prefix="/api/v1")
+    app.include_router(agent_router, prefix="/api/v1")
+    app.include_router(approvals_router, prefix="/api/v1")
+    app.include_router(notifications_router, prefix="/api/v1")
+    app.include_router(analytics_router, prefix="/api/v1")
 
     @app.get("/health/live")
     async def health_live() -> dict[str, str]:
@@ -179,7 +133,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await check_database_ready(settings.database_url, settings.embedding_dim)
         except ReadinessError as exc:
             _logger.warning("health_ready_failed", detail=str(exc))
-            return _problem_response(status=503, request=request, detail=str(exc))
+            return problem_response(status=503, request=request, detail=str(exc))
         return JSONResponse(content={"status": "ready"})
 
     return app

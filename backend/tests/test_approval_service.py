@@ -10,9 +10,10 @@ from datetime import UTC, datetime
 
 import pytest
 from app.domain.entities.business import ApprovalTask, Ticket
-from app.domain.entities.enums import ApprovalStatus, TicketPriority, TicketStatus
+from app.domain.entities.enums import ApprovalStatus, KbDomain, TicketPriority, TicketStatus
 from app.domain.errors import Conflict, InvalidTransition, NotFound, Validation
 from app.domain.ports.agent_runner import ApprovalOutcome
+from app.domain.ports.repositories import PageResult
 from app.domain.services.approval_service import ApprovalService
 from app.domain.services.ticket_service import TicketService
 
@@ -51,16 +52,49 @@ class _FakeTicketRepository:
         self.store[ticket.id] = ticket
         return ticket
 
-    async def list(self, tenant_id: uuid.UUID) -> list[Ticket]:
-        return [t for t in self.store.values() if t.tenant_id == tenant_id]
+    async def list(
+        self,
+        tenant_id: uuid.UUID,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        status: TicketStatus | None = None,
+        priority: TicketPriority | None = None,
+        domain: KbDomain | None = None,
+        assignee_id: uuid.UUID | None = None,
+        sort: str = "-updated_at",
+    ) -> PageResult[Ticket]:
+        items = [t for t in self.store.values() if t.tenant_id == tenant_id]
+        if status is not None:
+            items = [t for t in items if t.status == status]
+        if priority is not None:
+            items = [t for t in items if t.priority == priority]
+        if domain is not None:
+            items = [t for t in items if t.domain == domain]
+        if assignee_id is not None:
+            items = [t for t in items if t.assignee_id == assignee_id]
+        reverse = sort.startswith("-")
+        key = sort.lstrip("-")
+        items.sort(key=lambda t: getattr(t, key) or 0, reverse=reverse)
+        total = len(items)
+        start = (page - 1) * page_size
+        return PageResult(items=items[start : start + page_size], total=total)
 
 
 class _FakeMessageRepository:
     async def add(self, message: object) -> object:
         return message
 
-    async def list_by_ticket(self, ticket_id: uuid.UUID) -> list[object]:
-        return []
+    async def list_by_ticket(
+        self, ticket_id: uuid.UUID, *, page: int = 1, page_size: int = 20
+    ) -> PageResult[object]:
+        return PageResult(items=[], total=0)
+
+    async def add_attachment(self, attachment: object) -> object:
+        return attachment
+
+    async def get_attachment(self, attachment_id: uuid.UUID) -> object | None:
+        return None
 
 
 class _FakeAuditLogRepository:
@@ -79,12 +113,24 @@ class _FakeApprovalRepository:
         self.store[task.id] = task
         return task
 
-    async def list_pending(self, tenant_id: uuid.UUID) -> list[ApprovalTask]:
-        return [
+    async def list(
+        self,
+        tenant_id: uuid.UUID | None,
+        *,
+        status: ApprovalStatus | None = None,
+        sort: str = "sla_due,confidence",
+        page: int = 1,
+        page_size: int = 20,
+    ) -> PageResult[ApprovalTask]:
+        wanted_status = status if status is not None else ApprovalStatus.pending
+        items = [
             t
             for t in self.store.values()
-            if t.tenant_id == tenant_id and t.status is ApprovalStatus.pending
+            if (tenant_id is None or t.tenant_id == tenant_id) and t.status is wanted_status
         ]
+        total = len(items)
+        start = (page - 1) * page_size
+        return PageResult(items=items[start : start + page_size], total=total)
 
     async def decide_if_pending(
         self,
@@ -281,8 +327,8 @@ async def test_double_decision_raises_conflict_without_second_resume(context: tu
     assert len(agent_runner.calls) == 1  # sin segundo resume
 
 
-async def test_list_pending_isolates_by_tenant(context: tuple) -> None:
-    """list_pending(tenant_A) solo devuelve las tareas de A, aunque haya pendientes de B."""
+async def test_list_queue_isolates_by_tenant(context: tuple) -> None:
+    """list_queue(tenant_A) solo devuelve las tareas de A, aunque haya pendientes de B."""
     svc, approvals, tickets, _ = context
     ticket_a = _make_ticket(tenant_id=_TENANT_A, status=TicketStatus.open)
     ticket_b = _make_ticket(tenant_id=_TENANT_B, status=TicketStatus.open)
@@ -293,9 +339,47 @@ async def test_list_pending_isolates_by_tenant(context: tuple) -> None:
     approvals.seed(task_a)
     approvals.seed(task_b)
 
-    pending_a = await svc.list_pending(_TENANT_A)
+    result = await svc.list_queue(_TENANT_A)
 
-    assert [t.id for t in pending_a] == [task_a.id]
+    assert isinstance(result, PageResult)
+    assert [t.id for t in result.items] == [task_a.id]
+    assert result.total == 1
+
+
+async def test_list_queue_with_tenant_id_none_aggregates_cross_tenant(context: tuple) -> None:
+    """list_queue(None) — ámbito global de Soporte — agrega TODOS los tenants (bug real corregido
+    antes de implementar, scenario-coverage #4: approval.decide es global-only pero las ApprovalTask
+    son de tenants cliente, nunca de "syntax")."""
+    svc, approvals, tickets, _ = context
+    ticket_a = _make_ticket(tenant_id=_TENANT_A, status=TicketStatus.open)
+    ticket_b = _make_ticket(tenant_id=_TENANT_B, status=TicketStatus.open)
+    tickets.seed(ticket_a)
+    tickets.seed(ticket_b)
+    task_a = _make_approval_task(tenant_id=_TENANT_A, ticket_id=ticket_a.id)
+    task_b = _make_approval_task(tenant_id=_TENANT_B, ticket_id=ticket_b.id)
+    approvals.seed(task_a)
+    approvals.seed(task_b)
+
+    result = await svc.list_queue(None)
+
+    assert {t.id for t in result.items} == {task_a.id, task_b.id}
+    assert result.total == 2
+
+
+async def test_list_queue_with_status_filters_by_that_status_instead_of_pending(
+    context: tuple,
+) -> None:
+    svc, approvals, tickets, _ = context
+    ticket = _make_ticket(tenant_id=_TENANT_A, status=TicketStatus.open)
+    tickets.seed(ticket)
+    pending_task = _make_approval_task(ticket_id=ticket.id, status=ApprovalStatus.pending)
+    rejected_task = _make_approval_task(ticket_id=ticket.id, status=ApprovalStatus.rejected)
+    approvals.seed(pending_task)
+    approvals.seed(rejected_task)
+
+    result = await svc.list_queue(_TENANT_A, status=ApprovalStatus.rejected)
+
+    assert [t.id for t in result.items] == [rejected_task.id]
 
 
 async def test_failure_after_cas_propagates_without_compensation(context: tuple) -> None:

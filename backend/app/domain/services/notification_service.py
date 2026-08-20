@@ -9,8 +9,9 @@ import uuid
 
 from app.domain.entities.business import Notification
 from app.domain.entities.enums import NotificationType
+from app.domain.errors import NotFound
 from app.domain.ports.clock import Clock
-from app.domain.ports.repositories import NotificationRepository
+from app.domain.ports.repositories import NotificationRepository, PageResult
 
 
 class NotificationService:
@@ -37,9 +38,31 @@ class NotificationService:
         )
         return await self._notifications.add(notification)
 
-    async def list_for_user(self, user_id: uuid.UUID) -> list[Notification]:
-        """Notificaciones de `user_id`, orden `-created_at` (contrato del puerto). Vacía si no hay."""
-        return await self._notifications.list_for_user(user_id)
+    async def list_for_user(
+        self,
+        user_id: uuid.UUID,
+        *,
+        unread: bool | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> PageResult[Notification]:
+        """Notificaciones de `user_id`, paginadas, orden `-created_at` (contrato del puerto). Página
+        vacía si no hay (nunca `None`, nunca excepción). `unread` es un passthrough al puerto — sin
+        lógica adicional, el filtro/orden/paginación los aplica el repo."""
+        return await self._notifications.list_for_user(
+            user_id, unread=unread, page=page, page_size=page_size
+        )
+
+    async def get(self, notification_id: uuid.UUID, user_id: uuid.UUID) -> Notification:
+        """`NotFound` si no existe **o** si pertenece a otro usuario (no revela cuál de los dos casos
+        es). Permite al router distinguir 404 de "es mía y ya estaba leída" (200 idempotente) antes de
+        llamar a `mark_read`, que por sí solo es un no-op silencioso en los tres casos."""
+        notification = await self._notifications.get(notification_id)
+        if notification is None or notification.user_id != user_id:
+            raise NotFound(
+                f"notification {notification_id} no existe", code="notification.not_found"
+            )
+        return notification
 
     async def mark_read(self, notification_id: uuid.UUID, user_id: uuid.UUID) -> None:
         """Marca como leída. Idempotente; no-op si no existe o no pertenece a `user_id` (no revela)."""

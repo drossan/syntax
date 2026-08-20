@@ -126,3 +126,20 @@ class KbDomain(enum.Enum):
     search_ai_and_llms = "search-ai-and-llms"
     seo_sitemaps_and_edge = "seo-sitemaps-and-edge"
     sites_domains_instances = "sites-domains-instances"
+
+
+class KbEstado(enum.Enum):
+    """Señal de retrieval de un documento KB (peso explícito, `data-model.md` §4.3)."""
+
+    draft = "draft"
+    active = "active"
+
+
+class Package(enum.Enum):
+    """Paquete/producto de Syntax al que pertenece un documento de KB (`api-contract.yaml`)."""
+
+    syntax_api = "syntax-api"
+    syntax_cx = "syntax-cx"
+    syntax_core = "syntax-core"
+    syntax_ax = "syntax-ax"
+    syntax_render = "syntax-render"

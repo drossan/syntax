@@ -10,10 +10,15 @@ fuera de este servicio (ver el plan).
 import uuid
 
 from app.domain.entities.business import AuditLogEntry, Message, Ticket
-from app.domain.entities.enums import MessageVisibility, TicketPriority, TicketStatus
+from app.domain.entities.enums import KbDomain, MessageVisibility, TicketPriority, TicketStatus
 from app.domain.errors import InvalidTransition, NotFound, Validation
 from app.domain.ports.clock import Clock
-from app.domain.ports.repositories import AuditLogRepository, MessageRepository, TicketRepository
+from app.domain.ports.repositories import (
+    AuditLogRepository,
+    MessageRepository,
+    PageResult,
+    TicketRepository,
+)
 from app.domain.ports.sla_policy import SlaPolicy
 
 _VALID_TRANSITIONS: frozenset[tuple[TicketStatus, TicketStatus]] = frozenset(
@@ -56,25 +61,67 @@ class TicketService:
             raise NotFound(f"ticket {ticket_id} no existe", code="ticket.not_found")
         return ticket
 
+    async def get(self, ticket_id: uuid.UUID) -> Ticket:
+        """`GET /tickets/{id}` (07): `NotFound` si no existe — el aislamiento cross-tenant lo da la
+        RLS/filtro app-level del adaptador (un ticket de otro tenant nunca llega a esta capa)."""
+        return await self._get_or_raise(ticket_id)
+
+    async def list_tickets(
+        self,
+        tenant_id: uuid.UUID,
+        *,
+        page: int,
+        page_size: int,
+        status: TicketStatus | None = None,
+        priority: TicketPriority | None = None,
+        domain: KbDomain | None = None,
+        assignee_id: uuid.UUID | None = None,
+        sort: str = "-updated_at",
+    ) -> PageResult[Ticket]:
+        """`GET /tickets` (07): pass-through paginado/filtrado/ordenado al puerto (`sort` YA validado
+        por el router contra la whitelist antes de llegar aquí)."""
+        return await self._tickets.list(
+            tenant_id,
+            page=page,
+            page_size=page_size,
+            status=status,
+            priority=priority,
+            domain=domain,
+            assignee_id=assignee_id,
+            sort=sort,
+        )
+
     async def _audit(self, ticket: Ticket, action: str, payload: dict[str, object]) -> None:
         await self._audit_log.add(
             AuditLogEntry(
-                action=action, entity_type="ticket", entity_id=str(ticket.id), payload=payload
+                tenant_id=ticket.tenant_id,
+                action=action,
+                entity_type="ticket",
+                entity_id=str(ticket.id),
+                payload=payload,
             )
         )
 
     async def create(
-        self, tenant_id: uuid.UUID, requester_id: uuid.UUID, subject: str, body: str
+        self,
+        tenant_id: uuid.UUID,
+        requester_id: uuid.UUID,
+        subject: str,
+        body: str,
+        priority: TicketPriority | None = None,
     ) -> Ticket:
-        """Alta: estado inicial `new`; primer mensaje del solicitante `public`; `sla_due` vía `SlaPolicy`."""
+        """Alta: estado inicial `new`; primer mensaje del solicitante `public`; `sla_due` vía
+        `SlaPolicy`. `priority` por defecto `normal` (contrato, `POST /tickets`, tarea 07 — la
+        prioridad inicial es opcional en el request)."""
         now = self._clock.now()
-        sla_due = self._sla_policy.due_at(_DEFAULT_PRIORITY, now, tenant_id)
+        initial_priority = priority if priority is not None else _DEFAULT_PRIORITY
+        sla_due = self._sla_policy.due_at(initial_priority, now, tenant_id)
         ticket = Ticket(
             id=uuid.uuid4(),
             tenant_id=tenant_id,
             subject=subject,
             status=TicketStatus.new,
-            priority=_DEFAULT_PRIORITY,
+            priority=initial_priority,
             requester_id=requester_id,
             sla_due=sla_due,
         )
@@ -151,4 +198,32 @@ class TicketService:
         ticket.csat = value
         await self._tickets.update(ticket)
         await self._audit(ticket, "ticket.csat_set", {"csat": value})
+        return ticket
+
+    async def update_fields(
+        self,
+        ticket_id: uuid.UUID,
+        *,
+        subject: str | None = None,
+        priority: TicketPriority | None = None,
+        category: str | None = None,
+    ) -> Ticket:
+        """`PATCH` parcial: solo muta los campos NO-`None` pasados — no reimplementa la máquina de
+        estados (`status` sigue siendo exclusivo de `transition`) ni el CSAT (`set_csat`, con su
+        propia validación de rango)."""
+        ticket = await self._get_or_raise(ticket_id)
+        changes: dict[str, object] = {}
+        if subject is not None:
+            ticket.subject = subject
+            changes["subject"] = subject
+        if priority is not None:
+            ticket.priority = priority
+            changes["priority"] = priority.value
+        if category is not None:
+            ticket.category = category
+            changes["category"] = category
+        if not changes:
+            return ticket
+        await self._tickets.update(ticket)
+        await self._audit(ticket, "ticket.updated", changes)
         return ticket

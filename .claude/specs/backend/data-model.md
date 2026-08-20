@@ -27,7 +27,7 @@
 
 | Grupo | Tablas | `tenant_id` + RLS | Notas |
 |---|---|:--:|---|
-| Identidad / RBAC | `tenant`, `user`, `capability`, `role`, `role_capability`, `user_role`, `refresh_session`, `auth_token` | — (§6) | Cross-tenant de sistema; el ámbito lo da el RBAC (02), no RLS de fila. |
+| Identidad / RBAC | `tenant`, `user`, `user_tenant`, `capability`, `role`, `role_capability`, `user_role`, `refresh_session`, `auth_token` | — (§6) | Cross-tenant de sistema; el ámbito lo da el RBAC (02), no RLS de fila. `user_tenant` es la membership (11). |
 | Negocio | `ticket`, `message`, `attachment`, `approval_task`, `agent_run`, `audit_log`, `notification` | ✅ | Toda fila pertenece a un tenant. |
 | KB (global) | `kb_document`, `kb_chunk`, `embedding` | ❌ | Documentación de Syntax, compartida sin RLS de tenant. |
 
@@ -61,13 +61,23 @@
 
 ## 4. Entidades
 
-### 4.1 Identidad / RBAC (materializa 02)
+### 4.1 Identidad / RBAC (materializa 02; identidad multi-tenant global desde 11/backend-routers-core-01)
 
 - **`tenant`** — cliente = dominio. `id`, `slug` (único; el tenant-sistema es `syntax`), `name`,
-  `status` (`tenant_status`), timestamps. **No** se hard-borra (§7).
-- **`user`** — `id`, `tenant_id` FK→`tenant`, `email` (único por tenant), `password_hash` (**argon2**,
-  nullable si `invited` aún sin fijar clave), `status` (`user_status`), `sso_subject` (nullable, **Fase
-  2** — hueco para identidad federada, 02 §8), timestamps.
+  `status` (`tenant_status`), `auto_approve` (bool, default `false` — auto-aprobación HITL del
+  tenant, lo configura su admin vía `/admin/settings`; consumidor real: nodo `decide` del grafo,
+  tarea 15), timestamps. **No** se hard-borra (§7).
+- **`user`** — identidad **GLOBAL** (sin `tenant_id`/`status` propios: un mismo usuario puede
+  pertenecer a varios tenants con **una sola contraseña compartida**, decisión de owner). `id`,
+  `email` (único **global**, no por tenant), `password_hash` (**argon2**, nullable si ninguna
+  membership tiene aún clave fijada), `sso_subject` (nullable, **Fase 2** — hueco para identidad
+  federada, 02 §8), timestamps.
+- **`user_tenant`** — membership `user`×`tenant` (nueva): el `status` (`user_status`:
+  `invited`/`active`/`disabled`) vive AQUÍ, **por tenant**, no en `user`. PK compuesta natural
+  (`user_id`, `tenant_id`); `created_at`. Índice por `user_id` (listar membresías de un usuario) y
+  por `tenant_id` (listar usuarios de un tenant, `admin_users`). FKs: `user_id`→`user` **CASCADE**
+  (borrar el usuario limpia sus membresías); `tenant_id`→`tenant` **RESTRICT** (un tenant con
+  membresías no se hard-borra).
 - **`capability`** — catálogo (02 §2). `id`, `name` (único, p.ej. `ticket.reply`), `scope`
   (`capability_scope`), `description`. Semilla; **no** editable por tenants.
 - **`role`** — `id`, `name`, `kind` (`role_kind`), `tenant_id` (nullable: `NULL` en roles `system`;
@@ -76,16 +86,23 @@
 - **`role_capability`** — unión `role`×`capability`. PK (`role_id`, `capability_id`). Concede la
   capacidad al rol (el ámbito efectivo lo acota el rol y las invariantes de 02 §4).
 - **`user_role`** — unión `user`×`role`, con `tenant_id` del ámbito de asignación. PK (`user_id`,
-  `role_id`). Un rol `tenant` solo es asignable a usuarios de su tenant (02 §4).
+  `role_id`). Un rol `tenant` solo es asignable a usuarios de su tenant (02 §4). Un usuario con roles
+  distintos en dos tenants está soportado (`effective_capabilities` se acota por `(user_id,
+  tenant_id)` — 11, fix de seguridad de `scenario-coverage`).
 - **`refresh_session`** — token store del refresh (habilita **rotación + reuse-detection + logout
-  server-side**, A1.5). `id`, `user_id` FK→`user`, `token_hash` (único; se guarda el hash, no el token),
+  server-side**, A1.5). `id`, `user_id` FK→`user`, **`tenant_id`** FK→`tenant` **RESTRICT** (una
+  sesión de refresh es de un tenant CONCRETO — el elegido en `select_tenant`/`switch_tenant` cuando
+  el usuario tiene 2+ membresías, 11), `token_hash` (único; se guarda el hash, no el token),
   `family_id` (UUID de la cadena de rotación), `parent_id` (nullable, FK→`refresh_session`), `status`
   (`active`/`rotated`/`revoked`), `expires_at`, `created_at`, `last_used_at`, `user_agent`/`ip`
   (opcionales). **Reuse-detection**: si llega un token ya `rotated`/`revoked`, se revoca **toda la
   `family_id`** (logout global de esa cadena).
 - **`auth_token`** — tokens de un solo uso de **password-reset** e **invitación** (B.3). `id`, `user_id`
   FK→`user`, `kind` (`auth_token_kind`), `token_hash` (único), `expires_at`, `used_at` (nullable),
-  `created_at`. Email en **stub** en Fase 1 (fuera de alcance el envío real).
+  `created_at`. Email en **stub** en Fase 1 (fuera de alcance el envío real). **Limitación conocida**:
+  no lleva `tenant_id` — con invitaciones simultáneas a varios tenants para el mismo usuario,
+  `accept_invitation` activa TODAS las membresías `invited` del usuario, no solo la del token
+  (documentado, riesgo de seguridad nulo: mismo usuario destinatario en ambos casos).
 
 ### 4.2 Negocio (todas con `tenant_id` + RLS)
 
@@ -194,7 +211,7 @@ erDiagram
 | `ticket` → `message`/`approval_task`/`agent_run` | **CASCADE** | Son parte del agregado ticket. |
 | `message` → `attachment` | **CASCADE** | El adjunto no existe sin su mensaje (borrar `storage_key` es tarea del servicio, no de la FK). |
 | `agent_run` → `approval_task` | **CASCADE** | El draft cuelga de su run. |
-| `user` → `refresh_session` / `auth_token` / `notification` | **CASCADE** | Logout y limpieza al borrar el usuario. |
+| `user` → `refresh_session` / `auth_token` / `notification` / `user_tenant` | **CASCADE** | Logout, limpieza y borrado de membresías al borrar el usuario global (11). |
 | `kb_document` → `kb_chunk` → `embedding` | **CASCADE** | Re-ingesta/borrado de un UC limpia sus chunks y vectores. |
 | `tenant` → cualquier tabla de negocio/usuario | **RESTRICT** | Un tenant **no** se hard-borra; se `disabled` (soft, `tenant_status`). |
 
@@ -228,8 +245,9 @@ erDiagram
 - `agent_run`: `(ticket_id, run_seq)`; índice por `langgraph_thread_id`.
 - `approval_task`: `(tenant_id, status)` (cola de aprobaciones pendientes).
 - `notification`: `(user_id, read_at)`.
-- `user`: **único** `(tenant_id, email)`. `refresh_session`: **único** `token_hash`, índice `family_id`.
-  `auth_token`: **único** `token_hash`. `user_role`: PK `(user_id, role_id)`. `role`: único
+- `user`: **único** `email` (**global**, no por tenant, desde 11). `user_tenant`: PK `(user_id,
+  tenant_id)`; índice por `user_id` y por `tenant_id`. `refresh_session`: **único** `token_hash`,
+  índice `family_id`. `auth_token`: **único** `token_hash`. `user_role`: PK `(user_id, role_id)`. `role`: único
   `(tenant_id, name)`.
 
 ## 10. Refuerzos (scenario-coverage) — checklist de cobertura

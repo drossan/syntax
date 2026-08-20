@@ -76,6 +76,7 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-029** — Si un nodo del grafo falla, entonces el sistema DEBERÁ marcar `agent_run.status=failed` con `error`, dejando el checkpoint consistente (sin `approval_task` si no se interrumpió).
 - **FR-030** — Cuando se reabre un ticket, el sistema DEBERÁ lanzar un **run nuevo** (`run_seq=n+1`, thread nuevo), dejando el anterior superado.
 - **FR-031** — El sistema DEBERÁ tratar el contenido del ticket como **input no confiable** (aislado del system-prompt; sin ejecutar instrucciones embebidas) y persistir la traza en `agent_run.langsmith_trace_url`.
+- **FR-040** — Si ya hay un `agent_run` no-terminal (`queued`/`running`) para el ticket, o el tenant excede el límite de tasa de `ai-draft` en la ventana actual, entonces el sistema DEBERÁ rechazar el disparo (**409**/**429** respectivamente) sin crear un `agent_run` nuevo.
 
 ### KB: ingestión y retrieval — [[../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]]
 
@@ -90,6 +91,12 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-037** — Cuando un sujeto con `role.manage` compone un rol custom, el sistema DEBERÁ **rechazar** capacidades de ámbito `global` o que el componedor no posea (no escalada), y limitar el rol a su tenant.
 - **FR-038** — Cuando ocurre un evento notificable (aprobación pedida, asignación, respuesta, SLA), el sistema DEBERÁ crear una `notification` in-app para el destinatario (entrega por polling).
 - **FR-039** — Mientras un ticket no resuelto tenga `sla_due` vencido o inminente, el scheduler DEBERÁ notificar/escalar de forma **idempotente** (una sola vez por `sla_breached_at`).
+- **FR-041** — Cuando un sujeto con `analytics.read` consulta el resumen, el sistema DEBERÁ devolver,
+  acotado a su ámbito (tenant, o cross-tenant si `global`): tickets agrupados por `status` (las 6 claves
+  de `TicketStatus` siempre presentes, `0` donde no hay datos), el número de `ApprovalTask` `pending`,
+  la confianza media de `AgentRun.confidence` (`null` si no hay runs con confianza) y el número de
+  tickets con SLA vencido (`sla_due < now()` estricto y no `resolved`/`closed`; un `sla_due` `null`
+  nunca cuenta).
 
 ## Requisitos no funcionales
 

@@ -1,14 +1,18 @@
 """app.infra.db.models.identity — modelos ORM de identidad/RBAC (data-model.md §4.1).
 
-Grupo **cross-tenant de sistema**: NO usa ``TenantMixin`` (no RLS de fila). ``user``/``role``/
-``user_role`` llevan una columna ``tenant_id`` normal (para unicidad/ámbito), pero su aislamiento
-lo gobierna el RBAC (02), no RLS. FKs/cascadas de §7; unicidades de §9. Sin efectos en import.
+Grupo **cross-tenant de sistema**: NO usa ``TenantMixin`` (no RLS de fila). ``role``/``user_role``
+llevan una columna ``tenant_id`` normal (para unicidad/ámbito), pero su aislamiento lo gobierna el
+RBAC (02), no RLS. ``user`` es identidad **global** (sin `tenant_id`/`status` propios, email único
+global) desde la migración `0002`: la pertenencia a un tenant vive en ``user_tenant`` (una fila por
+membership, con su propio ``status`` — un usuario puede pertenecer a varios tenants con una sola
+contraseña, decisión de owner tras `grilling`/`design-review` del plan `routers-core`). FKs/cascadas
+de §7; unicidades de §9. Sin efectos en import.
 """
 
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infra.db.base import Base, TimestampMixin
@@ -32,20 +36,45 @@ class Tenant(TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(String, unique=True)
     name: Mapped[str] = mapped_column(String)
     status: Mapped[TenantStatus] = mapped_column(pg_enum(TenantStatus, "tenant_status"))
+    auto_approve: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class User(TimestampMixin, Base):
-    """Usuario de un tenant. ``password_hash`` argon2 nullable (aún ``invited`` sin clave)."""
+    """Identidad global (email único, sin `tenant_id`/`status` propios — viven en `UserTenant`).
+
+    ``password_hash`` argon2 nullable (aún sin membership `active` con clave fijada) y es **una
+    sola contraseña compartida** entre todas las membresías del usuario (decisión de owner: no son
+    cuentas separadas por tenant).
+    """
 
     __tablename__ = "user"
-    __table_args__ = (UniqueConstraint("tenant_id", "email"),)
+    __table_args__ = (UniqueConstraint("email"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id", ondelete="RESTRICT"))
     email: Mapped[str] = mapped_column(String)
     password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
-    status: Mapped[UserStatus] = mapped_column(pg_enum(UserStatus, "user_status"))
     sso_subject: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class UserTenant(Base):
+    """Membership `user`×`tenant` (nueva, migración `0002`): el `status` vive AQUÍ, no en `User`.
+
+    PK compuesta natural (no hace falta un `id` sintético: la relación ES la clave). Índice por
+    ``tenant_id`` además del que ya cubre la PK compuesta por su columna líder ``user_id`` (listar
+    usuarios de un tenant, lo usa `admin_users`, tarea 06).
+    """
+
+    __tablename__ = "user_tenant"
+    __table_args__ = (Index("ix_user_tenant_tenant_id", "tenant_id"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"), primary_key=True
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenant.id", ondelete="RESTRICT"), primary_key=True
+    )
+    status: Mapped[UserStatus] = mapped_column(pg_enum(UserStatus, "user_status"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Capability(Base):
@@ -104,12 +133,17 @@ class UserRole(Base):
 
 
 class RefreshSession(Base):
-    """Token store del refresh: rotación por ``family_id``/``parent_id`` + reuse-detection (A1.5)."""
+    """Token store del refresh: rotación por ``family_id``/``parent_id`` + reuse-detection (A1.5).
+
+    ``tenant_id`` (migración `0002`): una sesión de refresh es de un tenant concreto — el elegido en
+    `select_tenant`/`switch_tenant` cuando el usuario tiene varias membresías.
+    """
 
     __tablename__ = "refresh_session"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"))
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id", ondelete="RESTRICT"))
     token_hash: Mapped[str] = mapped_column(String, unique=True)
     family_id: Mapped[uuid.UUID] = mapped_column()
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
