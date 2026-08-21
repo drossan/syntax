@@ -11,12 +11,23 @@ type User = components["schemas"]["User"];
 type Me = components["schemas"]["Me"];
 type Capability = NonNullable<Me["capabilities"]>[number];
 type Problem = components["schemas"]["Problem"];
+type TokenResponse = components["schemas"]["TokenResponse"];
+type TenantChoice = components["schemas"]["TenantChoice"];
 
 /** Cliente HTTP autenticado (openapi-fetch tipado con el contrato). */
 export type AuthApiClient = ReturnType<typeof createAuthClient>["client"];
 
 /** Estado de la sesión: en carga (bootstrap), autenticada o no. */
 export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+
+/**
+ * Login con 2+ membresías `active`: el paso 1 no autentica todavía — hay que elegir uno de
+ * `tenants` y canjearlo con {@link AuthContextValue.selectTenant} usando el mismo `identityToken`.
+ */
+export interface TenantSelectionChallenge {
+  identityToken: string;
+  tenants: TenantChoice[];
+}
 
 /** Valor expuesto por el contexto de autenticación. */
 export interface AuthContextValue {
@@ -27,8 +38,21 @@ export interface AuthContextValue {
   capabilities: Capability[];
   /** Cliente HTTP autenticado para el data-fetching de las features (TanStack Query). */
   client: AuthApiClient;
-  /** Inicia sesión; devuelve `{ error }` (problem+json) si las credenciales fallan. */
-  login: (email: string, password: string) => Promise<{ error?: Problem }>;
+  /**
+   * Inicia sesión. Con 1 tenant, completa la sesión y devuelve `{}`. Con 2+ membresías `active`,
+   * devuelve `{ tenantSelection }` sin autenticar todavía — hay que llamar a {@link selectTenant}.
+   * Devuelve `{ error }` (problem+json) si las credenciales fallan.
+   */
+  login: (
+    email: string,
+    password: string,
+  ) => Promise<{ error?: Problem; tenantSelection?: TenantSelectionChallenge }>;
+  /**
+   * Canjea un `identityToken` (de {@link TenantSelectionChallenge}) por la sesión real del tenant
+   * elegido. En error (401/422) devuelve `{ error }` sin invalidar el `identityToken`: puede
+   * reintentarse con el mismo token mientras siga vigente.
+   */
+  selectTenant: (identityToken: string, tenantId: string) => Promise<{ error?: Problem }>;
   /** Cierra la sesión (revoca en servidor, resetea la caché de Query y el estado). */
   logout: () => Promise<void>;
 }
@@ -73,7 +97,7 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
       if (data) {
         setUser(data.user);
         setSessionTenantId(data.active_tenant_id);
-        setCapabilities(data.capabilities ?? []);
+        setCapabilities(data.capabilities);
         setStatus("authenticated");
       } else {
         setStatus("unauthenticated");
@@ -84,31 +108,45 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
     };
   }, [client, session]);
 
+  /**
+   * Completa la sesión a partir de un `TokenResponse` ya válido (login directo, `selectTenant` o,
+   * en la tarea 03, `switchTenant`): fija el access token y confirma la identidad vía `GET
+   * /auth/me`. Si `/auth/me` falla pese al token válido, NO marca `authenticated` — devuelve
+   * `{ error }` sin dejar un estado a medias (Gherkin: «Fallo al confirmar la identidad…»).
+   */
+  const completeSession = async (tokens: TokenResponse): Promise<{ error?: Problem }> => {
+    session.setToken(tokens.access_token);
+    const { data, error } = await client.GET("/auth/me", {});
+    if (!data) {
+      session.setToken(null);
+      setStatus("unauthenticated");
+      return { error };
+    }
+    setUser(data.user);
+    setSessionTenantId(data.active_tenant_id);
+    setCapabilities(data.capabilities);
+    setStatus("authenticated");
+    return {};
+  };
+
   const login: AuthContextValue["login"] = async (email, password) => {
     const { data, error } = await client.POST("/auth/login", { body: { email, password } });
     if (error) return { error };
 
     if ("identity_token" in data) {
-      // Identidad con 2+ tenants: requiere `POST /auth/select-tenant`, sin pantalla propia todavía.
-      return {
-        error: {
-          type: "about:blank",
-          title: "Selección de tenant no disponible",
-          status: 501,
-          detail: "Tu cuenta pertenece a varios tenants; este cliente aún no soporta elegir uno.",
-        },
-      };
+      // Identidad con 2+ tenants: hay que elegir uno con `selectTenant` (sin autenticar todavía).
+      return { tenantSelection: { identityToken: data.identity_token, tenants: data.tenants } };
     }
 
-    session.setToken(data.access_token);
-    const me = await client.GET("/auth/me", {});
-    if (me.data) {
-      setUser(me.data.user);
-      setSessionTenantId(me.data.active_tenant_id);
-      setCapabilities(me.data.capabilities ?? []);
-      setStatus("authenticated");
-    }
-    return {};
+    return completeSession(data);
+  };
+
+  const selectTenant: AuthContextValue["selectTenant"] = async (identityToken, tenantId) => {
+    const { data, error } = await client.POST("/auth/select-tenant", {
+      body: { identity_token: identityToken, tenant_id: tenantId },
+    });
+    if (error) return { error };
+    return completeSession(data);
   };
 
   const logout: AuthContextValue["logout"] = async () => {
@@ -123,7 +161,7 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
 
   return (
     <AuthContext.Provider
-      value={{ status, user, sessionTenantId, capabilities, client, login, logout }}
+      value={{ status, user, sessionTenantId, capabilities, client, login, selectTenant, logout }}
     >
       {children}
     </AuthContext.Provider>

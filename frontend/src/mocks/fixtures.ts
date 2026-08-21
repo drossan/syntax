@@ -2,6 +2,8 @@ import type { components } from "@/types/api";
 
 type Ticket = components["schemas"]["Ticket"];
 type TokenResponse = components["schemas"]["TokenResponse"];
+type TenantChoice = components["schemas"]["TenantChoice"];
+type LoginTenantSelection = components["schemas"]["LoginTenantSelection"];
 type User = components["schemas"]["User"];
 type Me = components["schemas"]["Me"];
 type Message = components["schemas"]["Message"];
@@ -147,6 +149,34 @@ export function notificationFixture(over: Partial<Notification> = {}): Notificat
 /** Fixture de la respuesta de token de `POST /auth/login` / `POST /auth/refresh`. */
 export function tokenFixture(over: Partial<TokenResponse> = {}): TokenResponse {
   return { access_token: "test-access-token", token_type: "bearer", expires_in: 900, ...over };
+}
+
+/** Fixture de un tenant elegible en el paso 2 del login (2+ membresías `active`). */
+export function tenantChoiceFixture(over: Partial<TenantChoice> = {}): TenantChoice {
+  return {
+    id: "88888888-8888-8888-8888-888888888888",
+    slug: "acme",
+    name: "Acme Corp",
+    ...over,
+  };
+}
+
+/** Fixture de la respuesta de `POST /auth/login` cuando el usuario tiene 2+ tenants. */
+export function loginTenantSelectionFixture(
+  over: Partial<LoginTenantSelection> = {},
+): LoginTenantSelection {
+  return {
+    identity_token: "test-identity-token",
+    tenants: [
+      tenantChoiceFixture(),
+      tenantChoiceFixture({
+        id: "99999999-9999-9999-9999-999999999999",
+        slug: "beta",
+        name: "Beta Inc",
+      }),
+    ],
+    ...over,
+  };
 }
 
 /** Fixture de un usuario conforme al contrato. */

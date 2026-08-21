@@ -19,7 +19,7 @@ aprobación humana**, todo navegable por rol y tenant.
 - **US-2 (P1)** — Como **plataforma cliente**, quiero mostrar solo rutas/acciones que el rol permite, para reflejar el RBAC (defensa en profundidad sobre la API).
 - **US-3 (P1)** — Como **agente/usuario**, quiero gestionar tickets (lista, alta, detalle, estado, asignación), para llevar el soporte end-to-end.
 - **US-4 (P1)** — Como **agente de Soporte**, quiero disparar un borrador IA y **aprobarlo/editarlo/rechazarlo**, para responder con control humano.
-- **US-5 (P2)** — Como **personal de Soporte**, quiero cambiar de tenant, para operar sobre distintos clientes sin fugas de datos entre ellos.
+- **US-5 (P2)** — Como **usuario con acceso a varios tenants** (cliente o personal de Soporte), quiero cambiar entre ellos, para operar sin fugas de datos entre clientes.
 - **US-6 (P3)** — Como **usuario**, quiero buscar en la base de conocimiento, para autoservirme antes de abrir un ticket.
 - **US-7 (P3)** — Como **administrador**, quiero gestionar tenants/usuarios e invitar, para operar la plataforma.
 
@@ -38,13 +38,14 @@ aprobación humana**, todo navegable por rol y tenant.
 - **FR-005** — Cuando llegan **N respuestas 401 concurrentes**, el interceptor DEBERÁ renovar la sesión **una sola vez** (single-flight) y reintentar las peticiones.
 - **FR-006** — Si la renovación detecta reuse (refresh robado/rotado), entonces el sistema DEBERÁ hacer **logout limpio**.
 - **FR-007** — Cuando el usuario cierra sesión, el sistema DEBERÁ **resetear el `queryClient`** y detener todo polling (draft, notificaciones, colas).
+- **FR-028** — Si el login resuelve **2+ membresías `active`** del usuario en tenants distintos, el sistema DEBERÁ ofrecer elegir uno antes de completar la sesión; si la elección es rechazada, DEBERÁ informarlo y permitir reintentar sin repetir credenciales.
 
 ### RBAC de cliente y tenant — [[../adr/0005-rbac-por-capacidad-y-ambito]]
 
 - **FR-008** — El sistema DEBERÁ mostrar rutas, menús y acciones **según las capacidades** de la sesión, nunca según el nombre del rol.
 - **FR-009** — Si las capacidades de la sesión no se resuelven, entonces el sistema DEBERÁ **no ofrecer** ninguna acción/ruta privilegiada (fail-closed).
 - **FR-010** — Si la API deniega una acción visible con **403**, entonces el sistema DEBERÁ informarlo **sin mutar estado** (reconciliación).
-- **FR-011** — Cuando el usuario de Soporte cambia de tenant, el sistema DEBERÁ **invalidar las cachés dependientes de tenant** y descartar respuestas en vuelo del tenant anterior.
+- **FR-011** — Cuando el usuario cambia de tenant, el sistema DEBERÁ **invalidar las cachés dependientes de tenant** y descartar respuestas en vuelo del tenant anterior. Si el cambio es rechazado por la API, el sistema NO DEBERÁ limpiar esa caché hasta confirmar el éxito, de forma que la vista permanezca con los datos del tenant anterior.
 
 ### Tickets — [[../adr/0011-entrega-draft-por-polling-no-sse-fase-1]]
 
