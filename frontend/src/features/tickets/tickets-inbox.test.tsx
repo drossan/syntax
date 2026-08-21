@@ -131,7 +131,7 @@ describe("TicketsInbox", () => {
   it("aislamiento de tenant: un cliente nunca envía un parámetro de tenant en la petición", async () => {
     serveTickets({ items: [recent], page: 1, page_size: 20, total: 1 });
     renderWithSession(<TicketsInbox />, {
-      me: {
+      me: meFixture({
         user: {
           id: "u1",
           email: "cliente@acme.io",
@@ -140,7 +140,7 @@ describe("TicketsInbox", () => {
         },
         active_tenant_id: "cliente-a",
         capabilities: [{ capability: "ticket.read", scope: "tenant" }],
-      },
+      }),
     });
 
     await screen.findByText("Ticket reciente");

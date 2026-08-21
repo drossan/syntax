@@ -175,7 +175,7 @@ Soporte).
   `selectTenant` + helper común de sesión  · depends_on: —
 - [x] `frontend-multi-tenant-login-02` (P1) — UI de cards (shadcn `Card`) de selección de tenant,
   integrada en el login  · depends_on: `frontend-multi-tenant-login-01`
-- [ ] `frontend-multi-tenant-login-03` (P2) — Contrato `Me.available_tenants` + `auth-context`:
+- [x] `frontend-multi-tenant-login-03` (P2) — Contrato `Me.available_tenants` + `auth-context`:
   `availableTenants` expuesto + `switchTenant`  · depends_on: `frontend-multi-tenant-login-01`
 - [ ] `frontend-multi-tenant-login-04` (P2) — `tenant-context`/`TenantSwitcher`: switch real +
   visibilidad para cualquier usuario 2+ tenants + docs `CU-FE-02`/`spec.md`  ·

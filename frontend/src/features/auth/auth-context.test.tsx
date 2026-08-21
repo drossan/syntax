@@ -6,7 +6,12 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AuthProvider, useAuth, useLogout } from "@/features/auth/auth-context";
-import { loginTenantSelectionFixture, meFixture, tokenFixture } from "@/mocks/fixtures";
+import {
+  loginTenantSelectionFixture,
+  meFixture,
+  tenantChoiceFixture,
+  tokenFixture,
+} from "@/mocks/fixtures";
 import { server } from "@/mocks/server";
 
 const BASE = "http://localhost:8000";
@@ -15,6 +20,7 @@ const ME = `${BASE}/api/v1/auth/me`;
 const LOGOUT = `${BASE}/api/v1/auth/logout`;
 const LOGIN = `${BASE}/api/v1/auth/login`;
 const SELECT_TENANT = `${BASE}/api/v1/auth/select-tenant`;
+const SWITCH_TENANT = `${BASE}/api/v1/auth/switch-tenant`;
 
 const UNAUTHORIZED_401 = { type: "about:blank", title: "x", status: 401 };
 
@@ -41,6 +47,7 @@ function Probe() {
       <span>status:{auth.status}</span>
       <span>user:{auth.user?.email ?? "-"}</span>
       <span>caps:{auth.capabilities.length}</span>
+      <span>avail:{auth.availableTenants.length}</span>
       <button onClick={() => void logout()}>logout</button>
     </div>
   );
@@ -99,6 +106,7 @@ describe("AuthProvider", () => {
     renderWithProviders(<Probe />, queryClient);
     await waitFor(() => expect(screen.getByText("status:authenticated")).toBeInTheDocument());
     expect(screen.getByText("caps:2")).toBeInTheDocument();
+    expect(screen.getByText("avail:1")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "logout" }));
 
@@ -106,6 +114,7 @@ describe("AuthProvider", () => {
     expect(clearSpy).toHaveBeenCalled();
     expect(logoutCalled).toBe(true);
     expect(screen.getByText("caps:0")).toBeInTheDocument();
+    expect(screen.getByText("avail:0")).toBeInTheDocument();
   });
 
   it("reuse-detection en una petición autenticada cierra la sesión de forma limpia", async () => {
@@ -131,6 +140,7 @@ describe("AuthProvider", () => {
     expect(result.current.user).toBeNull();
     expect(result.current.sessionTenantId).toBeNull();
     expect(result.current.capabilities).toEqual([]);
+    expect(result.current.availableTenants).toEqual([]);
   });
 
   it("bootstrap: refresh OK pero /auth/me falla → no autenticado (sin estado a medias)", async () => {
@@ -323,5 +333,166 @@ describe("AuthProvider — selección de tenant en login", () => {
       identity_token: "test-identity-token",
       tenant_id: "tenant-abc",
     });
+  });
+});
+
+const BETA_TENANT_ID = "99999999-9999-9999-9999-999999999999";
+const SYNTAX_TENANT_ID = "22222222-2222-2222-2222-222222222222";
+
+/**
+ * Escenarios Gherkin (CU-FE-02): «Cualquier usuario con 2+ tenants ve el selector» (datos), «Con una
+ * sola membresía no hay selector que mostrar», «El selector incluye el tenant activo actual» y
+ * «Cambiar de tenant falla sin alterar la vista actual». Task frontend-multi-tenant-login-03.
+ */
+describe("AuthProvider — available_tenants y switchTenant", () => {
+  it("expone availableTenants tras el bootstrap, incluido el tenant activo actual", async () => {
+    const tenants = [
+      tenantChoiceFixture({ id: SYNTAX_TENANT_ID, slug: "syntax", name: "Syntax" }),
+      tenantChoiceFixture({ id: BETA_TENANT_ID, slug: "beta", name: "Beta Inc" }),
+    ];
+    server.use(
+      http.post(REFRESH, () => HttpResponse.json(tokenFixture())),
+      http.get(ME, () => HttpResponse.json(meFixture({ available_tenants: tenants }))),
+    );
+
+    const { result } = renderHook(() => useAuth(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+
+    expect(result.current.availableTenants).toEqual(tenants);
+    expect(
+      result.current.availableTenants.some((t) => t.id === result.current.sessionTenantId),
+    ).toBe(true);
+  });
+
+  it("con una sola membresía, availableTenants tiene longitud 1", async () => {
+    server.use(
+      http.post(REFRESH, () => HttpResponse.json(tokenFixture())),
+      http.get(ME, () => HttpResponse.json(meFixture())),
+    );
+
+    const { result } = renderHook(() => useAuth(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+
+    expect(result.current.availableTenants).toHaveLength(1);
+  });
+
+  it("switchTenant en éxito actualiza la sesión al nuevo tenant", async () => {
+    server.use(
+      http.post(REFRESH, () => HttpResponse.json(tokenFixture())),
+      http.get(ME, () => HttpResponse.json(meFixture())),
+    );
+
+    const { result } = renderHook(() => useAuth(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+
+    const newTenantMe = meFixture({
+      active_tenant_id: BETA_TENANT_ID,
+      capabilities: [{ capability: "kb.read", scope: "tenant" }],
+      available_tenants: [
+        tenantChoiceFixture({ id: SYNTAX_TENANT_ID, slug: "syntax", name: "Syntax" }),
+        tenantChoiceFixture({ id: BETA_TENANT_ID, slug: "beta", name: "Beta Inc" }),
+      ],
+    });
+    server.use(
+      http.post(SWITCH_TENANT, () => HttpResponse.json(tokenFixture())),
+      http.get(ME, () => HttpResponse.json(newTenantMe)),
+    );
+
+    let response: { error?: unknown } | undefined;
+    await act(async () => {
+      response = await result.current.switchTenant(BETA_TENANT_ID);
+    });
+
+    expect(response).toEqual({});
+    expect(result.current.sessionTenantId).toBe(BETA_TENANT_ID);
+    expect(result.current.capabilities).toEqual([{ capability: "kb.read", scope: "tenant" }]);
+    expect(result.current.availableTenants).toHaveLength(2);
+  });
+
+  it("switchTenant en error (403) no altera sessionTenantId/user/capabilities/availableTenants", async () => {
+    server.use(
+      http.post(REFRESH, () => HttpResponse.json(tokenFixture())),
+      http.get(ME, () => HttpResponse.json(meFixture())),
+    );
+
+    const { result } = renderHook(() => useAuth(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+
+    const prevSessionTenantId = result.current.sessionTenantId;
+    const prevCapabilities = result.current.capabilities;
+    const prevAvailableTenants = result.current.availableTenants;
+    const prevUser = result.current.user;
+
+    server.use(
+      http.post(SWITCH_TENANT, () =>
+        HttpResponse.json(
+          { type: "about:blank", title: "Prohibido", status: 403 },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    let response: { error?: { status?: number } } | undefined;
+    await act(async () => {
+      response = await result.current.switchTenant(BETA_TENANT_ID);
+    });
+
+    expect(response?.error?.status).toBe(403);
+    expect(result.current.status).toBe("authenticated");
+    expect(result.current.sessionTenantId).toBe(prevSessionTenantId);
+    expect(result.current.capabilities).toEqual(prevCapabilities);
+    expect(result.current.availableTenants).toEqual(prevAvailableTenants);
+    expect(result.current.user).toEqual(prevUser);
+  });
+
+  it("fallo de /auth/me tras un switchTenant con token válido no autentica", async () => {
+    server.use(
+      http.post(REFRESH, () => HttpResponse.json(tokenFixture())),
+      http.get(ME, () => HttpResponse.json(meFixture())),
+    );
+
+    const { result } = renderHook(() => useAuth(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+
+    server.use(
+      http.post(SWITCH_TENANT, () => HttpResponse.json(tokenFixture())),
+      http.get(ME, () => HttpResponse.json(UNAUTHORIZED_401, { status: 401 })),
+    );
+
+    let response: { error?: unknown } | undefined;
+    await act(async () => {
+      response = await result.current.switchTenant(BETA_TENANT_ID);
+    });
+
+    expect(response?.error).toEqual(UNAUTHORIZED_401);
+    await waitFor(() => expect(result.current.status).toBe("unauthenticated"));
+    expect(result.current.user).toBeNull();
+    expect(result.current.capabilities).toEqual([]);
+    expect(result.current.availableTenants).toEqual([]);
+  });
+
+  it("switchTenant envía tenant_id en el body de POST /auth/switch-tenant", async () => {
+    server.use(
+      http.post(REFRESH, () => HttpResponse.json(tokenFixture())),
+      http.get(ME, () => HttpResponse.json(meFixture())),
+    );
+
+    const { result } = renderHook(() => useAuth(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+
+    let capturedBody: unknown;
+    server.use(
+      http.post(SWITCH_TENANT, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json(tokenFixture());
+      }),
+      http.get(ME, () => HttpResponse.json(meFixture())),
+    );
+
+    await act(async () => {
+      await result.current.switchTenant(BETA_TENANT_ID);
+    });
+
+    expect(capturedBody).toEqual({ tenant_id: BETA_TENANT_ID });
   });
 });

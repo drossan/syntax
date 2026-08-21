@@ -199,6 +199,13 @@ export function meFixture(over: Partial<Me> = {}): Me {
       { capability: "ticket.reply", scope: "tenant" },
       { capability: "approval.decide", scope: "tenant" },
     ],
+    available_tenants: [
+      tenantChoiceFixture({
+        id: "22222222-2222-2222-2222-222222222222",
+        slug: "syntax",
+        name: "Syntax",
+      }),
+    ],
     ...over,
   };
 }

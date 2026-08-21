@@ -36,6 +36,11 @@ export interface AuthContextValue {
   /** Tenant de la sesión activa (`Me.active_tenant_id`); `null` hasta que resuelve. */
   sessionTenantId: string | null;
   capabilities: Capability[];
+  /**
+   * Tenants con membership `active` del usuario (`Me.available_tenants`), incluido el tenant de la
+   * sesión activa. Longitud 1 → nadie ve el switcher; 2+ → cualquier usuario puede cambiar de tenant.
+   */
+  availableTenants: TenantChoice[];
   /** Cliente HTTP autenticado para el data-fetching de las features (TanStack Query). */
   client: AuthApiClient;
   /**
@@ -53,6 +58,12 @@ export interface AuthContextValue {
    * reintentarse con el mismo token mientras siga vigente.
    */
   selectTenant: (identityToken: string, tenantId: string) => Promise<{ error?: Problem }>;
+  /**
+   * Cambia de tenant con la sesión ya autenticada (`POST /auth/switch-tenant`). En error (401/403)
+   * devuelve `{ error }` sin tocar el estado de sesión (sigue en el tenant anterior); en éxito,
+   * actualiza `sessionTenantId`/`user`/`capabilities`/`availableTenants` igual que un login directo.
+   */
+  switchTenant: (tenantId: string) => Promise<{ error?: Problem }>;
   /** Cierra la sesión (revoca en servidor, resetea la caché de Query y el estado). */
   logout: () => Promise<void>;
 }
@@ -69,6 +80,7 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
   const [user, setUser] = useState<User | null>(null);
   const [sessionTenantId, setSessionTenantId] = useState<string | null>(null);
   const [capabilities, setCapabilities] = useState<Capability[]>([]);
+  const [availableTenants, setAvailableTenants] = useState<TenantChoice[]>([]);
 
   // Cliente + sesión estables durante toda la vida del provider (lazy init, una sola vez).
   const [{ client, session }] = useState(() =>
@@ -79,6 +91,7 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
         setUser(null);
         setSessionTenantId(null);
         setCapabilities([]);
+        setAvailableTenants([]);
       },
     }),
   );
@@ -98,6 +111,7 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
         setUser(data.user);
         setSessionTenantId(data.active_tenant_id);
         setCapabilities(data.capabilities);
+        setAvailableTenants(data.available_tenants);
         setStatus("authenticated");
       } else {
         setStatus("unauthenticated");
@@ -109,10 +123,11 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
   }, [client, session]);
 
   /**
-   * Completa la sesión a partir de un `TokenResponse` ya válido (login directo, `selectTenant` o,
-   * en la tarea 03, `switchTenant`): fija el access token y confirma la identidad vía `GET
-   * /auth/me`. Si `/auth/me` falla pese al token válido, NO marca `authenticated` — devuelve
-   * `{ error }` sin dejar un estado a medias (Gherkin: «Fallo al confirmar la identidad…»).
+   * Completa la sesión a partir de un `TokenResponse` ya válido (login directo, `selectTenant` o
+   * `switchTenant`): fija el access token y confirma la identidad vía `GET /auth/me`. Si `/auth/me`
+   * falla pese al token válido, NO marca `authenticated` — limpia también cualquier resto de sesión
+   * previa (relevante para `switchTenant`, que se llama ya autenticado) y devuelve `{ error }` sin
+   * dejar un estado a medias (Gherkin: «Fallo al confirmar la identidad…»).
    */
   const completeSession = async (tokens: TokenResponse): Promise<{ error?: Problem }> => {
     session.setToken(tokens.access_token);
@@ -120,11 +135,16 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
     if (!data) {
       session.setToken(null);
       setStatus("unauthenticated");
+      setUser(null);
+      setSessionTenantId(null);
+      setCapabilities([]);
+      setAvailableTenants([]);
       return { error };
     }
     setUser(data.user);
     setSessionTenantId(data.active_tenant_id);
     setCapabilities(data.capabilities);
+    setAvailableTenants(data.available_tenants);
     setStatus("authenticated");
     return {};
   };
@@ -149,6 +169,14 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
     return completeSession(data);
   };
 
+  const switchTenant: AuthContextValue["switchTenant"] = async (tenantId) => {
+    const { data, error } = await client.POST("/auth/switch-tenant", {
+      body: { tenant_id: tenantId },
+    });
+    if (error) return { error };
+    return completeSession(data);
+  };
+
   const logout: AuthContextValue["logout"] = async () => {
     await client.POST("/auth/logout", {}).catch(() => undefined);
     session.setToken(null);
@@ -157,11 +185,23 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
     setUser(null);
     setSessionTenantId(null);
     setCapabilities([]);
+    setAvailableTenants([]);
   };
 
   return (
     <AuthContext.Provider
-      value={{ status, user, sessionTenantId, capabilities, client, login, selectTenant, logout }}
+      value={{
+        status,
+        user,
+        sessionTenantId,
+        capabilities,
+        availableTenants,
+        client,
+        login,
+        selectTenant,
+        switchTenant,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>
