@@ -38,7 +38,26 @@
 - **1a.** Frontmatter malformado o sin `uc_id`: el documento se **salta con log** (no entra).
 - **1b.** `uc_id` **duplicado** entre ficheros: el batch **falla** reportando el par en conflicto.
 - **1c.** `package` del frontmatter difiere del de Trazabilidad: **gana el frontmatter** y se loguea la discrepancia.
-- **3a.** El contenido de un UC no cambió (mismo hash): no se re-embebe (ahorro).
+- **1d.** `package`/`domain` del frontmatter no es uno de los valores válidos: el documento se **salta
+  con log**, igual que un frontmatter malformado (1a) — no es un caso más grave.
+- **3a.** El contenido de un chunk no cambió respecto a la ingesta anterior (mismo contenido para su
+  `(uc_id, ordinal)`): no se re-embebe (ahorro).
+- **3b.** Un UC editado tiene ahora menos secciones que en la ingesta anterior: los `kb_chunk`
+  (y su `embedding`) cuyo `ordinal` ya no aparece en la nueva pasada se eliminan por reconciliación,
+  aunque el documento siga vivo — no solo cuando el UC entero se retira.
+- **1e.** Un `uc_id` duplicado (1b) bloquea TODO el run, altas y reconciliación por igual: si el batch
+  falla, no se elimina ningún documento retirado en esa misma ejecución.
+- **1f.** 3 o más ficheros declaran el mismo `uc_id`: el batch falla reportando **todos** los ficheros en
+  conflicto para ese `uc_id`, no solo un par.
+- **3c.** Un fallo real (no de validación) del proveedor de embeddings o de la escritura en BD a mitad de
+  un batch con varios documentos: el run entero se aborta (mismo criterio "todo o nada" que 1b/1e,
+  aplicado a cualquier causa de fallo, no solo a duplicados). Una re-ejecución posterior es segura por
+  ser idempotente.
+- **4a.** Ninguna ejecución concurrente: `ingest()` toma un advisory lock de Postgres al arrancar
+  (`pg_try_advisory_lock`, no bloqueante); una segunda ejecución simultánea **falla claro de inmediato**
+  (nunca espera, nunca corre en paralelo con la primera).
+- **4b.** Un run sin documentos válidos que procesar (origen vacío o todo malformado): termina con éxito,
+  reporta 0 procesados, y no toca la base de datos.
 
 ## Reglas de negocio
 
@@ -76,8 +95,44 @@ Feature: Ingestión de la KB
     When se ejecuta la ingestión
     Then su documento, chunks y embeddings se eliminan por reconciliación
 
+  Scenario: Chunk retirado de un documento que sigue vivo
+    Given un UC ya ingerido cuya nueva versión tiene menos secciones que la anterior
+    When se ingiere la KB
+    Then los chunks y embeddings de las secciones retiradas se eliminan, y el documento sigue existiendo
+
+  Scenario: uc_id duplicado bloquea también la reconciliación del mismo run
+    Given un batch con un uc_id duplicado y, a la vez, un uc_id retirado del origen
+    When se ingiere la KB
+    Then el batch falla y el uc_id retirado NO se elimina en esa ejecución
+
   Scenario: Precedencia del package del frontmatter
     Given un UC cuyo package en el frontmatter difiere del de trazabilidad
     When se ingiere el documento
     Then prevalece el package del frontmatter y se registra la discrepancia
+
+  Scenario: package o domain fuera de catálogo se salta
+    Given un UC cuyo package o domain del frontmatter no es uno de los valores válidos
+    When se ingiere la KB
+    Then ese documento se salta con log y no entra en el corpus
+
+  Scenario: 3 o más ficheros con el mismo uc_id reportan todos los conflictos
+    Given tres documentos que declaran el mismo uc_id
+    When se ingiere la KB
+    Then el batch falla reportando los tres ficheros en conflicto, no solo un par
+
+  Scenario: Un fallo real a mitad de un batch de varios documentos aborta todo el run
+    Given un batch de varios documentos válidos donde el proveedor de embeddings o la escritura en BD
+      fallan al procesar uno de ellos
+    When se ingiere la KB
+    Then el run entero se aborta, sin persistir ningún documento de esa ejecución
+
+  Scenario: Ejecuciones concurrentes de la ingestión no se solapan
+    Given una ejecución de la ingestión ya en curso
+    When se intenta arrancar una segunda ejecución al mismo tiempo
+    Then la segunda falla claro de inmediato, sin esperar, y nunca corre en paralelo con la primera
+
+  Scenario: Un origen sin documentos válidos termina con éxito sin efecto
+    Given un origen vacío o donde todos los documentos son malformados
+    When se ingiere la KB
+    Then el run termina con éxito, reporta 0 documentos procesados, y no se toca la base de datos
 ```

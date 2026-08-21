@@ -160,3 +160,47 @@ def test_no_migration_database_url_field() -> None:
     settings = get_settings()
     assert not hasattr(settings, "migration_database_url")
     assert "migration_database_url" not in Settings.model_fields
+
+
+# ── LLM/embeddings settings (tarea backend-kb-ingestion-01) ───────────────────
+
+
+def test_llm_provider_defaults_to_openai() -> None:
+    """Sin LLM_PROVIDER (ni entorno ni .env), llm_provider es "openai" por defecto."""
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.llm_provider == "openai"
+
+
+def test_openai_api_key_defaults_to_empty_string() -> None:
+    """Sin OPENAI_API_KEY (ni entorno ni .env), openai_api_key es "" — Settings() es construible
+    sin clave real."""
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.openai_api_key == ""
+
+
+def test_chat_model_defaults_to_gpt_4o_mini() -> None:
+    """Sin CHAT_MODEL (ni entorno ni .env), chat_model es "gpt-4o-mini" por defecto."""
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.chat_model == "gpt-4o-mini"
+
+
+def test_embedding_model_defaults_to_text_embedding_3_small() -> None:
+    """Sin EMBEDDING_MODEL (ni entorno ni .env), embedding_model es "text-embedding-3-small" por
+    defecto."""
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.embedding_model == "text-embedding-3-small"
+
+
+@pytest.mark.parametrize(
+    ("env_var", "attr", "value"),
+    [
+        ("LLM_PROVIDER", "llm_provider", "anthropic"),
+        ("OPENAI_API_KEY", "openai_api_key", "sk-real-key"),
+        ("CHAT_MODEL", "chat_model", "gpt-4o"),
+        ("EMBEDDING_MODEL", "embedding_model", "text-embedding-3-large"),
+    ],
+)
+def test_llm_settings_override_from_environment(monkeypatch, env_var, attr, value) -> None:
+    """Cada campo LLM/embeddings se puede sobreescribir por entorno."""
+    monkeypatch.setenv(env_var, value)
+    assert getattr(get_settings(), attr) == value

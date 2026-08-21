@@ -1,25 +1,79 @@
 """app.infra.llm.openai_adapter — adaptador OpenAI de los puertos LLM/embeddings.
 
-GUIÓN (→ tarea 09)
-------------------
-Único adaptador concreto en Fase 1 (seam: el puerto permite otros; Anthropic queda fuera de alcance).
+Solo la mitad de **embeddings** de este módulo es real: `OpenAIEmbeddingModel` + `get_embedding_model`
+(tarea backend-kb-ingestion-01). `OpenAIChatModel` (clasificación/generación, `ChatModel.classify` /
+el futuro `generate`/`grade`) sigue **GUIÓN** — sin caller en este plan; lo implementará el plan del
+grafo del agente (CU-BE-06). Quien toque este módulo después no debe asumir que está completo.
 
-Qué implementar:
-  - ``OpenAIChatModel`` (implementa ``ChatModel``) sobre ``langchain-openai`` (``ChatOpenAI``). Modelo de
-    ``settings.CHAT_MODEL`` (default en ``.env.example`` = ``gpt-4o-mini``; ajustable por entorno — NO
-    hardcodear). ``classify`` delega en ``structured.py`` (``with_structured_output``).
-  - ``OpenAIEmbeddingModel`` (implementa ``EmbeddingModel``) sobre ``OpenAIEmbeddings`` con
-    ``settings.EMBEDDING_MODEL`` → ``vector(settings.EMBEDDING_DIM)``.
-  - **Instanciación perezosa**: los clientes se crean al usarse (o vía factory con ``get_settings()``),
-    NUNCA en import; la ``OPENAI_API_KEY`` se lee de config, no se valida/crea en import.
-  - **Conmutable por env**: ``settings.LLM_PROVIDER`` (default ``openai``) selecciona el adaptador; una
-    factory (``get_chat_model()``/``get_embedding_model()``) lo resuelve. (Añadido ``LLM_PROVIDER`` a
-    ``.env.example``.)
+GUIÓN pendiente — `OpenAIChatModel`
+------------------------------------
+  - Implementa `ChatModel` (`app.domain.ports.llm`) sobre `langchain-openai` (`ChatOpenAI`), modelo de
+    `settings.chat_model`. `classify` delega en `structured.py` (`with_structured_output`).
+  - Instanciación perezosa, conmutable por `settings.llm_provider`, timeout+retry ante 429/caída.
 
-⚠️ Resiliencia (refuerzo A1.4): **timeout + retry con backoff** y manejo de **429 / caída** del proveedor.
-Si el fallo ocurre a mitad del grafo, se propaga como ``AgentRun.failed`` (03) con ``error`` y un mensaje
-controlado al usuario — nunca una excepción cruda ni un ticket en estado inconsistente.
-
-Anti-patrón: crear el cliente OpenAI en import; hardcodear modelo/clave; que un 429 tumbe la request sin
-retry/estado controlado.
+Instanciación perezosa (embeddings): el cliente `OpenAIEmbeddings` se crea al primer uso real, nunca
+en import — `settings.openai_api_key` no se valida hasta esa primera llamada.
 """
+
+from langchain_openai import OpenAIEmbeddings
+
+from app.core.config import Settings
+from app.domain.errors import PortError
+from app.domain.ports.embeddings import EmbeddingModel
+from app.infra.db.models.kb import EMBEDDING_DIM_LITERAL
+
+
+class OpenAIEmbeddingModel:
+    """Adaptador real de `EmbeddingModel` sobre `langchain_openai.OpenAIEmbeddings`.
+
+    Fail-fast de dimensión: `embedding.vector` es `Vector(EMBEDDING_DIM_LITERAL)` **literal** en el
+    ORM (deliberadamente no gobernado por `settings.embedding_dim` — ver `app.infra.db.models.kb`).
+    Si `settings.embedding_dim` no coincide, se aborta aquí (al construir, sin red) en vez de dejar
+    que el `INSERT` falle a media ingesta.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        if settings.embedding_dim != EMBEDDING_DIM_LITERAL:
+            raise PortError(
+                f"settings.embedding_dim ({settings.embedding_dim}) no coincide con la dimensión "
+                f"literal de embedding.vector ({EMBEDDING_DIM_LITERAL}); cambiarla de verdad exige "
+                "una migración de columna + re-embeber todo el corpus."
+            )
+        self._settings = settings
+        self._client: OpenAIEmbeddings | None = None
+
+    def _get_client(self) -> OpenAIEmbeddings:
+        if self._client is None:
+            if not self._settings.openai_api_key:
+                raise PortError("openai_api_key no configurada")
+            self._client = OpenAIEmbeddings(
+                model=self._settings.embedding_model,
+                dimensions=self._settings.embedding_dim,
+                openai_api_key=self._settings.openai_api_key,
+                max_retries=3,
+                request_timeout=30.0,
+            )
+        return self._client
+
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        client = self._get_client()
+        try:
+            vectors = await client.aembed_documents(texts)
+        except PortError:
+            raise
+        except Exception as exc:
+            raise PortError(f"fallo al embeber documentos: {exc}") from exc
+        if len(vectors) != len(texts):
+            raise PortError(
+                f"el proveedor devolvió {len(vectors)} vectores para {len(texts)} textos"
+            )
+        return vectors
+
+
+def get_embedding_model(settings: Settings) -> EmbeddingModel:
+    """Factory de `EmbeddingModel`, conmutable por `settings.llm_provider`."""
+    if settings.llm_provider == "openai":
+        return OpenAIEmbeddingModel(settings)
+    raise PortError(f"llm_provider no soportado: {settings.llm_provider!r}")
