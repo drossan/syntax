@@ -2,11 +2,11 @@
 id: frontend-multi-tenant-login-02
 package: frontend
 plan: multi-tenant-login
-status: pending
+status: done
 priority: 1
 depends_on: [frontend-multi-tenant-login-01]
 estimate: 2h
-actual:
+actual: 2h
 created: 2026-08-21
 updated: 2026-08-21
 ---
@@ -74,13 +74,13 @@ en el test RTL, no con selectores de implementación.
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde, incl. regresión de `login-form.test.tsx` (login single-tenant)
-- [ ] Spec cumplida; lo declarado en `Provides` queda disponible para las dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (Stryker, umbral `break: 80`)
-- [ ] Gate de `sdd-lint` superado
-- [ ] Gate de `fact-checker`: afirmaciones de la sesión verificadas (INCORRECTO bloquea)
-- [ ] Documentación — TSDoc en símbolos públicos nuevos + session log; nota en el session log de si
-  `shadcn add card` trajo dependencias nuevas y qué se decidió
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde, incl. regresión de `login-form.test.tsx` (login single-tenant)
+- [x] Spec cumplida; lo declarado en `Provides` queda disponible para las dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (Stryker, umbral `break: 80`) — 96.15%
+- [x] Gate de `sdd-lint` superado — sin artefactos SDD nuevos que tocar
+- [x] Gate de `fact-checker`: afirmaciones de la sesión verificadas (INCORRECTO bloquea) — 7/7 VERIFICADO
+- [x] Documentación — TSDoc en símbolos públicos nuevos + session log; nota en el session log de si
+  `shadcn add card` trajo dependencias nuevas y qué se decidió — no trajo ninguna
