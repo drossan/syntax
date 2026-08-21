@@ -43,7 +43,7 @@ _RELACIONADO_RE = re.compile(r"^Relacionado:\s*(.*)$", re.MULTILINE)
 _RELACIONADO_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _GLOSARIO_RE = re.compile(r"^## Glosario\s*\r?\n(.*?)(?=^## |\Z)", re.DOTALL | re.MULTILINE)
 
-_GLOSARIO_UC_ID_PREFIX = "__glosario__:"
+GLOSARIO_UC_ID_PREFIX = "__glosario__:"
 
 
 @dataclass(frozen=True)
@@ -166,7 +166,7 @@ def _parse_index(raw: RawDoc, *, kb_root: Path) -> ParsedUC | ParseError:
     body = glosario_match.group(1).strip() if glosario_match else ""
 
     return ParsedUC(
-        uc_id=f"{_GLOSARIO_UC_ID_PREFIX}{domain}",
+        uc_id=f"{GLOSARIO_UC_ID_PREFIX}{domain}",
         domain=domain,
         package="",
         estado="",

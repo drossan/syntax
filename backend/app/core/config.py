@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     """Modelo de embeddings usado por `OpenAIEmbeddingModel`."""
 
+    chunk_token_budget: int = Field(default=800, gt=0)
+    """Presupuesto de tokens por chunk del chunker de ingestión (`app.ingestion.chunker`), contados
+    con `tiktoken` sobre el encoding de `embedding_model`. `800` es un default sensato (~el tamaño
+    típico de una sección H2 de la KB) — sin este campo no había ningún valor fijado (hallazgo de
+    `scenario-coverage`, plan `kb-ingestion`)."""
+
     storage_root: str = "./var/storage"
     """Directorio raíz de `LocalFilesystemStorage` (tarea 08) — relativo al cwd del proceso en dev."""
 

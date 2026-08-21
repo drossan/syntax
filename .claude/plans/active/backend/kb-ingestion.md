@@ -216,7 +216,7 @@ porque bloquean la implementación:
   `UniqueConstraint(document_id, ordinal)`) · depends_on: —
 - [x] `backend-kb-ingestion-03` (P1) — Loader + parser (frontmatter + Trazabilidad + glosario)
   · depends_on: —
-- [ ] `backend-kb-ingestion-04` (P2) — Chunker H2 tolerante · depends_on: `backend-kb-ingestion-03`
+- [x] `backend-kb-ingestion-04` (P2) — Chunker H2 tolerante · depends_on: `backend-kb-ingestion-03`
 - [ ] `backend-kb-ingestion-05` (P2) — Embedder · depends_on: `backend-kb-ingestion-01`,
   `backend-kb-ingestion-04`
 - [ ] `backend-kb-ingestion-06` (P1) — Pipeline (orquestación + reconciliación) · depends_on:
@@ -330,3 +330,11 @@ porque bloquean la implementación:
   `parse()` recibe `kb_root` explícito (no en la firma abreviada de la tarea); `RawDoc.mtime` capturado
   por el loader (no el parser), manteniendo el parser puro. Detalle en
   `.claude/context/backend/backend-kb-ingestion-03.md`.
+- 2026-08-21: **`backend-kb-ingestion-04` cerrada** (`completed`). TDD verde (879 tests totales),
+  `ruff`/`mypy --strict` limpios, `cosmic-ray` con 5.80% de supervivencia (8/138, los 8 documentados
+  como equivalentes), `sdd-lint` N/A, `fact-checker` con 9/9 VERIFICADO. **Incidente registrado**:
+  `cosmic-ray` dejó una vez una mutación aplicada en disco tras un run "exitoso" (corregida al
+  vuelo, sin corrupción histórica en `-02`/`-03`) y dio resultados de supervivencia inconsistentes
+  entre runs hasta estabilizarse — ver detalle y análisis en
+  `.claude/context/backend/backend-kb-ingestion-04.md` (refuerza que `cosmic-ray` es una vía **no
+  verificada** en este plugin, no solo por formalidad).

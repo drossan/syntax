@@ -204,3 +204,29 @@ def test_llm_settings_override_from_environment(monkeypatch, env_var, attr, valu
     """Cada campo LLM/embeddings se puede sobreescribir por entorno."""
     monkeypatch.setenv(env_var, value)
     assert getattr(get_settings(), attr) == value
+
+
+# ── Chunking settings (tarea backend-kb-ingestion-04) ──────────────────────────
+
+
+def test_chunk_token_budget_defaults_to_800(monkeypatch) -> None:
+    """Sin CHUNK_TOKEN_BUDGET, chunk_token_budget es 800 (int) por defecto."""
+    monkeypatch.delenv("CHUNK_TOKEN_BUDGET", raising=False)
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.chunk_token_budget == 800
+    assert isinstance(settings.chunk_token_budget, int)
+
+
+@pytest.mark.parametrize("value", ["no-numérico", "0", "-1"])
+def test_chunk_token_budget_invalid_raises(monkeypatch, value) -> None:
+    """CHUNK_TOKEN_BUDGET no numérico o no físico (<=0, gt=0) aborta la carga."""
+    monkeypatch.setenv("CHUNK_TOKEN_BUDGET", value)
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+@pytest.mark.parametrize("value", ["1", "800", "2000"])
+def test_chunk_token_budget_valid_positive(monkeypatch, value) -> None:
+    """CHUNK_TOKEN_BUDGET positivo es válido (frontera gt=0: el mínimo válido es 1)."""
+    monkeypatch.setenv("CHUNK_TOKEN_BUDGET", value)
+    assert get_settings().chunk_token_budget == int(value)
