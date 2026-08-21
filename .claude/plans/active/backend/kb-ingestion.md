@@ -217,7 +217,7 @@ porque bloquean la implementación:
 - [x] `backend-kb-ingestion-03` (P1) — Loader + parser (frontmatter + Trazabilidad + glosario)
   · depends_on: —
 - [x] `backend-kb-ingestion-04` (P2) — Chunker H2 tolerante · depends_on: `backend-kb-ingestion-03`
-- [ ] `backend-kb-ingestion-05` (P2) — Embedder · depends_on: `backend-kb-ingestion-01`,
+- [x] `backend-kb-ingestion-05` (P2) — Embedder · depends_on: `backend-kb-ingestion-01`,
   `backend-kb-ingestion-04`
 - [ ] `backend-kb-ingestion-06` (P1) — Pipeline (orquestación + reconciliación) · depends_on:
   `backend-kb-ingestion-02`, `backend-kb-ingestion-05`
@@ -338,3 +338,9 @@ porque bloquean la implementación:
   entre runs hasta estabilizarse — ver detalle y análisis en
   `.claude/context/backend/backend-kb-ingestion-04.md` (refuerza que `cosmic-ray` es una vía **no
   verificada** en este plugin, no solo por formalidad).
+- 2026-08-21: **`backend-kb-ingestion-05` cerrada** (`completed`). TDD verde (896 tests totales),
+  `ruff`/`mypy --strict` limpios, `cosmic-ray` con 5.56% de supervivencia (2/36, los 2 documentados
+  como equivalentes) esta vez **estable entre rondas** (sin el incidente de `-04`), `sdd-lint` N/A,
+  `fact-checker` con 7/7 VERIFICADO. `embed()` recibe `batch_size` explícito (no en la firma
+  abreviada de la tarea), mismo criterio que `-03`/`-04`. Detalle en
+  `.claude/context/backend/backend-kb-ingestion-05.md`.

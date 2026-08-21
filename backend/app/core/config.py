@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     típico de una sección H2 de la KB) — sin este campo no había ningún valor fijado (hallazgo de
     `scenario-coverage`, plan `kb-ingestion`)."""
 
+    embedding_batch_size: int = Field(default=100, gt=0)
+    """Nº máximo de textos por llamada a `EmbeddingModel.embed_documents` desde
+    `app.ingestion.embedder`. `100` es conservador, por debajo del límite real de items por request
+    de OpenAI — evita que un batch grande de la ingestión real supere ese límite (hallazgo de
+    `scenario-coverage`, plan `kb-ingestion`)."""
+
     storage_root: str = "./var/storage"
     """Directorio raíz de `LocalFilesystemStorage` (tarea 08) — relativo al cwd del proceso en dev."""
 

@@ -230,3 +230,29 @@ def test_chunk_token_budget_valid_positive(monkeypatch, value) -> None:
     """CHUNK_TOKEN_BUDGET positivo es válido (frontera gt=0: el mínimo válido es 1)."""
     monkeypatch.setenv("CHUNK_TOKEN_BUDGET", value)
     assert get_settings().chunk_token_budget == int(value)
+
+
+# ── Embedding batch settings (tarea backend-kb-ingestion-05) ───────────────────
+
+
+def test_embedding_batch_size_defaults_to_100(monkeypatch) -> None:
+    """Sin EMBEDDING_BATCH_SIZE, embedding_batch_size es 100 (int) por defecto."""
+    monkeypatch.delenv("EMBEDDING_BATCH_SIZE", raising=False)
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.embedding_batch_size == 100
+    assert isinstance(settings.embedding_batch_size, int)
+
+
+@pytest.mark.parametrize("value", ["no-numérico", "0", "-1"])
+def test_embedding_batch_size_invalid_raises(monkeypatch, value) -> None:
+    """EMBEDDING_BATCH_SIZE no numérico o no físico (<=0, gt=0) aborta la carga."""
+    monkeypatch.setenv("EMBEDDING_BATCH_SIZE", value)
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+@pytest.mark.parametrize("value", ["1", "100", "500"])
+def test_embedding_batch_size_valid_positive(monkeypatch, value) -> None:
+    """EMBEDDING_BATCH_SIZE positivo es válido (frontera gt=0: el mínimo válido es 1)."""
+    monkeypatch.setenv("EMBEDDING_BATCH_SIZE", value)
+    assert get_settings().embedding_batch_size == int(value)
