@@ -38,7 +38,7 @@ describe("TenantSwitcher", () => {
     renderWithSession(<TenantSwitcher />, {
       me: meFixture({
         capabilities: [{ capability: "ticket.read", scope: "global" }],
-        user: userFixture({ tenant_id: "t1" }),
+        active_tenant_id: "t1",
       }),
     });
 

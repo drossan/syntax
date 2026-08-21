@@ -23,7 +23,8 @@ const PATCH = TICKET;
 
 /** Agente con capacidades de mutación en su tenant (coincide con el tenant del ticket). */
 const agentMe = meFixture({
-  user: userFixture({ id: USER, tenant_id: TENANT }),
+  user: userFixture({ id: USER }),
+  active_tenant_id: TENANT,
   capabilities: [
     { capability: "ticket.read", scope: "tenant" },
     { capability: "ticket.transition", scope: "tenant" },

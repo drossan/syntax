@@ -45,7 +45,7 @@
     "/auth/login": {
       "post": {
         "tags": ["auth"],
-        "summary": "Login (email+password) → access token en body + refresh en cookie httpOnly",
+        "summary": "Login (email+password, sin tenant_id — identidad global). 1 sola membership `active` en un tenant no-`disabled` → tokens reales (body). 2+ → `identity_token` corto + lista de tenants (SIN cookie de refresh); el cliente completa con `POST /auth/select-tenant`.\n",
         "security": [],
         "requestBody": {
           "required": true,
@@ -59,13 +59,75 @@
         },
         "responses": {
           "200": {
-            "description": "Autenticado. Set-Cookie con el refresh token (httpOnly, Secure, SameSite).",
+            "description": "Autenticado. Con 1 tenant: Set-Cookie con el refresh token (httpOnly, Secure, SameSite) + `TokenResponse`. Con 2+: SOLO `LoginTenantSelection` (identity_token), sin Set-Cookie.\n",
             "headers": {
               "Set-Cookie": {
                 "schema": {
                   "type": "string"
                 },
-                "description": "refresh_token httpOnly (rotación + reuse-detection, ver rbac/data-model)."
+                "description": "refresh_token httpOnly (rotación + reuse-detection, ver rbac/data-model). Ausente si la respuesta es `LoginTenantSelection` (2+ tenants, aún sin tenant elegido).\n"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TokenResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LoginTenantSelection"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/auth/select-tenant": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Canjea un `identity_token` (login con 2+ tenants) por el `TokenResponse` real del tenant elegido — exige que la membership de ese tenant siga `active` y el tenant no `disabled`.\n",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["identity_token", "tenant_id"],
+                "properties": {
+                  "identity_token": {
+                    "type": "string"
+                  },
+                  "tenant_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Autenticado en el tenant elegido. Set-Cookie con el refresh token.",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -81,9 +143,54 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/auth/switch-tenant": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Cambia de tenant con una sesión ya autenticada (access token válido), sin repetir credenciales — a diferencia de `select-tenant`, parte de un access token, no de un `identity_token` post-login.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["tenant_id"],
+                "properties": {
+                  "tenant_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tokens nuevos para el tenant elegido. Set-Cookie con el refresh token.",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
           },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         }
       }
@@ -648,6 +755,68 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "El adjunto excede `max_upload_bytes` configurado.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Fallo del puerto `Storage` (IO, disco lleno) — envuelto, nunca un 500 crudo.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/messages/{id}/attachments/{attachment_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/IdPath"
+        },
+        {
+          "name": "attachment_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": ["messages"],
+        "summary": "Descarga el contenido de un adjunto (misma capacidad de lectura que el mensaje al que pertenece — ampliación del contrato, tarea 08: sin este endpoint, un adjunto subido nunca se podía recuperar por HTTP).\n",
+        "responses": {
+          "200": {
+            "description": "Contenido del adjunto (binario), `Content-Type` = el original del adjunto.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -1418,6 +1587,18 @@
       "get": {
         "tags": ["admin"],
         "summary": "Ajustes del tenant (incl. `auto_approve`).",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "description": "Obligatorio si el subject accede en ámbito `global` (Soporte, sin tenant propio: no hay forma de inferirlo); ignorado en ámbito `tenant` (usa `subject.tenant_id`) — decisión de `scenario-coverage` (backend-routers-core, tarea 06).\n",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Ajustes.",
@@ -1431,12 +1612,27 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           }
         }
       },
       "patch": {
         "tags": ["admin"],
         "summary": "Actualiza ajustes (p.ej. `auto_approve`). Default `auto_approve=false`.",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "description": "Mismo criterio que en el `GET` (obligatorio en ámbito `global`).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1460,6 +1656,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           }
         }
       }
@@ -1835,12 +2034,51 @@
           }
         }
       },
+      "TenantChoice": {
+        "type": "object",
+        "description": "Un tenant elegible en el paso 2 del login (identidad global, 2+ membresías).",
+        "required": ["id", "slug", "name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginTenantSelection": {
+        "type": "object",
+        "description": "Login con 2+ membresías `active` en tenants no-`disabled`: hay que elegir tenant (`POST /auth/select-tenant`) antes de recibir tokens reales — sin refresh-cookie todavía.\n",
+        "required": ["identity_token", "tenants"],
+        "properties": {
+          "identity_token": {
+            "type": "string",
+            "description": "JWT corto (`purpose=tenant_selection`), reutilizable dentro de su TTL."
+          },
+          "tenants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantChoice"
+            }
+          }
+        }
+      },
       "Me": {
         "type": "object",
-        "required": ["user", "capabilities"],
+        "required": ["user", "active_tenant_id", "capabilities"],
         "properties": {
           "user": {
             "$ref": "#/components/schemas/User"
+          },
+          "active_tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Tenant de la sesión activa (el resuelto en `/auth/login`, `/auth/select-tenant` o `/auth/switch-tenant`). El `User` es identidad global sin tenant propio: este es el único campo donde el frontend puede leer el tenant del sujeto en la sesión actual.\n"
           },
           "capabilities": {
             "type": "array",
@@ -1890,12 +2128,9 @@
       },
       "User": {
         "type": "object",
+        "description": "Identidad GLOBAL (email único, sin `tenant_id` propio — un usuario puede pertenecer a varios tenants con una sola contraseña). `status` en las respuestas de `/admin/users*` es el de la MEMBRESÍA del tenant consultado (`UserTenantMembership.status`), no un atributo global del usuario.\n",
         "properties": {
           "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "tenant_id": {
             "type": "string",
             "format": "uuid"
           },
@@ -1916,6 +2151,7 @@
       },
       "UserInvite": {
         "type": "object",
+        "description": "Invita un email al tenant del subject (`POST /admin/users`); crea el `User` global si no existía, o solo la membership si ya existía.",
         "required": ["email", "roles"],
         "properties": {
           "email": {
@@ -1933,6 +2169,7 @@
       },
       "UserUpdate": {
         "type": "object",
+        "description": "`status` actualiza la MEMBRESÍA del usuario en el tenant del subject (`{id}` es el `User.id` global; sin membership en ese tenant → 404), no un atributo global del usuario.\n",
         "properties": {
           "status": {
             "$ref": "#/components/schemas/UserStatus"

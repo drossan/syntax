@@ -134,11 +134,11 @@ describe("TicketsInbox", () => {
       me: {
         user: {
           id: "u1",
-          tenant_id: "cliente-a",
           email: "cliente@acme.io",
           status: "active",
           roles: ["client_agent"],
         },
+        active_tenant_id: "cliente-a",
         capabilities: [{ capability: "ticket.read", scope: "tenant" }],
       },
     });

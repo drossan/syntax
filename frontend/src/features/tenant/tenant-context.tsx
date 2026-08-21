@@ -21,14 +21,15 @@ const TenantContext = createContext<TenantContextValue | null>(null);
 
 /**
  * Provee el contexto de tenant. Soporte (ámbito `global`) puede cambiar de tenant; el cliente queda
- * **fijado** a su `tenant_id`. Al cambiar de tenant se resetea la caché de Query (cross-cutting §3:
- * no arrastrar datos del tenant anterior). Debe ir dentro de `AuthProvider` y `QueryClientProvider`.
+ * **fijado** al tenant de su sesión (`Me.active_tenant_id`). Al cambiar de tenant se resetea la caché
+ * de Query (cross-cutting §3: no arrastrar datos del tenant anterior). Debe ir dentro de
+ * `AuthProvider` y `QueryClientProvider`.
  */
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const { user, capabilities } = useAuth();
+  const { sessionTenantId, capabilities } = useAuth();
   const queryClient = useQueryClient();
 
-  const subjectTenantId = user?.tenant_id ?? null;
+  const subjectTenantId = sessionTenantId;
   const canSwitchTenant = capabilities.some((entry) => entry.scope === "global");
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const activeTenantId = canSwitchTenant ? (selectedTenantId ?? subjectTenantId) : subjectTenantId;

@@ -1093,9 +1093,16 @@ components:
           items: { $ref: '#/components/schemas/TenantChoice' }
     Me:
       type: object
-      required: [user, capabilities]
+      required: [user, active_tenant_id, capabilities]
       properties:
         user: { $ref: '#/components/schemas/User' }
+        active_tenant_id:
+          type: string
+          format: uuid
+          description: >
+            Tenant de la sesión activa (el resuelto en `/auth/login`, `/auth/select-tenant` o
+            `/auth/switch-tenant`). El `User` es identidad global sin tenant propio: este es el único
+            campo donde el frontend puede leer el tenant del sujeto en la sesión actual.
         capabilities:
           type: array
           description: Capacidades efectivas (capability@scope) resueltas server-side.

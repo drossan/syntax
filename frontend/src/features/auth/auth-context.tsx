@@ -22,6 +22,8 @@ export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 export interface AuthContextValue {
   status: AuthStatus;
   user: User | null;
+  /** Tenant de la sesión activa (`Me.active_tenant_id`); `null` hasta que resuelve. */
+  sessionTenantId: string | null;
   capabilities: Capability[];
   /** Cliente HTTP autenticado para el data-fetching de las features (TanStack Query). */
   client: AuthApiClient;
@@ -41,6 +43,7 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<User | null>(null);
+  const [sessionTenantId, setSessionTenantId] = useState<string | null>(null);
   const [capabilities, setCapabilities] = useState<Capability[]>([]);
 
   // Cliente + sesión estables durante toda la vida del provider (lazy init, una sola vez).
@@ -50,6 +53,7 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
       onLogout: () => {
         setStatus("unauthenticated");
         setUser(null);
+        setSessionTenantId(null);
         setCapabilities([]);
       },
     }),
@@ -68,6 +72,7 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
       if (!active) return;
       if (data) {
         setUser(data.user);
+        setSessionTenantId(data.active_tenant_id);
         setCapabilities(data.capabilities ?? []);
         setStatus("authenticated");
       } else {
@@ -83,10 +88,23 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
     const { data, error } = await client.POST("/auth/login", { body: { email, password } });
     if (error) return { error };
 
+    if ("identity_token" in data) {
+      // Identidad con 2+ tenants: requiere `POST /auth/select-tenant`, sin pantalla propia todavía.
+      return {
+        error: {
+          type: "about:blank",
+          title: "Selección de tenant no disponible",
+          status: 501,
+          detail: "Tu cuenta pertenece a varios tenants; este cliente aún no soporta elegir uno.",
+        },
+      };
+    }
+
     session.setToken(data.access_token);
     const me = await client.GET("/auth/me", {});
     if (me.data) {
       setUser(me.data.user);
+      setSessionTenantId(me.data.active_tenant_id);
       setCapabilities(me.data.capabilities ?? []);
       setStatus("authenticated");
     }
@@ -99,11 +117,14 @@ export function AuthProvider({ children, baseUrl }: { children: ReactNode; baseU
     queryClient.clear();
     setStatus("unauthenticated");
     setUser(null);
+    setSessionTenantId(null);
     setCapabilities([]);
   };
 
   return (
-    <AuthContext.Provider value={{ status, user, capabilities, client, login, logout }}>
+    <AuthContext.Provider
+      value={{ status, user, sessionTenantId, capabilities, client, login, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
