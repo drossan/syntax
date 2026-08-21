@@ -144,8 +144,9 @@ Cada chunk queda categorizado por **5 facetas**, todas heredadas de su `kb_docum
 - **3+ ficheros con el mismo `uc_id`**: se reportan **todos** los ficheros en conflicto, no solo un par.
 - **Fallo real a mitad de un batch** (proveedor de embeddings o escritura en BD, no de validación): aborta
   **todo** el run — mismo criterio "todo o nada" que el `uc_id` duplicado, para cualquier causa de fallo.
-- **Ejecuciones concurrentes**: la ingestión toma un **advisory lock de Postgres** al arrancar; una
-  segunda ejecución simultánea espera o falla claro, nunca corre en paralelo con la primera.
+- **Ejecuciones concurrentes**: la ingestión toma un **advisory lock de Postgres** al arrancar
+  (`pg_try_advisory_lock`, no bloqueante); una segunda ejecución simultánea **falla claro de inmediato**,
+  nunca espera ni corre en paralelo con la primera.
 
 ## 8. Fuera de alcance
 

@@ -47,7 +47,10 @@ class KBChunk(Base):
     """Trozo de un documento (chunking H2 tolerante, 04). `section_type` string libre (no enum rígido)."""
 
     __tablename__ = "kb_chunk"
-    __table_args__ = (Index("ix_kb_chunk_document", "document_id"),)
+    __table_args__ = (
+        Index("ix_kb_chunk_document", "document_id"),
+        UniqueConstraint("document_id", "ordinal"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_document.id", ondelete="CASCADE"))

@@ -3,10 +3,10 @@
 # mantiene el gate en segundos). `test-command` corre los tests de ese módulo.
 # Sesión (SQLite) generada por `cosmic-ray init` → gitignore.
 [cosmic-ray]
-module-path = "app/infra/llm/openai_adapter.py"
+module-path = "app/infra/vector/__init__.py"
 timeout = 90.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_openai_adapter.py tests/test_config.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_vector_adapter.py tests/test_migration.py"
 
 [cosmic-ray.distributor]
 name = "local"

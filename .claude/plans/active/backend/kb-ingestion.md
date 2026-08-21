@@ -212,7 +212,7 @@ porque bloquean la implementación:
 
 - [x] `backend-kb-ingestion-01` (P1) — Puerto `EmbeddingModel` + adaptador OpenAI real + `Settings`
   LLM/embeddings · depends_on: —
-- [ ] `backend-kb-ingestion-02` (P1) — Puerto `KBIndexWriter` + adaptador pgvector real (+ migración
+- [x] `backend-kb-ingestion-02` (P1) — Puerto `KBIndexWriter` + adaptador pgvector real (+ migración
   `UniqueConstraint(document_id, ordinal)`) · depends_on: —
 - [ ] `backend-kb-ingestion-03` (P1) — Loader + parser (frontmatter + Trazabilidad + glosario)
   · depends_on: —
@@ -313,3 +313,11 @@ porque bloquean la implementación:
   con la decisión real `pg_try_advisory_lock` no bloqueante; 4 reconocidos sin cambio, elaboración legítima
   del CU/spec más allá del FR), `fact-checker` con 8/8 VERIFICADO. Detalle en
   `.claude/context/backend/backend-kb-ingestion-01.md`.
+- 2026-08-21: **`backend-kb-ingestion-02` cerrada** (`completed`). TDD verde (797 tests totales tras
+  esta tarea), `ruff`/`mypy --strict` limpios sobre el código de producción, `cosmic-ray` con 2.40% de
+  supervivencia (3/125, los 3 documentados como mutantes equivalentes — constante arbitraria del
+  advisory lock + separador keyword-only en la firma sin implementar de `search`), `sdd-lint` N/A (la
+  tarea no toca spec.md/CU/ADR, solo `data-model.md`), `fact-checker` con 9/9 VERIFICADO. Decisión de
+  implementación no cubierta por el texto de la tarea: `ChunkWrite` necesitaba un campo `model: str`
+  para `embedding.model` (NOT NULL) — añadido como completado rutinario del tipo, sin implicar cambio
+  de alcance. Detalle en `.claude/context/backend/backend-kb-ingestion-02.md`.
