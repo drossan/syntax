@@ -1,7 +1,7 @@
 ---
 id: frontend-multi-tenant-login
 package: frontend
-status: active
+status: completed
 branch: plan/frontend/multi-tenant-login
 issue:
 created: 2026-08-21
@@ -177,7 +177,7 @@ Soporte).
   integrada en el login  · depends_on: `frontend-multi-tenant-login-01`
 - [x] `frontend-multi-tenant-login-03` (P2) — Contrato `Me.available_tenants` + `auth-context`:
   `availableTenants` expuesto + `switchTenant`  · depends_on: `frontend-multi-tenant-login-01`
-- [ ] `frontend-multi-tenant-login-04` (P2) — `tenant-context`/`TenantSwitcher`: switch real +
+- [x] `frontend-multi-tenant-login-04` (P2) — `tenant-context`/`TenantSwitcher`: switch real +
   visibilidad para cualquier usuario 2+ tenants + docs `CU-FE-02`/`spec.md`  ·
   depends_on: `frontend-multi-tenant-login-03`
 
@@ -234,3 +234,24 @@ Soporte).
      recarga de página en la pantalla de cards (02), `availableTenants` incluye el tenant activo
      actual (03).
   7. **[Descartado, decisión owner]** Integración RTL de punta a punta login→switcher: no se añade.
+- 2026-08-21: **cierre del plan** — las 4 tareas `done`. Nota retro:
+  - **Estimación vs. real**: 01 2h/3h, 02 2h/2h, 03 2h/2h, 04 4h/3h. Total estimado 10h, real 10h —
+    la sobreestimación de la 04 (crecida tras `scenario-coverage`) compensó la subestimación de la 01
+    (el ciclo TDD correcto — revertir, ver rojo, reaplicar — y el mutation-hardening de código
+    preexistente en el mismo fichero costaron más que el cambio de producto en sí).
+  - **Dependencia no vista**: el gate de mutation muta el FICHERO COMPLETO tocado por la tarea, no
+    solo el diff — cada tarea tuvo que reforzar cobertura de código preexistente en los mismos
+    ficheros (bootstrap, `onLogout`, `useAuth`/`useTenant` fuera de contexto, `useApprovals` sin
+    tenant) que no estaba en su alcance literal. A tener en cuenta al estimar tareas futuras que
+    tocan ficheros ya grandes/compartidos.
+  - **Bug real encontrado por el propio TDD** (tarea 03): `completeSession` solo limpiaba
+    `token`/`status` en su rama de error, no `user`/`sessionTenantId`/`capabilities`/
+    `availableTenants` — inofensivo para `login`/`selectTenant` (llamados ya `unauthenticated`) pero
+    dejaba estado a medias en `switchTenant` (llamado ya autenticado). El escenario de la tarea 03 lo
+    expuso antes de llegar a producción.
+  - **Deuda anotada, no resuelta** (fuera de alcance explícito del plan, ver arriba): refresh
+    compartido entre pestañas al cambiar de tenant (hipótesis sin reproducir); `GET /admin/tenants`
+    con Soporte sin `tenant.manage`; `backend/` ya no es doc-only pese al `CLAUDE.md` raíz; `FR-028`
+    de `spec.md` es un requisito EARS compuesto (AVISO de `sdd-lint`, no bloqueante).
+  - Rama `plan/frontend/multi-tenant-login` con 4 commits (uno por tarea). PR pendiente de que el
+    owner decida abrirla.

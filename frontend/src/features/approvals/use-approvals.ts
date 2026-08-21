@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/features/auth/auth-context";
+import { useTenant } from "@/features/tenant/tenant-context";
 
 import { approvalsQueryKey, buildApprovalsQuery } from "./approvals-query";
 
@@ -12,10 +13,11 @@ import { approvalsQueryKey, buildApprovalsQuery } from "./approvals-query";
  */
 export function useApprovals(input: { page?: number } = {}) {
   const { client } = useAuth();
+  const { activeTenantId } = useTenant();
   const query = buildApprovalsQuery(input);
 
   return useQuery({
-    queryKey: approvalsQueryKey(query),
+    queryKey: approvalsQueryKey(activeTenantId, query),
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data, error } = await client.GET("/approvals", { params: { query } });

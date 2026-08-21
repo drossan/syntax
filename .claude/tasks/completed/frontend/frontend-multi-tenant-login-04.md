@@ -2,11 +2,11 @@
 id: frontend-multi-tenant-login-04
 package: frontend
 plan: multi-tenant-login
-status: pending
+status: done
 priority: 2
 depends_on: [frontend-multi-tenant-login-03]
 estimate: 4h
-actual:
+actual: 3h
 created: 2026-08-21
 updated: 2026-08-21
 ---
@@ -91,13 +91,13 @@ Fuente única (SDD): `CU-FE-02-rbac-cliente-y-cambio-de-tenant.md`. Esta tarea c
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda disponible para las dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (Stryker, umbral `break: 80`)
-- [ ] Gate de `sdd-lint` superado
-- [ ] Gate de `fact-checker`: afirmaciones de la sesión verificadas (INCORRECTO bloquea)
-- [ ] Documentación — TSDoc actualizado (incl. los docstrings corregidos de `subjectTenantId`/
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde
+- [x] Spec cumplida; lo declarado en `Provides` queda disponible para las dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (Stryker, umbral `break: 80`) — 96.08%
+- [x] Gate de `sdd-lint` superado — `CU-FE-02` ya validado en `-01`, sin ERROR
+- [x] Gate de `fact-checker`: afirmaciones de la sesión verificadas (INCORRECTO bloquea) — 8/9 VERIFICADO, 1 NO VERIFICABLE (aviso reconocido)
+- [x] Documentación — TSDoc actualizado (incl. los docstrings corregidos de `subjectTenantId`/
   `activeTenantId`/`hasCapability`) + session log + cierre del plan (última tarea)

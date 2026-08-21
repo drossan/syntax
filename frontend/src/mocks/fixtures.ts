@@ -41,9 +41,9 @@ export function ticketFixture(over: Partial<Ticket> = {}): Ticket {
   };
 }
 
-/** Fixture de una página de tickets con un elemento. */
-export function ticketPageFixture(): TicketPage {
-  return { items: [ticketFixture()], page: 1, page_size: 20, total: 1 };
+/** Fixture de una página de tickets con los elementos dados (uno por defecto). */
+export function ticketPageFixture(items: Ticket[] = [ticketFixture()]): TicketPage {
+  return { items, page: 1, page_size: 20, total: items.length };
 }
 
 /** Fixture de un mensaje del hilo de un ticket conforme al contrato. */

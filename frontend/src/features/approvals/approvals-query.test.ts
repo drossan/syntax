@@ -24,8 +24,13 @@ describe("buildApprovalsQuery", () => {
 });
 
 describe("approvalsQueryKey", () => {
-  it("es estable para la misma query", () => {
+  it("es estable para la misma query y el mismo tenant", () => {
     const q = buildApprovalsQuery({});
-    expect(approvalsQueryKey(q)).toEqual(["approvals", q]);
+    expect(approvalsQueryKey("t1", q)).toEqual(["approvals", "t1", q]);
+  });
+
+  it("incluye el tenant activo para aislar la caché entre tenants", () => {
+    const q = buildApprovalsQuery({});
+    expect(approvalsQueryKey("t1", q)).not.toEqual(approvalsQueryKey("t2", q));
   });
 });
