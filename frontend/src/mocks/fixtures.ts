@@ -2,6 +2,8 @@ import type { components } from "@/types/api";
 
 type Ticket = components["schemas"]["Ticket"];
 type TokenResponse = components["schemas"]["TokenResponse"];
+type TenantChoice = components["schemas"]["TenantChoice"];
+type LoginTenantSelection = components["schemas"]["LoginTenantSelection"];
 type User = components["schemas"]["User"];
 type Me = components["schemas"]["Me"];
 type Message = components["schemas"]["Message"];
@@ -39,9 +41,9 @@ export function ticketFixture(over: Partial<Ticket> = {}): Ticket {
   };
 }
 
-/** Fixture de una página de tickets con un elemento. */
-export function ticketPageFixture(): TicketPage {
-  return { items: [ticketFixture()], page: 1, page_size: 20, total: 1 };
+/** Fixture de una página de tickets con los elementos dados (uno por defecto). */
+export function ticketPageFixture(items: Ticket[] = [ticketFixture()]): TicketPage {
+  return { items, page: 1, page_size: 20, total: items.length };
 }
 
 /** Fixture de un mensaje del hilo de un ticket conforme al contrato. */
@@ -149,6 +151,34 @@ export function tokenFixture(over: Partial<TokenResponse> = {}): TokenResponse {
   return { access_token: "test-access-token", token_type: "bearer", expires_in: 900, ...over };
 }
 
+/** Fixture de un tenant elegible en el paso 2 del login (2+ membresías `active`). */
+export function tenantChoiceFixture(over: Partial<TenantChoice> = {}): TenantChoice {
+  return {
+    id: "88888888-8888-8888-8888-888888888888",
+    slug: "acme",
+    name: "Acme Corp",
+    ...over,
+  };
+}
+
+/** Fixture de la respuesta de `POST /auth/login` cuando el usuario tiene 2+ tenants. */
+export function loginTenantSelectionFixture(
+  over: Partial<LoginTenantSelection> = {},
+): LoginTenantSelection {
+  return {
+    identity_token: "test-identity-token",
+    tenants: [
+      tenantChoiceFixture(),
+      tenantChoiceFixture({
+        id: "99999999-9999-9999-9999-999999999999",
+        slug: "beta",
+        name: "Beta Inc",
+      }),
+    ],
+    ...over,
+  };
+}
+
 /** Fixture de un usuario conforme al contrato. */
 export function userFixture(over: Partial<User> = {}): User {
   return {
@@ -168,6 +198,13 @@ export function meFixture(over: Partial<Me> = {}): Me {
     capabilities: [
       { capability: "ticket.reply", scope: "tenant" },
       { capability: "approval.decide", scope: "tenant" },
+    ],
+    available_tenants: [
+      tenantChoiceFixture({
+        id: "22222222-2222-2222-2222-222222222222",
+        slug: "syntax",
+        name: "Syntax",
+      }),
     ],
     ...over,
   };

@@ -25,7 +25,13 @@ export function buildApprovalsQuery(input: { page?: number } = {}): ApprovalsQue
   };
 }
 
-/** Clave de caché de la cola de aprobaciones. */
-export function approvalsQueryKey(query: ApprovalsQuery) {
-  return ["approvals", query] as const;
+/**
+ * Clave de caché de la cola de aprobaciones. Incluye el **tenant activo** (igual que `tickets`/
+ * `analytics`) para que una respuesta tardía del tenant anterior no pise la vista del nuevo tras un
+ * cambio de tenant (la caché solo se limpia tras confirmar el éxito del switch, no de forma optimista).
+ *
+ * @param activeTenantId Tenant activo (del switcher o el del sujeto).
+ */
+export function approvalsQueryKey(activeTenantId: string | null, query: ApprovalsQuery) {
+  return ["approvals", activeTenantId, query] as const;
 }

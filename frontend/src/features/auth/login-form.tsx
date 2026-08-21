@@ -8,7 +8,8 @@ import { z } from "zod";
 
 import { problemToUi } from "@/lib/api/problem";
 
-import { useAuth } from "./auth-context";
+import { useAuth, type TenantSelectionChallenge } from "./auth-context";
+import { TenantSelectionCards } from "./tenant-selection-cards";
 
 const loginSchema = z.object({
   email: z.string().email("Email no válido"),
@@ -25,10 +26,12 @@ export function LoginForm() {
   const { login } = useAuth();
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
+  const [tenantSelection, setTenantSelection] = useState<TenantSelectionChallenge | null>(null);
   const {
     register,
     handleSubmit,
     setError,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -37,7 +40,7 @@ export function LoginForm() {
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
-    const { error } = await login(values.email, values.password);
+    const { error, tenantSelection: selection } = await login(values.email, values.password);
     if (error) {
       const ui = problemToUi(error);
       setFormError(ui.toast.title);
@@ -48,8 +51,26 @@ export function LoginForm() {
       }
       return;
     }
+    if (selection) {
+      setTenantSelection(selection);
+      return;
+    }
     router.push("/");
   });
+
+  if (tenantSelection) {
+    return (
+      <TenantSelectionCards
+        identityToken={tenantSelection.identityToken}
+        tenants={tenantSelection.tenants}
+        onSuccess={() => router.push("/")}
+        onCancel={() => {
+          setTenantSelection(null);
+          reset();
+        }}
+      />
+    );
+  }
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">

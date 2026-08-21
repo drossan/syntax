@@ -4,48 +4,70 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
 import { useAuth } from "@/features/auth/auth-context";
+import type { Problem } from "@/lib/api/problem";
 
 /** Contexto de tenant activo + capacidad de cambiarlo. */
 export interface TenantContextValue {
-  /** Tenant del sujeto (su dominio). */
+  /**
+   * Tenant del sujeto. Tras un switch real, siempre coincide con {@link activeTenantId} (ambos se
+   * re-derivan del mismo `Me.active_tenant_id` fresco) — se mantienen como dos campos separados solo
+   * porque `use-can.ts`/`capabilities.ts` ya dependen de esta forma, no porque puedan diverger hoy.
+   */
   subjectTenantId: string | null;
-  /** Tenant activo: el elegido por Soporte, o el del sujeto. */
+  /** Tenant activo de la sesión. Ver {@link subjectTenantId}. */
   activeTenantId: string | null;
-  /** Solo Soporte (alguna capacidad de ámbito `global`) puede cambiar de tenant. */
+  /** Cualquier usuario (cliente o Soporte) con 2+ membresías `active` puede cambiar de tenant. */
   canSwitchTenant: boolean;
-  /** Cambia el tenant activo (no-op para clientes, fijados a su tenant). */
-  setActiveTenant: (tenantId: string) => void;
+  /** `true` mientras se resuelve un cambio de tenant (el switcher debe deshabilitarse). */
+  isSwitchingTenant: boolean;
+  /**
+   * Cambia de tenant de verdad (`switchTenant`). En error, devuelve `{ error }` sin tocar la sesión
+   * (sigue en el tenant anterior); en éxito, resetea la caché de Query (cross-cutting §3) — nunca de
+   * forma optimista. No-op (`{}`) si `canSwitchTenant` es `false`.
+   */
+  setActiveTenant: (tenantId: string) => Promise<{ error?: Problem }>;
 }
 
 const TenantContext = createContext<TenantContextValue | null>(null);
 
 /**
- * Provee el contexto de tenant. Soporte (ámbito `global`) puede cambiar de tenant; el cliente queda
- * **fijado** al tenant de su sesión (`Me.active_tenant_id`). Al cambiar de tenant se resetea la caché
- * de Query (cross-cutting §3: no arrastrar datos del tenant anterior). Debe ir dentro de
- * `AuthProvider` y `QueryClientProvider`.
+ * Provee el contexto de tenant. Cualquier usuario con 2+ membresías `active` (`availableTenants`)
+ * puede cambiar de tenant — ya no solo Soporte. Al cambiar de tenant con éxito se resetea la caché de
+ * Query (cross-cutting §3: no arrastrar datos del tenant anterior); un cambio rechazado no toca la
+ * caché ni el tenant activo. Debe ir dentro de `AuthProvider` y `QueryClientProvider`.
  */
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const { sessionTenantId, capabilities } = useAuth();
+  const { sessionTenantId, availableTenants, switchTenant } = useAuth();
   const queryClient = useQueryClient();
+  const [isSwitchingTenant, setIsSwitchingTenant] = useState(false);
 
   const subjectTenantId = sessionTenantId;
-  const canSwitchTenant = capabilities.some((entry) => entry.scope === "global");
-  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
-  const activeTenantId = canSwitchTenant ? (selectedTenantId ?? subjectTenantId) : subjectTenantId;
+  const activeTenantId = sessionTenantId;
+  const canSwitchTenant = availableTenants.length > 1;
 
   const setActiveTenant = useCallback(
-    (tenantId: string) => {
-      if (!canSwitchTenant) return;
-      setSelectedTenantId(tenantId);
-      queryClient.clear();
+    async (tenantId: string): Promise<{ error?: Problem }> => {
+      if (!canSwitchTenant) return {};
+      setIsSwitchingTenant(true);
+      const result = await switchTenant(tenantId);
+      setIsSwitchingTenant(false);
+      if (!result.error) {
+        queryClient.clear();
+      }
+      return result;
     },
-    [canSwitchTenant, queryClient],
+    [canSwitchTenant, queryClient, switchTenant],
   );
 
   const value = useMemo(
-    () => ({ subjectTenantId, activeTenantId, canSwitchTenant, setActiveTenant }),
-    [subjectTenantId, activeTenantId, canSwitchTenant, setActiveTenant],
+    () => ({
+      subjectTenantId,
+      activeTenantId,
+      canSwitchTenant,
+      isSwitchingTenant,
+      setActiveTenant,
+    }),
+    [subjectTenantId, activeTenantId, canSwitchTenant, isSwitchingTenant, setActiveTenant],
   );
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;

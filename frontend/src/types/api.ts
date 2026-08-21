@@ -1876,6 +1876,8 @@ export interface components {
         capability?: string;
         scope?: components["schemas"]["CapabilityScope"];
       }[];
+      /** @description Tenants con membership `active` del usuario en tenants no-`disabled`, **incluido el tenant de la sesión activa** (`active_tenant_id`) — el switcher lo usa para marcar la opción seleccionada sin una petición aparte. Mismo patrón que `active_tenant_id`: no existe un endpoint `GET /auth/my-tenants` separado. */
+      available_tenants: components["schemas"]["TenantChoice"][];
     };
     Tenant: {
       /** Format: uuid */

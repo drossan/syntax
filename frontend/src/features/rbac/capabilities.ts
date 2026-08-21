@@ -6,11 +6,16 @@ export type CapabilityScope = components["schemas"]["CapabilityScope"];
 /** Entrada de capacidad efectiva de la sesión: `{ capability, scope }`. */
 export type CapabilityEntry = NonNullable<components["schemas"]["Me"]["capabilities"]>[number];
 
-/** Contexto de tenant para evaluar el ámbito de una capacidad. */
+/**
+ * Contexto de tenant para evaluar el ámbito de una capacidad. Tras un switch real,
+ * `subjectTenantId`/`activeTenantId` siempre coinciden (ambos se re-derivan del mismo `Me` fresco) —
+ * se piden como dos campos separados solo porque esta función ya depende de esa forma, no porque
+ * puedan diverger hoy.
+ */
 export interface TenantScopeContext {
-  /** Tenant del sujeto (su dominio). */
+  /** Tenant del sujeto. Ver nota de {@link TenantScopeContext}. */
   subjectTenantId: string | null;
-  /** Tenant activo (el elegido en el switcher por Soporte, o el del sujeto). */
+  /** Tenant activo (el elegido en el switcher, o el del sujeto). Ver {@link TenantScopeContext}. */
   activeTenantId: string | null;
 }
 

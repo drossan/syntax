@@ -1093,7 +1093,7 @@ components:
           items: { $ref: '#/components/schemas/TenantChoice' }
     Me:
       type: object
-      required: [user, active_tenant_id, capabilities]
+      required: [user, active_tenant_id, capabilities, available_tenants]
       properties:
         user: { $ref: '#/components/schemas/User' }
         active_tenant_id:
@@ -1111,6 +1111,14 @@ components:
             properties:
               capability: { type: string, example: 'ticket.reply' }
               scope: { $ref: '#/components/schemas/CapabilityScope' }
+        available_tenants:
+          type: array
+          description: >
+            Tenants con membership `active` del usuario en tenants no-`disabled`, **incluido el
+            tenant de la sesión activa** (`active_tenant_id`) — el switcher lo usa para marcar la
+            opción seleccionada sin una petición aparte. Mismo patrón que `active_tenant_id`: no
+            existe un endpoint `GET /auth/my-tenants` separado.
+          items: { $ref: '#/components/schemas/TenantChoice' }
 
     # ── Identidad / RBAC ──
     Tenant:
