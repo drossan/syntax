@@ -214,7 +214,7 @@ porque bloquean la implementación:
   LLM/embeddings · depends_on: —
 - [x] `backend-kb-ingestion-02` (P1) — Puerto `KBIndexWriter` + adaptador pgvector real (+ migración
   `UniqueConstraint(document_id, ordinal)`) · depends_on: —
-- [ ] `backend-kb-ingestion-03` (P1) — Loader + parser (frontmatter + Trazabilidad + glosario)
+- [x] `backend-kb-ingestion-03` (P1) — Loader + parser (frontmatter + Trazabilidad + glosario)
   · depends_on: —
 - [ ] `backend-kb-ingestion-04` (P2) — Chunker H2 tolerante · depends_on: `backend-kb-ingestion-03`
 - [ ] `backend-kb-ingestion-05` (P2) — Embedder · depends_on: `backend-kb-ingestion-01`,
@@ -321,3 +321,12 @@ porque bloquean la implementación:
   implementación no cubierta por el texto de la tarea: `ChunkWrite` necesitaba un campo `model: str`
   para `embedding.model` (NOT NULL) — añadido como completado rutinario del tipo, sin implicar cambio
   de alcance. Detalle en `.claude/context/backend/backend-kb-ingestion-02.md`.
+- 2026-08-21: **`backend-kb-ingestion-03` cerrada** (`completed`). TDD verde (838 tests totales),
+  `ruff`/`mypy --strict` limpios, `cosmic-ray` con 4.59% de supervivencia (9/196, los 9 documentados
+  como equivalentes), `sdd-lint` N/A (no toca spec.md/CU/ADR), `fact-checker` con 10/10 VERIFICADO.
+  Decisiones sin precedente en la spec (no hay fuente real en esta máquina): formato exacto del bloque
+  `::: info Trazabilidad` (interpretación documentada de `rag-ingestion.md` §2, a confirmar por el owner
+  cuando tenga la fuente real); `uc_id` sintético `__glosario__:<dominio>` para los `index.md`;
+  `parse()` recibe `kb_root` explícito (no en la firma abreviada de la tarea); `RawDoc.mtime` capturado
+  por el loader (no el parser), manteniendo el parser puro. Detalle en
+  `.claude/context/backend/backend-kb-ingestion-03.md`.
