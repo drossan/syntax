@@ -58,10 +58,17 @@ class User(BaseModel):
 class DomainError(Exception):
     def __init__(self, message, *, code, details=None): ...
 
-class NotFound(DomainError): ...     # el recurso no existe        → 404 futuro
-class Conflict(DomainError): ...     # existe pero el estado no cuadra → 409 futuro
-class Validation(DomainError): ...   # la entrada no cumple una regla  → 422 futuro
-class PortError(DomainError): ...    # un puerto de infra falló (timeout, proveedor caído)
+
+class NotFound(DomainError): ...  # el recurso no existe        → 404 futuro
+
+
+class Conflict(DomainError): ...  # existe pero el estado no cuadra → 409 futuro
+
+
+class Validation(DomainError): ...  # la entrada no cumple una regla  → 422 futuro
+
+
+class PortError(DomainError): ...  # un puerto de infra falló (timeout, proveedor caído)
 ```
 
 Cada servicio lanza una de estas, nunca una excepción "pelada" de Python. Ventaja: el futuro mapeo a
@@ -105,15 +112,17 @@ def authorize(subject: Subject, action: str, resource: Resource) -> Allow | Deny
 ## 4. `ticket_service` — una máquina de estados como tabla de datos (tarea 04)
 
 ```python
-_VALID_TRANSITIONS: frozenset[tuple[TicketStatus, TicketStatus]] = frozenset({
-    (TicketStatus.new, TicketStatus.open),
-    (TicketStatus.open, TicketStatus.pending),
-    (TicketStatus.pending, TicketStatus.resolved),
-    (TicketStatus.resolved, TicketStatus.closed),
-    (TicketStatus.resolved, TicketStatus.reopened),
-    (TicketStatus.closed, TicketStatus.reopened),
-    (TicketStatus.reopened, TicketStatus.open),
-})
+_VALID_TRANSITIONS: frozenset[tuple[TicketStatus, TicketStatus]] = frozenset(
+    {
+        (TicketStatus.new, TicketStatus.open),
+        (TicketStatus.open, TicketStatus.pending),
+        (TicketStatus.pending, TicketStatus.resolved),
+        (TicketStatus.resolved, TicketStatus.closed),
+        (TicketStatus.resolved, TicketStatus.reopened),
+        (TicketStatus.closed, TicketStatus.reopened),
+        (TicketStatus.reopened, TicketStatus.open),
+    }
+)
 ```
 
 - Un **`frozenset` de aristas válidas** en vez de una cadena de `if`: añadir/quitar una transición es
@@ -142,7 +151,7 @@ todo servicio necesita lógica; a veces el diseño correcto es un *pass-through*
 
 ```python
 hash_password("mi-contraseña")  # Argon2id, salt ALEATORIO → NUNCA buscable por igualdad
-hash_token(token)                # SHA-256, DETERMINISTA  → buscable: mismo input, mismo hash
+hash_token(token)  # SHA-256, DETERMINISTA  → buscable: mismo input, mismo hash
 ```
 
 Una contraseña se **verifica** (el usuario la escribe cada vez): el salt aleatorio es una ventaja de
@@ -207,10 +216,12 @@ Classification)` y rechaza con `Validation` en vez de aceptar ciegamente lo que 
 existentes:
 
 ```python
-updated = await self._approvals.decide_if_pending(task_id, status.value, final_body, human_note)  # (1) CAS
+updated = await self._approvals.decide_if_pending(
+    task_id, status.value, final_body, human_note
+)  # (1) CAS
 if decision in {"approve", "edit"}:
-    await self._ticket_service.transition(updated.ticket_id, TicketStatus.pending)                 # (2)
-await self._agent_runner.resume(updated.agent_run_id, ApprovalOutcome(...))                         # (3)
+    await self._ticket_service.transition(updated.ticket_id, TicketStatus.pending)  # (2)
+await self._agent_runner.resume(updated.agent_run_id, ApprovalOutcome(...))  # (3)
 ```
 
 - **(1)** reusa el mismo patrón CAS de `auth_service` — aprobar/editar/rechazar una tarea es atómico igual
