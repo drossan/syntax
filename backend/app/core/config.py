@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     de OpenAI — evita que un batch grande de la ingestión real supere ese límite (hallazgo de
     `scenario-coverage`, plan `kb-ingestion`)."""
 
+    kb_source_path: str = ""
+    """Ruta raíz de la KB (`domains/`) para `python -m app.ingestion` (`app.ingestion.cli`) cuando no
+    se pasa como argumento posicional. Vacía por defecto — no hay fuente real en esta máquina; la
+    CLI falla con un error de uso claro (no un `None` silencioso) si ni el argumento ni este campo
+    están fijados."""
+
     storage_root: str = "./var/storage"
     """Directorio raíz de `LocalFilesystemStorage` (tarea 08) — relativo al cwd del proceso en dev."""
 

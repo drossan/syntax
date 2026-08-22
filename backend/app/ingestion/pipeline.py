@@ -1,5 +1,6 @@
 """app.ingestion.pipeline — orquesta loader→parser→chunker→diff→embed→upsert→reconciliación
-(tarea backend-kb-ingestion-06).
+(tarea backend-kb-ingestion-06; `only_domain`/`dry_run`/`force_reconcile` añadidos en `-07` para la
+CLI — extensión aditiva, todos con default que preserva el comportamiento original de `-06`).
 
 Toda la lógica de negocio de CU-BE-07 vive aquí; los módulos anteriores (`loader`/`parser`/`chunker`/
 `embedder`) son piezas puras/de infraestructura sin esta orquestación. `ingest()` no importa
@@ -69,8 +70,18 @@ async def ingest(
     encoding: tiktoken.Encoding,
     batch_size: int,
     embedding_model_name: str,
+    only_domain: str | None = None,
+    dry_run: bool = False,
+    force_reconcile: bool = False,
 ) -> IngestReport:
     """Ejecuta una ingestión completa de la KB bajo `path`.
+
+    `only_domain` filtra el batch a un solo dominio (los demás ni se cuentan como procesados ni como
+    saltados — simplemente no entran). `dry_run` computa el diff/reconciliación real pero NUNCA llama
+    a `embed()`/`writer.upsert_document`/`writer.delete_by_uc_ids` — el `IngestReport` refleja lo que
+    SE HARÍA. `force_reconcile` anula la salida rápida "origen vacío → no toca la BD" (`CU-BE-07` 4b):
+    con un origen vacío/todo-malformado, sin este flag no se reconcilia nada (comportamiento seguro
+    por defecto); con él, se reconcilian (borran) TODOS los documentos existentes.
 
     :raises app.domain.errors.Conflict: si ya hay una ingestión en curso (advisory lock ocupado).
     :raises app.domain.errors.Validation: si dos o más ficheros declaran el mismo `uc_id` — se
@@ -88,6 +99,8 @@ async def ingest(
         if isinstance(parsed, ParseError):
             skipped += 1
             continue
+        if only_domain is not None and parsed.domain != only_domain:
+            continue
         by_uc_id[parsed.uc_id].append(parsed)
 
     duplicates = {uc_id: docs for uc_id, docs in by_uc_id.items() if len(docs) > 1}
@@ -99,8 +112,10 @@ async def ingest(
         )
 
     parsed_docs = [docs[0] for docs in by_uc_id.values()]
-    if not parsed_docs:
+    if not parsed_docs and not force_reconcile:
         return IngestReport(processed=0, created=0, updated=0, skipped=skipped, deleted=0)
+
+    existing_uc_ids_before = await writer.existing_uc_ids()
 
     plan = [
         (
@@ -113,6 +128,7 @@ async def ingest(
                 encoding=encoding,
                 batch_size=batch_size,
                 embedding_model_name=embedding_model_name,
+                dry_run=dry_run,
             ),
         )
         for doc in parsed_docs
@@ -121,15 +137,18 @@ async def ingest(
     created = 0
     updated = 0
     for doc, chunk_writes in plan:
-        report = await writer.upsert_document(_to_draft(doc), chunk_writes)
-        if report.created:
-            created += 1
-        else:
+        if not dry_run:
+            await writer.upsert_document(_to_draft(doc), chunk_writes)
+        if doc.uc_id in existing_uc_ids_before:
             updated += 1
+        else:
+            created += 1
 
     origin_uc_ids = {doc.uc_id for doc in parsed_docs}
-    retired = await writer.existing_uc_ids() - origin_uc_ids
-    deleted = await writer.delete_by_uc_ids(retired) if retired else 0
+    retired = existing_uc_ids_before - origin_uc_ids
+    deleted = len(retired)
+    if retired and not dry_run:
+        await writer.delete_by_uc_ids(retired)
 
     return IngestReport(
         processed=len(parsed_docs),
@@ -149,8 +168,13 @@ async def _diff_and_embed(
     encoding: tiktoken.Encoding,
     batch_size: int,
     embedding_model_name: str,
+    dry_run: bool = False,
 ) -> list[ChunkWrite]:
-    """Chunkea `doc`, compara contra el contenido ya persistido, y embebe SOLO lo nuevo/cambiado."""
+    """Chunkea `doc`, compara contra el contenido ya persistido, y embebe SOLO lo nuevo/cambiado.
+
+    Con `dry_run=True` NUNCA llama a `embed()` (evita coste/red real en una simulación) — los chunks
+    que se embeberían quedan con `vector=None` en el resultado, que en modo dry-run nunca se escribe.
+    """
     chunks = chunk(doc, token_budget=token_budget, encoding=encoding)
     existing_contents = await writer.existing_chunk_contents(doc.uc_id)
 
@@ -168,18 +192,30 @@ async def _diff_and_embed(
         else:
             to_embed.append(candidate)
 
-    embedded = await embed(to_embed, model, batch_size=batch_size) if to_embed else []
-    changed = {
-        item.chunk.ordinal: ChunkWrite(
-            ordinal=item.chunk.ordinal,
-            section_type=item.chunk.section_type,
-            content=item.chunk.content,
-            token_count=item.chunk.token_count,
-            vector=item.vector,
-            model=embedding_model_name,
-        )
-        for item in embedded
-    }
+    if dry_run:
+        changed = {
+            candidate.ordinal: ChunkWrite(
+                ordinal=candidate.ordinal,
+                section_type=candidate.section_type,
+                content=candidate.content,
+                token_count=candidate.token_count,
+                vector=None,
+            )
+            for candidate in to_embed
+        }
+    else:
+        embedded = await embed(to_embed, model, batch_size=batch_size) if to_embed else []
+        changed = {
+            item.chunk.ordinal: ChunkWrite(
+                ordinal=item.chunk.ordinal,
+                section_type=item.chunk.section_type,
+                content=item.chunk.content,
+                token_count=item.chunk.token_count,
+                vector=item.vector,
+                model=embedding_model_name,
+            )
+            for item in embedded
+        }
 
     by_ordinal = {**unchanged, **changed}
     return [by_ordinal[ordinal] for ordinal in sorted(by_ordinal)]

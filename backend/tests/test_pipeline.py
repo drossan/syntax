@@ -399,3 +399,171 @@ def test_ingest_report_is_immutable() -> None:
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         report.processed = 2  # type: ignore[misc]
+
+
+# ── only_domain / dry_run / force_reconcile (tarea backend-kb-ingestion-07) ──
+
+
+async def test_only_domain_filters_the_batch_to_a_single_domain(
+    tmp_path: Path, session: AsyncSession
+) -> None:
+    _uc_file(tmp_path, domain="authoring-and-editor", uc_id="UC-CX-001")
+    _uc_file(tmp_path, domain="sites-domains-instances", uc_id="UC-CORE-001")
+    writer = SqlAlchemyKBIndexWriter(session)
+
+    report = await ingest(
+        tmp_path,
+        writer=writer,
+        model=_FakeEmbeddingModel(),
+        token_budget=800,
+        encoding=_ENCODING,
+        batch_size=100,
+        embedding_model_name="text-embedding-3-small",
+        only_domain="authoring-and-editor",
+    )
+
+    assert report.processed == 1
+    assert await writer.existing_uc_ids() == {"UC-CX-001"}
+
+
+async def test_only_domain_does_not_stop_at_the_first_non_matching_document(
+    tmp_path: Path, session: AsyncSession
+) -> None:
+    """El dominio NO-coincidente ("authoring-and-editor") ordena ANTES que el coincidente
+    ("sites-domains-instances") — descarta un `continue` mutado a `break`: pararía el recorrido en
+    el primer documento filtrado, sin llegar nunca al que sí coincide."""
+    _uc_file(tmp_path, domain="authoring-and-editor", uc_id="UC-CX-001")
+    _uc_file(tmp_path, domain="sites-domains-instances", uc_id="UC-CORE-001")
+    writer = SqlAlchemyKBIndexWriter(session)
+
+    report = await ingest(
+        tmp_path,
+        writer=writer,
+        model=_FakeEmbeddingModel(),
+        token_budget=800,
+        encoding=_ENCODING,
+        batch_size=100,
+        embedding_model_name="text-embedding-3-small",
+        only_domain="sites-domains-instances",
+    )
+
+    assert report.processed == 1
+    assert await writer.existing_uc_ids() == {"UC-CORE-001"}
+
+
+async def test_only_domain_with_no_matching_documents_succeeds_with_zero_processed(
+    tmp_path: Path, session: AsyncSession
+) -> None:
+    _uc_file(tmp_path, domain="authoring-and-editor", uc_id="UC-CX-001")
+    writer = SqlAlchemyKBIndexWriter(session)
+
+    report = await ingest(
+        tmp_path,
+        writer=writer,
+        model=_FakeEmbeddingModel(),
+        token_budget=800,
+        encoding=_ENCODING,
+        batch_size=100,
+        embedding_model_name="text-embedding-3-small",
+        only_domain="sites-domains-instances",
+    )
+
+    assert report == IngestReport(processed=0, created=0, updated=0, skipped=0, deleted=0)
+
+
+async def test_dry_run_does_not_write_anything_nor_call_the_embedder(
+    tmp_path: Path, session: AsyncSession
+) -> None:
+    _uc_file(tmp_path, uc_id="UC-CX-001")
+    writer = SqlAlchemyKBIndexWriter(session)
+    model = _FakeEmbeddingModel()
+
+    report = await ingest(
+        tmp_path,
+        writer=writer,
+        model=model,
+        token_budget=800,
+        encoding=_ENCODING,
+        batch_size=100,
+        embedding_model_name="text-embedding-3-small",
+        dry_run=True,
+    )
+
+    assert report.created == 1
+    assert model.calls == []
+    assert await writer.existing_uc_ids() == set()
+
+
+async def test_dry_run_reports_updates_and_deletions_without_persisting_them(
+    tmp_path: Path, session: AsyncSession
+) -> None:
+    path_a = _uc_file(tmp_path, uc_id="UC-CX-001", filename="UC-FILE-A.md")
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _ingest(tmp_path, writer)
+    await session.commit()
+
+    path_a.unlink()
+    model = _FakeEmbeddingModel()
+
+    report = await ingest(
+        tmp_path,
+        writer=writer,
+        model=model,
+        token_budget=800,
+        encoding=_ENCODING,
+        batch_size=100,
+        embedding_model_name="text-embedding-3-small",
+        dry_run=True,
+        force_reconcile=True,
+    )
+
+    assert report.deleted == 1
+    assert model.calls == []
+    assert await writer.existing_uc_ids() == {"UC-CX-001"}
+
+
+async def test_force_reconcile_deletes_everything_when_the_origin_is_empty(
+    tmp_path: Path, session: AsyncSession
+) -> None:
+    _uc_file(tmp_path, uc_id="UC-CX-001")
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _ingest(tmp_path, writer)
+    await session.commit()
+    (tmp_path / "authoring-and-editor" / "uc" / "UC-CX-001.md").unlink()
+
+    report = await ingest(
+        tmp_path,
+        writer=writer,
+        model=_FakeEmbeddingModel(),
+        token_budget=800,
+        encoding=_ENCODING,
+        batch_size=100,
+        embedding_model_name="text-embedding-3-small",
+        force_reconcile=True,
+    )
+
+    assert report.deleted == 1
+    assert await writer.existing_uc_ids() == set()
+
+
+async def test_without_force_reconcile_an_empty_origin_does_not_touch_the_db(
+    tmp_path: Path, session: AsyncSession
+) -> None:
+    _uc_file(tmp_path, uc_id="UC-CX-001")
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _ingest(tmp_path, writer)
+    await session.commit()
+    (tmp_path / "authoring-and-editor" / "uc" / "UC-CX-001.md").unlink()
+
+    report = await ingest(
+        tmp_path,
+        writer=writer,
+        model=_FakeEmbeddingModel(),
+        token_budget=800,
+        encoding=_ENCODING,
+        batch_size=100,
+        embedding_model_name="text-embedding-3-small",
+    )
+
+    assert report == IngestReport(processed=0, created=0, updated=0, skipped=0, deleted=0)
+    assert await writer.existing_uc_ids() == {"UC-CX-001"}

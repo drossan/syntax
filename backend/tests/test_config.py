@@ -256,3 +256,19 @@ def test_embedding_batch_size_valid_positive(monkeypatch, value) -> None:
     """EMBEDDING_BATCH_SIZE positivo es válido (frontera gt=0: el mínimo válido es 1)."""
     monkeypatch.setenv("EMBEDDING_BATCH_SIZE", value)
     assert get_settings().embedding_batch_size == int(value)
+
+
+# ── KB source path (tarea backend-kb-ingestion-07) ──────────────────────────────
+
+
+def test_kb_source_path_defaults_to_empty_string(monkeypatch) -> None:
+    """Sin KB_SOURCE_PATH, kb_source_path es "" por defecto (sin fuente real en esta máquina)."""
+    monkeypatch.delenv("KB_SOURCE_PATH", raising=False)
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.kb_source_path == ""
+
+
+def test_kb_source_path_override_from_environment(monkeypatch) -> None:
+    """KB_SOURCE_PATH se puede sobreescribir por entorno."""
+    monkeypatch.setenv("KB_SOURCE_PATH", "/otra/ruta")
+    assert get_settings().kb_source_path == "/otra/ruta"

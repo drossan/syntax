@@ -1,10 +1,10 @@
 ---
 id: backend-kb-ingestion
 package: backend
-status: active
+status: completed
 branch: plan/backend/kb-ingestion
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-22
 ---
 
 # Ingestión real de la KB (CU-BE-07)
@@ -221,7 +221,7 @@ porque bloquean la implementación:
   `backend-kb-ingestion-04`
 - [x] `backend-kb-ingestion-06` (P1) — Pipeline (orquestación + reconciliación) · depends_on:
   `backend-kb-ingestion-02`, `backend-kb-ingestion-05`
-- [ ] `backend-kb-ingestion-07` (P2) — CLI + entry-point (`make ingest`) · depends_on:
+- [x] `backend-kb-ingestion-07` (P2) — CLI + entry-point (`make ingest`) · depends_on:
   `backend-kb-ingestion-06`
 
 ## Registro de cambios del plan
@@ -351,3 +351,32 @@ porque bloquean la implementación:
   Decisión de implementación: glosarios (`index.md`) se persisten con `estado=active`/
   `package=syntax-core` fijos (placeholder, sin consumidor real todavía — revisar en la tarea 14).
   Detalle en `.claude/context/backend/backend-kb-ingestion-06.md`.
+- 2026-08-22: **`backend-kb-ingestion-07` cerrada** (`completed`) — **última tarea, plan cerrado**.
+  TDD verde (946 tests totales), `ruff`/`mypy --strict` limpios, `cosmic-ray` sobre `cli.py` (8.51%,
+  4/47 equivalentes) y re-verificado sobre `pipeline.py` extendido (3.55%, 5/141 equivalentes),
+  `sdd-lint` N/A, `fact-checker` con 10/10 VERIFICADO. `pipeline.ingest()` (de `-06`) se extendió con
+  `only_domain`/`dry_run`/`force_reconcile` (defaults que preservan el comportamiento previo — los 18
+  tests de `-06` siguen en verde sin cambios) para soportar los flags de la CLI. Detalle en
+  `.claude/context/backend/backend-kb-ingestion-07.md`.
+
+## Cierre del plan
+
+Las 7 tareas están completadas (2026-08-22). CU-BE-07 (ingestión de la KB) queda implementado end-to-end
+con código real y TDD: loader → parser → chunker → diff → embedder → `KBIndexWriter` (pgvector real) →
+CLI (`make ingest`). Total: 946 tests backend en verde, mutation testing con `break: 80` superado en
+las 7 tareas (todos los survivors finales documentados como mutantes equivalentes o aceptados por
+limitación razonable de infraestructura de test).
+
+**Incidente registrado durante el plan** (tarea `-04`, ver su session log): `cosmic-ray` —la vía de
+mutation testing **no verificada** por el plugin `task-pipeline` (solo Stryker lo está)— mostró
+inestabilidad real: dejó una mutación aplicada en disco tras un run "exitoso" en una ocasión, y dio
+resultados de supervivencia inconsistentes entre runs idénticos hasta estabilizarse. Mitigado en cada
+tarea posterior verificando la integridad del fichero tras cada gate y tratando como fiable solo el
+resultado que convergía de forma estable entre rondas.
+
+**Pendiente explícito, ya fuera de alcance del plan desde su creación** (no una tarea olvidada):
+- Ejecutar `make ingest` contra la KB real — no existe en esta máquina; verificación manual del owner.
+- Implementar el retriever real (`search`, tarea 14, CU-BE-05) — plan propio, no este.
+- `IMPLEMENTATION-GUIDE.md`/`README.md` siguen describiendo el backend como "esqueleto doc-only" —
+  desactualizado por este plan y por los anteriores (`domain-services`/`routers-core`/
+  `routers-flujo-ia`); corregir esa narrativa es una tarea de documentación transversal, no de este plan.
