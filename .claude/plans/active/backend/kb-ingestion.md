@@ -219,7 +219,7 @@ porque bloquean la implementación:
 - [x] `backend-kb-ingestion-04` (P2) — Chunker H2 tolerante · depends_on: `backend-kb-ingestion-03`
 - [x] `backend-kb-ingestion-05` (P2) — Embedder · depends_on: `backend-kb-ingestion-01`,
   `backend-kb-ingestion-04`
-- [ ] `backend-kb-ingestion-06` (P1) — Pipeline (orquestación + reconciliación) · depends_on:
+- [x] `backend-kb-ingestion-06` (P1) — Pipeline (orquestación + reconciliación) · depends_on:
   `backend-kb-ingestion-02`, `backend-kb-ingestion-05`
 - [ ] `backend-kb-ingestion-07` (P2) — CLI + entry-point (`make ingest`) · depends_on:
   `backend-kb-ingestion-06`
@@ -344,3 +344,10 @@ porque bloquean la implementación:
   `fact-checker` con 7/7 VERIFICADO. `embed()` recibe `batch_size` explícito (no en la firma
   abreviada de la tarea), mismo criterio que `-03`/`-04`. Detalle en
   `.claude/context/backend/backend-kb-ingestion-05.md`.
+- 2026-08-22: **`backend-kb-ingestion-06` cerrada** (`completed`). TDD verde (914 tests totales),
+  `ruff`/`mypy --strict` limpios, `cosmic-ray` con 4.50% de supervivencia (5/111, los 5 documentados
+  como equivalentes), `sdd-lint` N/A, `fact-checker` con 10/10 VERIFICADO (al 3er intento — los dos
+  primeros fallaron por el equipo suspendiéndose durante el gate de mutation, no por el trabajo).
+  Decisión de implementación: glosarios (`index.md`) se persisten con `estado=active`/
+  `package=syntax-core` fijos (placeholder, sin consumidor real todavía — revisar en la tarea 14).
+  Detalle en `.claude/context/backend/backend-kb-ingestion-06.md`.
