@@ -6,7 +6,7 @@
 module-path = "app/ingestion/packages_uc.py"
 timeout = 90.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_packages_uc_loader.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_packages_uc_loader.py tests/test_packages_uc_parser.py"
 
 [cosmic-ray.distributor]
 name = "local"

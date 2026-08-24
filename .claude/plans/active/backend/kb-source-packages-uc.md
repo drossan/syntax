@@ -276,7 +276,7 @@ tiene su propio módulo de loader+parser **en código**.
 - [x] `backend-kb-source-packages-uc-01` (P1) — Loader `packages_uc` (descubrimiento de ficheros:
   `packages/*/docs/aiup/use-cases/UC-*.md` + `docs/aiup/glossaries/*.md`; exclusión verificada de un
   árbol hermano no reconocido) · depends_on: —
-- [ ] `backend-kb-source-packages-uc-02` (P1) — Parser `packages_uc` (frontmatter real, H1→title,
+- [x] `backend-kb-source-packages-uc-02` (P1) — Parser `packages_uc` (frontmatter real, H1→title,
   alias de package vía `package_aliases` inyectado + validación del valor contra `Package`, `traza`
   defensiva, glosario íntegro) · depends_on: `backend-kb-source-packages-uc-01`
 - [ ] `backend-kb-source-packages-uc-03` (P1) — `Settings.kb_source_type`/`kb_package_aliases` +

@@ -2,11 +2,11 @@
 id: backend-kb-source-packages-uc-02
 package: backend
 plan: kb-source-packages-uc
-status: pending
+status: done
 priority: 1
 depends_on: [backend-kb-source-packages-uc-01]
 estimate: 4h
-actual:
+actual: 2.5h
 created: 2026-08-24
 updated: 2026-08-24
 ---
@@ -180,17 +180,18 @@ escenarios del CU — íntegros en su parte de parseo (la persistencia end-to-en
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde (`make test`), sin regresión en los existentes
-- [ ] Spec cumplida; lo declarado en `Provides` queda disponible para `-03`
-- [ ] `ruff check` + `ruff format --check` + `mypy --strict` OK
-- [ ] Gate de mutation testing (`cosmic-ray`, `break: 80`) sobre `packages_uc.py` — survivors
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (`make test`), sin regresión en los existentes
+- [x] Spec cumplida; lo declarado en `Provides` queda disponible para `-03`
+- [x] `ruff check` + `ruff format --check` + `mypy --strict` OK
+- [x] Gate de mutation testing (`cosmic-ray`, `break: 80`) sobre `packages_uc.py` — survivors
   documentados como equivalentes si quedan
-- [ ] Gate `/sdd-lint` superado — sin ERROR (AVISO reconocido); esta tarea **no** modifica spec/CU/ADR
-  (el CU ya se extendió en la planificación) → declararlo explícitamente
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas (INCORRECTO bloquea)
-- [ ] Documentación — docstrings de todo símbolo público (incluidos los anti-patrones: usar `yaml.load`;
+- [x] Gate `/sdd-lint` superado — **sin ERROR**; 3 AVISO reconocidos. Matiz: la tarea arrancó sin tocar
+  artefactos SDD, pero **sí acabó modificando `CU-BE-11`** (los 2 AVISO sobre ese artefacto, creado en
+  la `-01`, se corrigieron aquí). El tercero está enrutado a la `-03`
+- [x] Gate de `fact-checker` superado — **14 VERIFICADO / 0 INCORRECTO / 0 NO VERIFICABLE**
+- [x] Documentación — docstrings de todo símbolo público (incluidos los anti-patrones: usar `yaml.load`;
   importar los privados de `parser.py`; replicar el log de discrepancia de `package`, que en este
   formato no puede darse) + doc técnica donde aplique + session log en
   `.claude/context/backend/backend-kb-source-packages-uc-02.md`

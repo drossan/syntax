@@ -53,7 +53,8 @@
 ## Reglas de negocio
 
 - **RN-1** — El ámbito lo fija la capacidad, no un parámetro de la consulta: `analytics.read` en ámbito
-  `global` agrega cross-tenant; en ámbito `tenant`, se acota al tenant del sujeto.
+  `global` agrega cross-tenant; en ámbito `tenant`, se acota al tenant del sujeto. Si el sujeto tiene la
+  capacidad en **ambos** ámbitos, **gana `global`** (agrega cross-tenant): el ámbito mayor prevalece.
 - **RN-2** — "SLA vencido" es `sla_due` **estrictamente anterior** al instante de la consulta **y** el
   ticket no está en un estado terminal (`resolved`/`closed`).
 - **RN-3** — La confianza media se calcula **solo** sobre los `agent_run` que tienen confianza; los que
@@ -107,9 +108,10 @@ Feature: Resumen de analytics
     Then <resultado> en el recuento de SLA vencidos
 
     Examples:
-      | situación                                          | resultado   |
-      | con compromiso de SLA ya pasado y sin resolver     | cuenta      |
-      | con compromiso de SLA aún por vencer               | no cuenta   |
-      | sin ningún compromiso de SLA                       | no cuenta   |
-      | con compromiso de SLA pasado pero ya resuelto      | no cuenta   |
+      | situación                                            | resultado   |
+      | con compromiso de SLA ya pasado y sin resolver       | cuenta      |
+      | con compromiso de SLA aún por vencer                 | no cuenta   |
+      | con compromiso de SLA justo en el instante consultado | no cuenta  |
+      | sin ningún compromiso de SLA                         | no cuenta   |
+      | con compromiso de SLA pasado pero ya resuelto        | no cuenta   |
 ```
