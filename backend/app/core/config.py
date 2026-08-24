@@ -42,6 +42,39 @@ class Settings(BaseSettings):
     `embedding.vector` coincide con la config. El modelo ORM usa `Vector(1536)` literal.
     """
 
+    llm_provider: str = "openai"
+    """Selector del adaptador de puerto LLM/embeddings (`app.infra.llm.openai_adapter`). Hoy solo
+    `"openai"` es un valor soportado por la factory `get_embedding_model`."""
+
+    openai_api_key: str = ""
+    """Clave de API de OpenAI. Vacía por defecto para que `Settings()` sea construible sin ella
+    (validación perezosa: el adaptador falla al primer uso real, no aquí)."""
+
+    chat_model: str = "gpt-4o-mini"
+    """Modelo de chat/clasificación (structured output). Sin adaptador real todavía en este plan
+    (`OpenAIChatModel` sigue GUIÓN) — se declara aquí junto al resto de config LLM/embeddings."""
+
+    embedding_model: str = "text-embedding-3-small"
+    """Modelo de embeddings usado por `OpenAIEmbeddingModel`."""
+
+    chunk_token_budget: int = Field(default=800, gt=0)
+    """Presupuesto de tokens por chunk del chunker de ingestión (`app.ingestion.chunker`), contados
+    con `tiktoken` sobre el encoding de `embedding_model`. `800` es un default sensato (~el tamaño
+    típico de una sección H2 de la KB) — sin este campo no había ningún valor fijado (hallazgo de
+    `scenario-coverage`, plan `kb-ingestion`)."""
+
+    embedding_batch_size: int = Field(default=100, gt=0)
+    """Nº máximo de textos por llamada a `EmbeddingModel.embed_documents` desde
+    `app.ingestion.embedder`. `100` es conservador, por debajo del límite real de items por request
+    de OpenAI — evita que un batch grande de la ingestión real supere ese límite (hallazgo de
+    `scenario-coverage`, plan `kb-ingestion`)."""
+
+    kb_source_path: str = ""
+    """Ruta raíz de la KB (`domains/`) para `python -m app.ingestion` (`app.ingestion.cli`) cuando no
+    se pasa como argumento posicional. Vacía por defecto — no hay fuente real en esta máquina; la
+    CLI falla con un error de uso claro (no un `None` silencioso) si ni el argumento ni este campo
+    están fijados."""
+
     storage_root: str = "./var/storage"
     """Directorio raíz de `LocalFilesystemStorage` (tarea 08) — relativo al cwd del proceso en dev."""
 

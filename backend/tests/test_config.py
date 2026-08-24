@@ -160,3 +160,115 @@ def test_no_migration_database_url_field() -> None:
     settings = get_settings()
     assert not hasattr(settings, "migration_database_url")
     assert "migration_database_url" not in Settings.model_fields
+
+
+# ── LLM/embeddings settings (tarea backend-kb-ingestion-01) ───────────────────
+
+
+def test_llm_provider_defaults_to_openai() -> None:
+    """Sin LLM_PROVIDER (ni entorno ni .env), llm_provider es "openai" por defecto."""
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.llm_provider == "openai"
+
+
+def test_openai_api_key_defaults_to_empty_string() -> None:
+    """Sin OPENAI_API_KEY (ni entorno ni .env), openai_api_key es "" — Settings() es construible
+    sin clave real."""
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.openai_api_key == ""
+
+
+def test_chat_model_defaults_to_gpt_4o_mini() -> None:
+    """Sin CHAT_MODEL (ni entorno ni .env), chat_model es "gpt-4o-mini" por defecto."""
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.chat_model == "gpt-4o-mini"
+
+
+def test_embedding_model_defaults_to_text_embedding_3_small() -> None:
+    """Sin EMBEDDING_MODEL (ni entorno ni .env), embedding_model es "text-embedding-3-small" por
+    defecto."""
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.embedding_model == "text-embedding-3-small"
+
+
+@pytest.mark.parametrize(
+    ("env_var", "attr", "value"),
+    [
+        ("LLM_PROVIDER", "llm_provider", "anthropic"),
+        ("OPENAI_API_KEY", "openai_api_key", "sk-real-key"),
+        ("CHAT_MODEL", "chat_model", "gpt-4o"),
+        ("EMBEDDING_MODEL", "embedding_model", "text-embedding-3-large"),
+    ],
+)
+def test_llm_settings_override_from_environment(monkeypatch, env_var, attr, value) -> None:
+    """Cada campo LLM/embeddings se puede sobreescribir por entorno."""
+    monkeypatch.setenv(env_var, value)
+    assert getattr(get_settings(), attr) == value
+
+
+# ── Chunking settings (tarea backend-kb-ingestion-04) ──────────────────────────
+
+
+def test_chunk_token_budget_defaults_to_800(monkeypatch) -> None:
+    """Sin CHUNK_TOKEN_BUDGET, chunk_token_budget es 800 (int) por defecto."""
+    monkeypatch.delenv("CHUNK_TOKEN_BUDGET", raising=False)
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.chunk_token_budget == 800
+    assert isinstance(settings.chunk_token_budget, int)
+
+
+@pytest.mark.parametrize("value", ["no-numérico", "0", "-1"])
+def test_chunk_token_budget_invalid_raises(monkeypatch, value) -> None:
+    """CHUNK_TOKEN_BUDGET no numérico o no físico (<=0, gt=0) aborta la carga."""
+    monkeypatch.setenv("CHUNK_TOKEN_BUDGET", value)
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+@pytest.mark.parametrize("value", ["1", "800", "2000"])
+def test_chunk_token_budget_valid_positive(monkeypatch, value) -> None:
+    """CHUNK_TOKEN_BUDGET positivo es válido (frontera gt=0: el mínimo válido es 1)."""
+    monkeypatch.setenv("CHUNK_TOKEN_BUDGET", value)
+    assert get_settings().chunk_token_budget == int(value)
+
+
+# ── Embedding batch settings (tarea backend-kb-ingestion-05) ───────────────────
+
+
+def test_embedding_batch_size_defaults_to_100(monkeypatch) -> None:
+    """Sin EMBEDDING_BATCH_SIZE, embedding_batch_size es 100 (int) por defecto."""
+    monkeypatch.delenv("EMBEDDING_BATCH_SIZE", raising=False)
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.embedding_batch_size == 100
+    assert isinstance(settings.embedding_batch_size, int)
+
+
+@pytest.mark.parametrize("value", ["no-numérico", "0", "-1"])
+def test_embedding_batch_size_invalid_raises(monkeypatch, value) -> None:
+    """EMBEDDING_BATCH_SIZE no numérico o no físico (<=0, gt=0) aborta la carga."""
+    monkeypatch.setenv("EMBEDDING_BATCH_SIZE", value)
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+@pytest.mark.parametrize("value", ["1", "100", "500"])
+def test_embedding_batch_size_valid_positive(monkeypatch, value) -> None:
+    """EMBEDDING_BATCH_SIZE positivo es válido (frontera gt=0: el mínimo válido es 1)."""
+    monkeypatch.setenv("EMBEDDING_BATCH_SIZE", value)
+    assert get_settings().embedding_batch_size == int(value)
+
+
+# ── KB source path (tarea backend-kb-ingestion-07) ──────────────────────────────
+
+
+def test_kb_source_path_defaults_to_empty_string(monkeypatch) -> None:
+    """Sin KB_SOURCE_PATH, kb_source_path es "" por defecto (sin fuente real en esta máquina)."""
+    monkeypatch.delenv("KB_SOURCE_PATH", raising=False)
+    settings = Settings(_env_file=None, jwt_secret="x")
+    assert settings.kb_source_path == ""
+
+
+def test_kb_source_path_override_from_environment(monkeypatch) -> None:
+    """KB_SOURCE_PATH se puede sobreescribir por entorno."""
+    monkeypatch.setenv("KB_SOURCE_PATH", "/otra/ruta")
+    assert get_settings().kb_source_path == "/otra/ruta"

@@ -147,6 +147,9 @@
   FK→`kb_document` (**CASCADE**), `section_type` (string **libre** — `comportamiento`/`conceptos`/
   `reglas`/`detalles-qa`/`fidelidad`/`glosario` y variantes; **no** enum rígido, la estructura H2 no se
   asume uniforme), `content`, `token_count` (int), `ordinal` (int, orden dentro del doc), `created_at`.
+  **Único** `(document_id, ordinal)` (13, migración `0004`) — defensa en profundidad de la clave
+  natural que usa la detección de "chunk sin cambios" del pipeline de ingestión (comparación de
+  contenido, sin columna de hash).
 - **`embedding`** — vector de un chunk. `id`, `chunk_id` FK→`kb_chunk` (**CASCADE**, único 1:1),
   `model` (string — qué modelo lo generó, p.ej. `text-embedding-3-small`), `vector` (`vector(N)`),
   `created_at`. **N = dimensión desde config** (§8), no literal.
@@ -239,7 +242,7 @@ erDiagram
   build/memoria; ivfflat = más barato, requiere `lists` y `ANALYZE`). Aquí solo se declara que **existe**
   y que se reconstruye al cambiar N (§8).
 - `kb_document`: **único** `uc_id`; índice por `domain` (filtro de retrieval, 14).
-- `kb_chunk`: índice por `document_id`.
+- `kb_chunk`: índice por `document_id`; **único** `(document_id, ordinal)` (13).
 - `ticket`: `(tenant_id, status)`, `(tenant_id, assignee_id)`, `(tenant_id, sla_due)` (scheduler SLA, 18).
 - `message`: `(ticket_id, created_at)` (orden determinista del hilo).
 - `agent_run`: `(ticket_id, run_seq)`; índice por `langgraph_thread_id`.

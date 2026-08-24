@@ -56,9 +56,15 @@ contra la KB real):
   `Decisión (resumen)`, `Entrada y consulta de un envío`…). → el chunker **tolera H2 renombrados/extra**:
   cada H2 se ingiere con su `section_type` normalizado (slug del título; variantes conocidas se mapean a
   la sección base, p.ej. cualquier `Reglas e invariantes*` → `reglas`).
-- **No partir tablas** ni bloques de código a mitad: un chunk respeta los límites de estos.
-- **Chunk grande** (una sección que excede el presupuesto de tokens): se sub-parte por párrafos/listas,
-  preservando `ordinal` para el orden dentro del documento; el sub-parte hereda el `section_type`.
+- **No partir tablas** ni bloques de código a mitad: un chunk respeta los límites de estos. Un bloque de
+  código sin cierre (fence sin su par de cierre en el resto del fichero) se trata como cerrado al final
+  del documento — nunca se deja que "trague" el resto del fichero como si fuera código.
+- **Chunk grande** (una sección que excede el presupuesto de tokens, `settings.chunk_token_budget` —
+  hallazgo de `scenario-coverage`: sin este campo no había ningún valor ni tokenizador fijado; conteo
+  con `tiktoken`, encoding del modelo de embeddings): se sub-parte por párrafos/listas, preservando
+  `ordinal` para el orden dentro del documento; el sub-parte hereda el `section_type`. Un párrafo único
+  sin separadores naturales que por sí solo excede el presupuesto **no se parte a mitad de frase**: queda
+  como un único chunk por encima del presupuesto (con log de aviso), preferible a cortarlo mal.
 - Contenido **antes del primer H2** (párrafo intro tras el H1) → chunk con `section_type=intro`.
 
 Cada chunk aterriza en `kb_chunk` (03 §4.3): `content`, `section_type` (string libre), `token_count`,
@@ -87,12 +93,27 @@ Cada chunk queda categorizado por **5 facetas**, todas heredadas de su `kb_docum
 ## 5. Embeddings
 
 - **Puerto abstraído** (adaptador en 09): default OpenAI `text-embedding-3-small`.
-- **Dimensión desde config** (`EMBEDDING_DIM`, default **1536**), **no** literal → `embedding.vector(N)`
-  (03 §8). `embedding.model` guarda qué modelo generó cada vector.
-- **Cambiar modelo/dimensión** ⇒ re-embeber **todo** el corpus + reconstruir el índice pgvector (coste
-  documentado en 03 §8): no es cambio en caliente.
-- **Upsert idempotente por `uc_id`** (03 §4.3): re-ingerir un UC no duplica; solo re-embebe si el
-  **contenido cambió** (hash del contenido por chunk para evitar re-embeddings innecesarios).
+- **Dimensión**: `embedding.vector` es `vector(1536)` **literal** en el ORM/migración (03 §8 lo describe
+  como "desde config, no literal" — desviación real introducida en `database-foundation` para que
+  `Settings` no se importe a nivel de módulo del ORM y evitar un falso negativo del drift-test; `03 §8`
+  queda desactualizado en esa frase, no corregido aquí). `settings.EMBEDDING_DIM` gobierna qué dimensión
+  se le pide al proveedor (vía el parámetro `dimensions` de la API) — el pipeline hace **fail-fast**
+  antes de embeber si `settings.EMBEDDING_DIM` no coincide con la dimensión literal de la columna, en
+  vez de dejar que el `INSERT` falle a media ingesta. `embedding.model` guarda qué modelo generó cada
+  vector.
+- **Cambiar modelo/dimensión de verdad** ⇒ migración Alembic de la columna + re-embeber **todo** el
+  corpus + reconstruir el índice pgvector (coste documentado en 03 §8): no es cambio en caliente ni solo
+  de `.env`.
+- **Upsert idempotente por `uc_id`** (03 §4.3): re-ingerir un UC no duplica; solo re-embebe un chunk si
+  su **contenido cambió** respecto al ya persistido para su `(document_id, ordinal)` — comparación
+  directa de contenido, sin columna de hash dedicada.
+- **Edición parcial de un UC** (hallazgo de `scenario-coverage`): cuando solo algunos chunks de un
+  documento cambian, el `upsert` acepta un vector `None` para los chunks sin cambios ("no lo toques" —
+  el adaptador conserva su `embedding` existente) y solo pide vector nuevo a los chunks con contenido
+  cambiado. Evita re-embeber el documento entero por una edición parcial.
+- **Tamaño de batch del proveedor**: `embed_documents` puede trocear internamente en sub-lotes de
+  tamaño configurable si el número de textos supera el límite de items por request del proveedor —
+  transparente para el llamante (sigue devolviendo un vector por texto, en orden).
 
 ## 6. Retrieval (contrato para 05/14)
 
@@ -120,6 +141,12 @@ Cada chunk queda categorizado por **5 facetas**, todas heredadas de su `kb_docum
   Se implementa como diff del set de `uc_id` presentes vs los de la BD.
 - **Precedencia `package`** frontmatter vs Trazabilidad → **frontmatter gana**, se loguea si difieren (§2).
 - **Señal `estado`** ≈ **218 draft / 50 active** (81% draft) → peso explícito, no penalizar a ciegas (§4).
+- **3+ ficheros con el mismo `uc_id`**: se reportan **todos** los ficheros en conflicto, no solo un par.
+- **Fallo real a mitad de un batch** (proveedor de embeddings o escritura en BD, no de validación): aborta
+  **todo** el run — mismo criterio "todo o nada" que el `uc_id` duplicado, para cualquier causa de fallo.
+- **Ejecuciones concurrentes**: la ingestión toma un **advisory lock de Postgres** al arrancar
+  (`pg_try_advisory_lock`, no bloqueante); una segunda ejecución simultánea **falla claro de inmediato**,
+  nunca espera ni corre en paralelo con la primera.
 
 ## 8. Fuera de alcance
 
@@ -127,3 +154,5 @@ Cada chunk queda categorizado por **5 facetas**, todas heredadas de su `kb_docum
 - Búsqueda híbrida **BM25** / re-rank por cross-encoder: diferidos (plan).
 - Umbral de confianza y política auto/escalado: los fija **05** (aquí solo la señal de similitud + forma).
 - Recrear la fuente `domains/*/uc`: lo hace el owner (ya restaurada).
+- **Fallback `llms-full.txt`/`llms.txt`** (§1): documentado como camino no-primario; ninguna tarea del
+  plan `kb-ingestion` lo implementa — se deja para cuando haya un caso real que lo necesite.
