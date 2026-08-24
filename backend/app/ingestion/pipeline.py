@@ -25,6 +25,7 @@ Anti-patrón: escribir aunque sea un solo documento antes de validar `uc_id` dup
 re-embeber un chunk cuyo contenido no cambió.
 """
 
+import functools
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,8 +39,8 @@ from app.domain.ports.embeddings import EmbeddingModel
 from app.domain.ports.vector import ChunkWrite, KBDocumentDraft, KBIndexWriter
 from app.ingestion.chunker import Chunk, chunk
 from app.ingestion.embedder import embed
-from app.ingestion.loader import load
-from app.ingestion.parser import GLOSARIO_UC_ID_PREFIX, ParsedUC, ParseError, parse
+from app.ingestion.parser import GLOSARIO_UC_ID_PREFIX, ParsedUC, ParseError
+from app.ingestion.sources import ParseFn, resolve_source
 
 _logger = structlog.get_logger(__name__)
 
@@ -70,11 +71,20 @@ async def ingest(
     encoding: tiktoken.Encoding,
     batch_size: int,
     embedding_model_name: str,
+    source_type: str = "packages-uc",
+    package_aliases: dict[str, str] | None = None,
     only_domain: str | None = None,
     dry_run: bool = False,
     force_reconcile: bool = False,
 ) -> IngestReport:
     """Ejecuta una ingestión completa de la KB bajo `path`.
+
+    `source_type` selecciona el par `(load, parse)` en `app.ingestion.sources`; su default es el
+    **formato real verificado** (`design-review` #2). `package_aliases` es la traducción
+    `subdirectorio de package` → `Package` que necesitan los tipos que lo declaran: se **inyecta** aquí
+    (igual que `token_budget`/`encoding`/`batch_size`) porque este módulo **no importa
+    `app.core.config`**; a los tipos que no lo declaran ni se les pasa. `None` ≡ sin alias (no un
+    `{}` mutable por defecto, que ruff prohíbe con razón).
 
     `only_domain` filtra el batch a un solo dominio (los demás ni se cuentan como procesados ni como
     saltados — simplemente no entran). `dry_run` computa el diff/reconciliación real pero NUNCA llama
@@ -84,18 +94,24 @@ async def ingest(
     por defecto); con él, se reconcilian (borran) TODOS los documentos existentes.
 
     :raises app.domain.errors.Conflict: si ya hay una ingestión en curso (advisory lock ocupado).
-    :raises app.domain.errors.Validation: si dos o más ficheros declaran el mismo `uc_id` — se
-        reportan TODOS los ficheros en conflicto, para cada `uc_id` duplicado.
+    :raises app.domain.errors.Validation: si el `source_type` no está registrado, o si dos o más
+        ficheros declaran el mismo `uc_id` — en ese caso se reportan TODOS los ficheros en conflicto,
+        para cada `uc_id` duplicado.
     :raises app.domain.errors.PortError: si el embedder o el `writer` fallan; no queda ningún efecto
         parcial siempre que el llamante no haga `commit()` hasta que `ingest()` retorne con éxito.
     """
+    source = resolve_source(source_type)
+    parse_fn: ParseFn = source.parse
+    if source.requires_package_aliases:
+        parse_fn = functools.partial(source.parse, package_aliases=package_aliases or {})
+
     if not await writer.try_acquire_ingestion_lock():
         raise Conflict("ya hay una ingestión en curso", code="ingestion.already_running")
 
     by_uc_id: dict[str, list[ParsedUC]] = defaultdict(list)
     skipped = 0
-    for raw in load(path):
-        parsed = parse(raw, kb_root=path)
+    for raw in source.load(path):
+        parsed = parse_fn(raw, kb_root=path)
         if isinstance(parsed, ParseError):
             skipped += 1
             continue

@@ -1,6 +1,6 @@
 # CU-BE-07 — Ingestión de la KB
 
-> **SDD** (Cockburn + Gherkin). CÓMO para FR-032…FR-034 de [`../spec.md`](../spec.md). Decisión:
+> **SDD** (Cockburn + Gherkin). CÓMO para FR-032…FR-034 y FR-042…FR-048 de [`../spec.md`](../spec.md). Decisión:
 > [[../../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]]. Detalle: [`../rag-ingestion.md`](../rag-ingestion.md).
 
 - **Ámbito**: backend (pipeline de ingestión CLI)
@@ -36,14 +36,16 @@
 
 1. El loader y el parser **del `source_type` configurado** leen los `.md` y extraen los metadatos
    (`uc_id`/`domain`/`package`/`estado`/`title`/`traza`), cada uno según la convención de su tipo.
-2. El chunker parte por **H2 tolerante** (no asume estructura fija; no parte tablas/código; glosario del `index.md`).
+2. El chunker parte por **H2 tolerante** (no asume estructura fija; no parte tablas/código; el glosario
+   se trocea igual, venga del fichero que venga según el `source_type`).
 3. El embedder genera vectores (`vector(N)`, N desde config) y el pipeline hace **upsert idempotente por `uc_id`**.
 4. El pipeline reconcilia: los `uc_id` presentes en BD pero ausentes en origen se borran/tombstone.
 
 ## Extensiones (flujos alternativos y de error)
 
 - **1a.** Frontmatter malformado o sin `uc_id`: el documento se **salta con log** (no entra).
-- **1b.** `uc_id` **duplicado** entre ficheros: el batch **falla** reportando el par en conflicto.
+- **1b.** `uc_id` **duplicado** entre **dos** ficheros: el batch **falla** reportando ese par en
+  conflicto. (Con 3 o más ficheros, ver **1f**: se reportan todos, no solo un par.)
 - **1c.** `package` del frontmatter difiere del de Trazabilidad: **gana el frontmatter** y se loguea la discrepancia.
 - **1d.** `package`/`domain` del frontmatter no es uno de los valores válidos: el documento se **salta
   con log**, igual que un frontmatter malformado (1a) — no es un caso más grave.
@@ -64,7 +66,8 @@
   (`pg_try_advisory_lock`, no bloqueante); una segunda ejecución simultánea **falla claro de inmediato**
   (nunca espera, nunca corre en paralelo con la primera).
 - **4b.** Un run sin documentos válidos que procesar (origen vacío o todo malformado): termina con éxito,
-  reporta 0 procesados, y no toca la base de datos.
+  reporta 0 procesados y **no escribe nada** — ni altas ni reconciliación (sí toma el lock de 4a, que es
+  una lectura). **Salvo** que el operador fuerce la reconciliación explícitamente (RN-6).
 - **1g.** El `source_type` pedido (por config o argumento de la CLI) no está registrado: la ejecución
   falla como **error de uso** (código de salida `2`, mensaje claro), sin tocar la base de datos y sin
   dejar escapar una traza cruda al operador.
@@ -79,12 +82,21 @@
 - **1k.** *(`packages-uc`)* El origen contiene un **árbol hermano con otra convención de carpeta** (p. ej.
   una generación legacy de los mismos UC): **nunca** se recoge — solo la convención que este tipo
   reconoce.
-- **1l.** *(`packages-uc`)* **No hay ningún alias de package configurado** (el default): ningún UC supera
-  1h, así que no se procesa nada. El run **avisa por stderr** de que la configuración de alias está
-  vacía, para no confundirlo con un origen vacío legítimo (4b).
+- **1l.** *(`packages-uc`)* **No hay ningún alias de package configurado** (el default): **ningún UC**
+  supera 1h y todos se saltan; los **glosarios sí se ingieren** (no dependen de los alias). El run
+  **avisa por stderr** de que la configuración de alias está vacía, para no confundirlo con un origen
+  vacío legítimo (4b).
+  - ⚠️ **Consecuencia**: como los glosarios sí entran, el run **no** es "sin documentos válidos", así
+    que la salvaguarda de 4b/RN-6 **no se activa** y los UC ya ingeridos, al no reaparecer en el
+    origen, se **reconcilian (se borran)** en esa misma ejecución. Olvidar los alias sobre una BD con
+    corpus **vacía sus UC**, no solo "no ingiere". De ahí que el aviso sea obligatorio.
 - **2a.** *(`packages-uc`)* El glosario de un dominio es un **fichero plano** sin frontmatter y sin
   sección `## Glosario`: se ingiere **íntegro** (a diferencia de `vitepress-domains`, donde solo el
   bloque `## Glosario` de un `index.md` se conserva).
+- **1n.** *(`packages-uc`)* La configuración de alias es un JSON **válido** pero **no es un objeto de
+  cadena→cadena** (una lista, un escalar, o un valor no textual): mismo tratamiento que 1m —error de
+  uso, código `2`—, porque un valor no textual llegaría al parser como alias y de ahí al catálogo de
+  `package` como "error inesperado", justo lo que 1h existe para evitar.
 - **1m.** La configuración de alias de package está presente pero **no es un JSON válido**: la ejecución
   falla como **error de uso** (código `2`), acotada a la ingestión. **Nunca** impide el arranque del resto
   de la aplicación (auth, tickets…): la config de alias se valida **de forma perezosa** donde se usa, no
@@ -108,6 +120,14 @@
 - **RN-5** — La traducción subdirectorio→`package` de `packages-uc` es **configuración de deployment**
   (el vocabulario real de los packages del cliente), no una tabla en el código: sin configurarla, este
   tipo de fuente no ingiere nada (1l).
+- **RN-6** — La reconciliación del paso 4 tiene **una sola excepción**, y es 4b: si el run **no** obtuvo
+  ningún documento válido (origen vacío o todo malformado), **no se reconcilia nada**. Sin ella, un
+  origen temporalmente inaccesible o un error de configuración borraría el corpus entero; con ella, el
+  precio es que retirar el último documento de la KB no se propaga solo. El operador puede forzar la
+  reconciliación explícitamente cuando el vaciado es intencionado.
+- **RN-7** — El espacio de nombres de `uc_id` es **compartido** entre tipos de fuente: no hay partición
+  por procedencia. De ahí que 4c reconcilie el formato anterior, y que un mismo `uc_id` ingerido por el
+  otro tipo **actualice** el documento en vez de duplicarlo.
 
 ## Criterios de aceptación (Gherkin)
 
@@ -132,7 +152,12 @@ Feature: Ingestión de la KB
   Scenario: uc_id duplicado aborta el batch
     Given dos documentos que declaran el mismo uc_id
     When se ingiere la KB
-    Then el batch falla y se reporta el par en conflicto
+    Then el batch falla y se reportan los dos ficheros en conflicto
+
+  Scenario: El espacio de nombres de identificadores es común a los dos tipos de fuente
+    Given una KB ya ingerida con un tipo de fuente
+    When se ingiere, con el otro tipo, un documento que declara el mismo identificador
+    Then ese documento se actualiza en vez de crearse por duplicado
 
   Scenario: Documento retirado se reconcilia
     Given un uc_id presente en la base pero ausente en el origen
@@ -222,11 +247,16 @@ Feature: Ingestión de la KB
     When se ingiere la KB
     Then ese documento se salta con log y no entra en el corpus
 
-  Scenario: Sin ningún alias configurado no se ingiere nada y se avisa
+  Scenario: Sin ningún alias configurado no se ingiere ningún caso de uso, y se avisa
     Given una configuración sin ningún alias de package
     When se ingiere la KB del formato real
-    Then no se procesa ningún documento
+    Then todos los casos de uso se saltan y solo entran los glosarios
       And se avisa de que la configuración de alias está vacía, distinguiéndolo de un origen vacío
+
+  Scenario: Olvidar los alias sobre una base ya poblada reconcilia los casos de uso existentes
+    Given una KB del formato real ya ingerida
+    When se vuelve a ingerir sin ningún alias de package configurado
+    Then los casos de uso que ya estaban se reconcilian, porque el run no queda vacío
 
   Scenario: El glosario del formato real se ingiere íntegro
     Given un glosario de dominio que es un fichero plano, sin frontmatter ni sección de glosario
@@ -245,6 +275,26 @@ Feature: Ingestión de la KB
     When se ejecuta la ingestión
     Then falla como error de uso con un mensaje claro
       And el arranque del resto de la aplicación no se ve afectado
+
+  Scenario Outline: Una configuración de alias con la forma equivocada también es error de uso
+    Given una configuración de alias de package que es <forma>
+    When se ejecuta la ingestión
+    Then falla como error de uso sin tocar la base de datos
+
+    Examples:
+      | forma                                  |
+      | una lista en vez de un objeto          |
+      | un objeto con un valor no textual      |
+
+  Scenario: El tipo de fuente por defecto es el formato real verificado
+    Given una configuración que no indica ningún tipo de fuente
+    When se ingiere la KB
+    Then se usa el formato real verificado, no el hipotético
+
+  Scenario: El tipo de fuente indicado en la invocación gana al de la configuración
+    Given una configuración con un tipo de fuente y una invocación que indica otro distinto
+    When se ejecuta la ingestión
+    Then se usa el indicado en la invocación
 
   Scenario: Un tipo de fuente que no usa alias no dispara el aviso de alias vacío
     Given un tipo de fuente que no requiere alias de package

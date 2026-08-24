@@ -2,11 +2,11 @@
 id: backend-kb-source-packages-uc-03
 package: backend
 plan: kb-source-packages-uc
-status: pending
+status: done
 priority: 1
 depends_on: [backend-kb-source-packages-uc-02]
 estimate: 4.5h
-actual:
+actual: 4h
 created: 2026-08-24
 updated: 2026-08-24
 ---
@@ -202,21 +202,22 @@ Postgres+pgvector en Docker, no unit):
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde (`make test`) — incluidos los existentes tras añadirles `source_type`
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (`make test`) — incluidos los existentes tras añadirles `source_type`
   explícito, **sin cambiar ninguna aserción**
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible
-- [ ] `ruff check` + `ruff format --check` + `mypy --strict` OK (incluido el tipado de `LoadFn`/`ParseFn`
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible
+- [x] `ruff check` + `ruff format --check` + `mypy --strict` OK (incluido el tipado de `LoadFn`/`ParseFn`
   con firmas distintas, sin `Any` silencioso)
-- [ ] Gate de mutation testing (`cosmic-ray`, `break: 80`) sobre `sources.py` + `cli.py` + la parte
+- [x] Gate de mutation testing (`cosmic-ray`, `break: 80`) sobre `sources.py` + `cli.py` + la parte
   tocada de `pipeline.py` — survivors documentados como equivalentes si quedan
-- [ ] Gate `/sdd-lint` superado — sin ERROR (AVISO reconocido). Esta tarea **sí** toca artefactos SDD
+- [x] Gate `/sdd-lint` superado — sin ERROR (AVISO reconocido). Esta tarea **sí** toca artefactos SDD
   (`CU-BE-07` ya extendido en planificación, `rag-ingestion.md`, `data-model.md`, ADR nuevo + índice)
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas (INCORRECTO bloquea)
-- [ ] `grep` de guardia: ningún fichero de producto menciona el nombre del cliente/proyecto verificado
-- [ ] Documentación — docstrings de todo símbolo público + doc técnica (`rag-ingestion.md`,
+- [x] Gate de `fact-checker` superado — **16 VERIFICADO / 2 INCORRECTO / 0 NO VERIFICABLE**. Los 2
+  INCORRECTO eran afirmaciones mías (no defectos del código) y quedan **corregidas** en el session log
+- [x] `grep` de guardia: ningún fichero de producto menciona el nombre del cliente/proyecto verificado
+- [x] Documentación — docstrings de todo símbolo público + doc técnica (`rag-ingestion.md`,
   `data-model.md`, ADR nuevo + `adr-index.md`) + session log en
   `.claude/context/backend/backend-kb-source-packages-uc-03.md`
-- [ ] `.env.example` actualizado con `KB_SOURCE_TYPE` y `KB_PACKAGE_ALIASES` (doc de dev: sin ellos, un
+- [x] `.env.example` actualizado con `KB_SOURCE_TYPE` y `KB_PACKAGE_ALIASES` (doc de dev: sin ellos, un
   operador no sabe que existen)

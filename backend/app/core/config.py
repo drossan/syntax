@@ -70,10 +70,28 @@ class Settings(BaseSettings):
     `scenario-coverage`, plan `kb-ingestion`)."""
 
     kb_source_path: str = ""
-    """Ruta raíz de la KB (`domains/`) para `python -m app.ingestion` (`app.ingestion.cli`) cuando no
-    se pasa como argumento posicional. Vacía por defecto — no hay fuente real en esta máquina; la
-    CLI falla con un error de uso claro (no un `None` silencioso) si ni el argumento ni este campo
-    están fijados."""
+    """Ruta raíz de la KB para `python -m app.ingestion` (`app.ingestion.cli`) cuando no se pasa como
+    argumento posicional. Vacía por defecto — no hay fuente real en esta máquina; la CLI falla con un
+    error de uso claro (no un `None` silencioso) si ni el argumento ni este campo están fijados."""
+
+    kb_source_type: str = "packages-uc"
+    """Tipo de fuente de la KB (`app.ingestion.sources`): `packages-uc` (formato real verificado, el
+    default) o `vitepress-domains` (hipotético, nunca verificado).
+
+    **`str`, no `Literal`**, a propósito: la validación es **perezosa**, en `resolve_source()`/CLI. Un
+    `Literal` estricto haría que un typo en esta env var —que solo usa la ingestión— tumbase el
+    arranque de **toda** la app (auth, tickets…). Mismo criterio que `llm_provider`/`kb_source_path`."""
+
+    kb_package_aliases: str = ""
+    """Traducción `subdirectorio de package` → valor de `Package`, como **JSON crudo**
+    (`KB_PACKAGE_ALIASES='{"vendor-render": "syntax-render"}'`). Es vocabulario del deployment, no de
+    la estructura del formato (RN-5 de CU-BE-07).
+
+    **`str`, no `dict[str, str]`**, por el mismo motivo que `kb_source_type` no es `Literal`: un
+    `dict` tipado lo validaría pydantic-settings de forma **eager** al construir `Settings()`, así que
+    un JSON malformado tumbaría el arranque de toda la app en vez de fallar acotado a `make ingest`
+    (extensión 1m). Se parsea y valida donde se usa. Vacío por defecto → sin configurarlo, el tipo
+    `packages-uc` no ingiere ningún UC (extensión 1l; la CLI avisa por stderr)."""
 
     storage_root: str = "./var/storage"
     """Directorio raíz de `LocalFilesystemStorage` (tarea 08) — relativo al cwd del proceso en dev."""

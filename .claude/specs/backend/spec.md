@@ -80,10 +80,29 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 
 ### KB: ingestión y retrieval — [[../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]]
 
-- **FR-032** — Cuando se ingiere la KB, el sistema DEBERÁ parsear frontmatter (`title/domain/package/uc`) + bloque Trazabilidad, trocear por **H2 tolerante**, embeber y hacer **upsert idempotente por `uc_id`**.
+- **FR-032** — Cuando se ingiere la KB, el sistema DEBERÁ extraer los metadatos de cada documento **según la convención del tipo de fuente configurado** (04 §2), trocear por **H2 tolerante**, embeber y hacer **upsert idempotente por `uc_id`**.
 - **FR-033** — Si el frontmatter es malformado o falta `uc_id`, entonces el sistema DEBERÁ **saltar el documento con log** (no entra); si un `uc_id` está **duplicado**, DEBERÁ **fallar el batch** reportando **todos** los ficheros en conflicto para ese `uc_id` (no solo un par).
 - **FR-034** — Cuando un documento desaparece del origen, el sistema DEBERÁ **reconciliar** (borrar/tombstone sus `kb_document`/`kb_chunk`/`embedding` huérfanos).
 - **FR-035** — Cuando el agente recupera contexto, el sistema DEBERÁ buscar por **similitud coseno** (pgvector, top-k) con filtros `domain/package/estado`, aplicar el peso de `estado` (re-ranking, no filtro duro) y devolver **citas** (`uc_id/title/section_type/source_url`).
+- **FR-042** — Cuando se ingiere la KB, el sistema DEBERÁ usar el **tipo de fuente** indicado en la
+  invocación y, en su ausencia, el de la configuración, cuyo valor por defecto es el **formato real
+  verificado**.
+- **FR-043** — Si el tipo de fuente pedido no está registrado, entonces el sistema DEBERÁ terminar como
+  **error de uso**, indicando el valor recibido y los válidos, sin tocar la base de datos ni exponer una
+  traza cruda.
+- **FR-044** — Si la configuración de traducción de packages está presente pero no es un objeto de
+  cadena→cadena válido, entonces el sistema DEBERÁ terminar como **error de uso** acotado a la
+  ingestión, **sin** impedir el arranque del resto de la aplicación.
+- **FR-045** — Si ya hay una ingestión en curso, entonces el sistema DEBERÁ **rechazar de inmediato** la
+  segunda (sin esperar y sin ejecutarla en paralelo).
+- **FR-046** — Si un run no obtiene ningún documento válido (origen vacío o todo malformado), entonces
+  el sistema DEBERÁ terminar con éxito reportando 0 procesados y **no reconciliar nada**, salvo que el
+  operador fuerce la reconciliación explícitamente.
+- **FR-047** — Si el proveedor de embeddings o la escritura fallan a mitad de un batch, entonces el
+  sistema DEBERÁ **abortar el run entero** sin dejar documentos de esa ejecución persistidos.
+- **FR-048** — El sistema DEBERÁ tratar el `uc_id` como un espacio de nombres **compartido** entre tipos
+  de fuente: los que no reaparecen en el origen actual se reconcilian, y los que reaparecen se
+  actualizan en vez de duplicarse, con independencia del tipo de fuente que los ingirió.
 
 ### Administración y notificaciones
 

@@ -397,9 +397,226 @@ def test_a_real_end_to_end_run_persists_a_document(
 
     asyncio.run(_truncate())
     try:
-        exit_code = cli.main([str(tmp_path)])
+        # `--source-type` explícito: esta fixture es del formato hipotético, y el default de la
+        # CLI pasó a ser el real verificado (`design-review` #2 del plan kb-source-packages-uc).
+        exit_code = cli.main([str(tmp_path), "--source-type", "vitepress-domains"])
 
         assert exit_code == 0
         assert asyncio.run(_count_uc_cx_001()) == 1
     finally:
         asyncio.run(_truncate())
+
+
+# ── selección del tipo de fuente (tarea backend-kb-source-packages-uc-03) ──
+
+
+def _settings(tmp_path: Path, **overrides: object) -> Settings:
+    return Settings(_env_file=None, jwt_secret="x", kb_source_path=str(tmp_path), **overrides)  # type: ignore[arg-type]
+
+
+def test_the_default_source_type_is_the_real_verified_format(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Escenario añadido: `El tipo de fuente por defecto es el formato real verificado` — una config
+    que no dice nada usa `packages-uc`, no el formato hipotético (`design-review` #2)."""
+    calls = _patch_success(monkeypatch)
+    _patch_fake_session(monkeypatch)
+    monkeypatch.setattr(cli, "get_settings", lambda: _settings(tmp_path))
+
+    exit_code = cli.main([str(tmp_path)])
+
+    assert exit_code == 0
+    assert calls["kwargs"]["source_type"] == "packages-uc"
+
+
+def test_the_cli_argument_takes_precedence_over_the_configured_source_type(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Escenario añadido: `El argumento de la CLI tiene precedencia sobre la configuración` — mismo
+    patrón que `path` vs `settings.kb_source_path`."""
+    calls = _patch_success(monkeypatch)
+    _patch_fake_session(monkeypatch)
+    monkeypatch.setattr(
+        cli, "get_settings", lambda: _settings(tmp_path, kb_source_type="packages-uc")
+    )
+
+    exit_code = cli.main([str(tmp_path), "--source-type", "vitepress-domains"])
+
+    assert exit_code == 0
+    assert calls["kwargs"]["source_type"] == "vitepress-domains"
+
+
+def test_the_configured_source_type_is_used_when_the_argument_is_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _patch_success(monkeypatch)
+    _patch_fake_session(monkeypatch)
+    monkeypatch.setattr(
+        cli, "get_settings", lambda: _settings(tmp_path, kb_source_type="vitepress-domains")
+    )
+
+    exit_code = cli.main([str(tmp_path)])
+
+    assert exit_code == 0
+    assert calls["kwargs"]["source_type"] == "vitepress-domains"
+
+
+@pytest.mark.parametrize(
+    "source_type",
+    [
+        pytest.param("no-existe", id="un nombre que no existe"),
+        pytest.param("Packages-UC", id="la misma con otra caja"),
+    ],
+)
+def test_an_unregistered_source_type_is_a_usage_error(
+    source_type: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CU extensión **1g** + `Scenario Outline: El tipo de fuente solo se reconoce en su forma
+    canónica`: código **2** (error de uso), no 1, y sin tocar la base de datos."""
+    calls = _patch_success(monkeypatch)
+    monkeypatch.setattr(cli, "get_settings", lambda: _settings(tmp_path))
+
+    exit_code = cli.main([str(tmp_path), "--source-type", source_type])
+
+    assert exit_code == 2
+    assert calls == {}
+    assert source_type in capsys.readouterr().err
+
+
+def test_an_unregistered_source_type_never_leaks_a_raw_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Escenario añadido: `Un tipo de fuente desconocido no expone una traza cruda al operador`."""
+    _patch_success(monkeypatch)
+    monkeypatch.setattr(cli, "get_settings", lambda: _settings(tmp_path))
+
+    cli.main([str(tmp_path), "--source-type", "no-existe"])
+
+    stderr = capsys.readouterr().err
+    assert "Traceback" not in stderr
+    assert "packages-uc" in stderr and "vitepress-domains" in stderr
+
+
+def test_invalid_package_alias_json_is_a_usage_error_scoped_to_the_ingestion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CU extensión **1m**: el JSON de alias se valida **donde se usa**, no al construir `Settings`
+    (si no, un typo tumbaría el arranque de toda la app). Código 2, acotado a la ingestión."""
+    calls = _patch_success(monkeypatch)
+    monkeypatch.setattr(
+        cli, "get_settings", lambda: _settings(tmp_path, kb_package_aliases="{no es json")
+    )
+
+    exit_code = cli.main([str(tmp_path)])
+
+    assert exit_code == 2
+    assert calls == {}
+    assert "alias" in capsys.readouterr().err.lower()
+
+
+@pytest.mark.parametrize(
+    "raw_aliases",
+    [
+        pytest.param('["a", "b"]', id="una lista, no un objeto"),
+        pytest.param('"solo-una-cadena"', id="un escalar, no un objeto"),
+        pytest.param('{"vendor-core": 1}', id="un valor no textual"),
+        pytest.param('{"vendor-core": null}', id="un valor nulo"),
+        pytest.param('{"vendor-core": ["syntax-core"]}', id="un valor que es una lista"),
+    ],
+)
+def test_package_alias_json_that_is_not_an_object_of_strings_is_a_usage_error(
+    raw_aliases: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Frontera de 1m: JSON **válido** pero con la forma equivocada no sirve como tabla de traducción.
+
+    Un valor no textual importa de verdad: sin validarlo, llegaría al parser como alias y de ahí a
+    `Package(...)`, que es justo el "error inesperado" que 1h existe para evitar.
+    """
+    calls = _patch_success(monkeypatch)
+    monkeypatch.setattr(
+        cli, "get_settings", lambda: _settings(tmp_path, kb_package_aliases=raw_aliases)
+    )
+
+    assert cli.main([str(tmp_path)]) == 2
+    assert calls == {}
+
+
+def test_blank_package_alias_config_is_treated_as_no_aliases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Solo espacios en blanco ≡ sin configurar: no es un JSON inválido, es que no hay alias."""
+    calls = _patch_success(monkeypatch)
+    _patch_fake_session(monkeypatch)
+    monkeypatch.setattr(cli, "get_settings", lambda: _settings(tmp_path, kb_package_aliases="   "))
+
+    assert cli.main([str(tmp_path)]) == 0
+    assert calls["kwargs"]["package_aliases"] == {}
+
+
+def test_valid_package_alias_json_reaches_the_pipeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _patch_success(monkeypatch)
+    _patch_fake_session(monkeypatch)
+    monkeypatch.setattr(
+        cli,
+        "get_settings",
+        lambda: _settings(tmp_path, kb_package_aliases='{"vendor-core": "syntax-core"}'),
+    )
+
+    exit_code = cli.main([str(tmp_path)])
+
+    assert exit_code == 0
+    assert calls["kwargs"]["package_aliases"] == {"vendor-core": "syntax-core"}
+
+
+def test_a_source_type_that_needs_aliases_warns_when_none_are_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CU `Sin ningún alias configurado no se ingiere nada y se avisa` (extensión **1l**): sin el
+    aviso, `procesados=0` es indistinguible de un origen vacío legítimo (4b)."""
+    _patch_success(monkeypatch)
+    _patch_fake_session(monkeypatch)
+    monkeypatch.setattr(cli, "get_settings", lambda: _settings(tmp_path))
+
+    exit_code = cli.main([str(tmp_path)])
+
+    assert exit_code == 0
+    assert "alias" in capsys.readouterr().err.lower()
+
+
+def test_a_source_type_that_does_not_need_aliases_never_warns_about_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CU `Un tipo de fuente que no usa alias no dispara el aviso de alias vacío` — el falso positivo
+    que evita el metadato `requires_package_aliases` del descriptor."""
+    _patch_success(monkeypatch)
+    _patch_fake_session(monkeypatch)
+    monkeypatch.setattr(
+        cli, "get_settings", lambda: _settings(tmp_path, kb_source_type="vitepress-domains")
+    )
+
+    exit_code = cli.main([str(tmp_path)])
+
+    assert exit_code == 0
+    assert "alias" not in capsys.readouterr().err.lower()
+
+
+def test_no_warning_when_the_aliases_are_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _patch_success(monkeypatch)
+    _patch_fake_session(monkeypatch)
+    monkeypatch.setattr(
+        cli,
+        "get_settings",
+        lambda: _settings(tmp_path, kb_package_aliases='{"vendor-core": "syntax-core"}'),
+    )
+
+    exit_code = cli.main([str(tmp_path)])
+
+    assert exit_code == 0
+    assert "alias" not in capsys.readouterr().err.lower()

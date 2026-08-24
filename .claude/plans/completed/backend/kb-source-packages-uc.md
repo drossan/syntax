@@ -1,7 +1,7 @@
 ---
 id: backend-kb-source-packages-uc
 package: backend
-status: active
+status: completed
 branch: plan/backend/kb-source-packages-uc
 created: 2026-08-22
 updated: 2026-08-24
@@ -279,7 +279,7 @@ tiene su propio módulo de loader+parser **en código**.
 - [x] `backend-kb-source-packages-uc-02` (P1) — Parser `packages_uc` (frontmatter real, H1→title,
   alias de package vía `package_aliases` inyectado + validación del valor contra `Package`, `traza`
   defensiva, glosario íntegro) · depends_on: `backend-kb-source-packages-uc-01`
-- [ ] `backend-kb-source-packages-uc-03` (P1) — `Settings.kb_source_type`/`kb_package_aliases` +
+- [x] `backend-kb-source-packages-uc-03` (P1) — `Settings.kb_source_type`/`kb_package_aliases` +
   registro `app/ingestion/sources.py` + wiring en `pipeline.ingest()` (`functools.partial`)/CLI
   (`--source-type` + aviso de alias vacío) + inversión del default y adaptación de los tests
   existentes + tests de integración end-to-end + docs (`rag-ingestion.md`/`data-model.md`/`CU-BE-07`/
@@ -461,8 +461,40 @@ tiene su propio módulo de loader+parser **en código**.
      "no toca la base de datos") es una **excepción no declarada** a la reconciliación del paso 4 /
      FR-034 (con origen vacío, *todos* los `uc_id` de BD están ausentes). El comportamiento
      implementado es 4b; falta declararlo como regla de negocio. La `-03` lo formaliza.
+  6bis. **[Resuelto en la `-03`]** Los puntos 3-5 de arriba (FR que faltaban, contranota en ADR-0010,
+     ext. 4b como regla de negocio) se aplicaron al cerrar la `-03`, junto con **2 ERROR nuevos** que
+     destapó su propio `sdd-lint`: la ext. **1l** afirmaba que sin alias "no se procesa ningún
+     documento" cuando los **glosarios sí entran** (y, en consecuencia, los UC ya persistidos **se
+     reconcilian**: riesgo operacional que no estaba documentado y ahora tiene test), y **FR-046** no
+     recogía el `force_reconcile`. Detalle en el session log de la `-03`.
   6. **[AVISO, aceptado sin cambio]** Escenarios de `CU-BE-07` que nombran etapas internas
      (`When se descubren los documentos`, `When se parsea`): son los bloques que las tareas `-01`/`-02`
      testean a nivel unit; se acepta la fuga de estructura a cambio de trazabilidad 1:1 test↔escenario.
      Igual para el orden de extensiones no-Cockburn y los escenarios con más de una propiedad en el
      `Then` — no se re-numera un CU vivo a mitad de plan.
+- 2026-08-24: **plan completado** — las 3 tareas cerradas (`6b38e8a`, `fc8ca73` y el commit de la `-03`).
+  Suite backend: **946 → 1064** tests en verde, sin regresión; `ruff`/`mypy --strict` limpios; gate de
+  mutation superado en los 4 ficheros tocados (`packages_uc.py` 0.00%, `sources.py` 0.00%, `cli.py`
+  6.67%, `pipeline.py` 3.25%, todos muy por debajo del umbral).
+
+## Nota retro
+
+- **Estimación vs real**: 10-13h estimadas / **~9.5h reales** (3h + 2.5h + 4h). La forma horizontal
+  (loader → parser → wiring) funcionó: las dos primeras tareas fueron puramente unit y rápidas, y la
+  tercera concentró toda la integración y la documentación, que es donde se fue el tiempo.
+- **Dato del plan que era falso**: "~21 tests de `test_pipeline.py` llaman `ingest()` y hay que
+  añadirles el parámetro". En realidad eran **8 puntos de edición** (un helper `_ingest` + 7 llamadas
+  directas) **más uno que el plan no había visto**: el test end-to-end de `test_cli.py`. Lección: contar
+  los *call-sites*, no los tests, cuando se estima una adaptación mecánica.
+- **Dependencia no vista**: el plan daba por hecho que las tareas no tocarían la capa SDD más allá de lo
+  previsto. El gate `/sdd-lint` destapó **4 ERROR** a lo largo del plan (2 preexistentes en la `-01`, 2
+  propios en la `-03`) y una tanda de AVISO que **ampliaron el alcance de la `-03`** con FR nuevos, una
+  contranota en ADR-0010 y correcciones en `data-model.md`. Un plan que toca un CU vivo debería prever
+  que el gate va a auditar todo su radio, no solo lo que el plan pensaba tocar.
+- **El hallazgo más valioso no salió de un test, sino de un subagente**: que "sin alias configurados" no
+  significa "no se ingiere nada" —los glosarios entran, el run no queda vacío, y por tanto los UC ya
+  persistidos **se reconcilian**— era un riesgo operacional real, con un test propio que lo aseveraba
+  **y un nombre de test que decía lo contrario**. Ni el `grilling` ni el `design-review` lo vieron.
+- **Qué hacer distinto**: avisar al `fact-checker` desde el principio de que **no solape pytest con
+  `cosmic-ray exec`** (que muta el fichero en disco). En la `-01` costó una tanda de 22 fallos en falso
+  y una investigación entera para descartarlos.

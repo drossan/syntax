@@ -98,6 +98,7 @@ async def _ingest(
         encoding=_ENCODING,
         batch_size=batch_size,
         embedding_model_name="text-embedding-3-small",
+        source_type="vitepress-domains",
     )
 
 
@@ -419,6 +420,7 @@ async def test_only_domain_filters_the_batch_to_a_single_domain(
         encoding=_ENCODING,
         batch_size=100,
         embedding_model_name="text-embedding-3-small",
+        source_type="vitepress-domains",
         only_domain="authoring-and-editor",
     )
 
@@ -444,6 +446,7 @@ async def test_only_domain_does_not_stop_at_the_first_non_matching_document(
         encoding=_ENCODING,
         batch_size=100,
         embedding_model_name="text-embedding-3-small",
+        source_type="vitepress-domains",
         only_domain="sites-domains-instances",
     )
 
@@ -465,6 +468,7 @@ async def test_only_domain_with_no_matching_documents_succeeds_with_zero_process
         encoding=_ENCODING,
         batch_size=100,
         embedding_model_name="text-embedding-3-small",
+        source_type="vitepress-domains",
         only_domain="sites-domains-instances",
     )
 
@@ -486,6 +490,7 @@ async def test_dry_run_does_not_write_anything_nor_call_the_embedder(
         encoding=_ENCODING,
         batch_size=100,
         embedding_model_name="text-embedding-3-small",
+        source_type="vitepress-domains",
         dry_run=True,
     )
 
@@ -513,6 +518,7 @@ async def test_dry_run_reports_updates_and_deletions_without_persisting_them(
         encoding=_ENCODING,
         batch_size=100,
         embedding_model_name="text-embedding-3-small",
+        source_type="vitepress-domains",
         dry_run=True,
         force_reconcile=True,
     )
@@ -539,6 +545,7 @@ async def test_force_reconcile_deletes_everything_when_the_origin_is_empty(
         encoding=_ENCODING,
         batch_size=100,
         embedding_model_name="text-embedding-3-small",
+        source_type="vitepress-domains",
         force_reconcile=True,
     )
 
@@ -563,6 +570,7 @@ async def test_without_force_reconcile_an_empty_origin_does_not_touch_the_db(
         encoding=_ENCODING,
         batch_size=100,
         embedding_model_name="text-embedding-3-small",
+        source_type="vitepress-domains",
     )
 
     assert report == IngestReport(processed=0, created=0, updated=0, skipped=0, deleted=0)

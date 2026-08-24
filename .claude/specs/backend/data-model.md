@@ -136,13 +136,24 @@
 
 ### 4.3 KB (global — sin RLS de tenant)
 
-- **`kb_document`** — un UC de la KB. `id`, `uc_id` (**único**, del frontmatter `uc`, p.ej.
-  `UC-API-081`), `domain` (`kb_domain`, del frontmatter `domain`), `package` (del frontmatter, p.ej.
-  `syntax-api`; **precedencia**: si difiere del `Package` del bloque Trazabilidad, **gana el
-  frontmatter** — coord. 04), `estado` (`kb_estado`, del bloque `::: info Trazabilidad`), `title` (del
-  frontmatter), `source_url` (**derivado** de la ruta en el repo — el frontmatter **no** trae `url`),
-  `traza` (JSONB/array — rutas de código del bloque Trazabilidad), `updated` (`timestamptz`),
-  timestamps. **Upsert idempotente por `uc_id`** (04).
+- **`kb_document`** — un UC de la KB. `id`, `uc_id` (**único**, p.ej. `UC-API-081`), `domain`
+  (`kb_domain`), `package`, `estado` (`kb_estado`), `title`, `source_url` (**derivado** de la ruta en el
+  repo — ningún formato de fuente trae `url`), `traza` (JSONB/array — rutas de código fuente),
+  `updated` (`timestamptz`), timestamps. **Upsert idempotente por `uc_id`** (04).
+  - ⚠️ **De qué campo del origen sale cada columna depende del `source_type`** (04 §1/§2, RN-4 de
+    CU-BE-07), y esta tabla **no** lo distingue: el `uc_id` es un espacio de nombres **compartido**
+    entre tipos de fuente. En `packages-uc`: `uc_id`←`id`, `domain`←`dominio`, `title`←el primer H1 del
+    cuerpo y `package`←el subdirectorio traducido por alias. En `vitepress-domains`: todos del
+    frontmatter (`uc`/`domain`/`title`/`package`) más el bloque `::: info Trazabilidad`.
+  - La **precedencia `package` frontmatter-vs-Trazabilidad** (si difieren, **gana el frontmatter** y se
+    loguea la discrepancia) es **específica de `vitepress-domains`**, no una regla universal de esta
+    columna: en `packages-uc` no existe bloque Trazabilidad y el `package` tiene una única fuente.
+  - **Glosarios**: sus filas son la excepción a todo lo anterior — un glosario no tiene `package` ni
+    `estado` en el origen (**ningún** tipo de fuente se los da), así que la ingestión persiste
+    **placeholders** (`estado` = `active`, porque es contenido de referencia y nunca una señal "draft";
+    `package` = un valor neutro del catálogo, porque la columna es NOT NULL y el filtrado por `package`
+    aún no tiene consumidor). Su `uc_id` es **sintético** (`__glosario__:<dominio>`) y nunca colisiona
+    con un `uc_id` real. A revisar cuando el retriever (14) necesite semántica real de `package`.
 - **`kb_chunk`** — trozo de un documento (chunking **H2 tolerante**, 04). `id`, `document_id`
   FK→`kb_document` (**CASCADE**), `section_type` (string **libre** — `comportamiento`/`conceptos`/
   `reglas`/`detalles-qa`/`fidelidad`/`glosario` y variantes; **no** enum rígido, la estructura H2 no se
@@ -265,6 +276,7 @@ erDiagram
 - **`thread_id` con secuencia de run** — `agent_run.langgraph_thread_id = ticket_{id}_run_{n}` +
   `run_seq` §4.2 (re-draft tras reopen sin colisionar el checkpoint anterior; A1.2).
 - **Precedencia `package` frontmatter vs Trazabilidad** — §4.3 (**gana el frontmatter**; coord. 04).
+  Regla **específica de `source_type: vitepress-domains`**, no universal de `kb_document.package`.
 
 ## 11. Fuera de alcance
 

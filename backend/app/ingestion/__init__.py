@@ -20,8 +20,9 @@ penaliza draft a ciegas (es el 81% del corpus).
 Tipos de fuente
 ---------------
 El GUIÓN de arriba describe el formato ``vitepress-domains`` (``loader``/``parser``), **hipotético y
-nunca verificado** contra una fuente real. ``packages_uc`` implementa el descubrimiento del formato
-**real verificado** (``packages/<pkg>/docs/aiup/use-cases/UC-*.md`` + glosarios planos por dominio en
-una ruta compartida). Su parser y la selección del tipo de fuente (registro + ``Settings``/CLI) son las
-tareas ``-02``/``-03`` del plan ``kb-source-packages-uc``.
+nunca verificado** contra una fuente real. ``packages_uc`` implementa el formato **real verificado**
+(``packages/<pkg>/docs/aiup/use-cases/UC-*.md`` + glosarios planos por dominio en una ruta compartida),
+y es el **default**. ``sources.resolve_source(source_type)`` selecciona el par ``(load, parse)``; lo
+consume ``pipeline.ingest()``, y la CLI expone el selector con ``--source-type``.
+Decisión: `ADR-0017`; detalle: ``rag-ingestion.md`` §1/§2.
 """

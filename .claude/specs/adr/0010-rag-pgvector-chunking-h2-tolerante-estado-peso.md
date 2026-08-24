@@ -4,6 +4,19 @@
 - **Fecha**: 2026-08-11
 - **Decisores**: Owner; `grilling` backend (rama 6) + `design-review` (H2 tolerante, peso `estado` explícito).
 
+> ⚠️ **Contranota de trazabilidad (2026-08-24, plan `kb-source-packages-uc`).** El **formato de fichero**
+> que este ADR da por bueno —frontmatter `title`/`domain`/`package`/`uc` + bloque `::: info
+> Trazabilidad`, bajo `<dominio>/uc/`— **nunca se verificó** contra una fuente real: era una
+> interpretación de `rag-ingestion.md` hecha sin la fuente delante. El formato real, verificado después,
+> es otro (ver [ADR-0017](./0017-tipos-de-fuente-de-kb-en-codigo-y-alias-de-package.md) y
+> `rag-ingestion.md` §1/§2). **La decisión de este ADR no cambia**: pgvector, `vector(N)` desde config,
+> chunking H2 tolerante y el peso de `estado` son independientes del formato del fichero, y los conteos
+> (268 UC / 17 dominios / 81% `draft`) siguen siendo los reales. Lo que se corrige es la **premisa**: allí
+> donde este documento describe el formato de origen, describe el hipotético. **Excepción concreta**: la
+> cláusula "glosario del `index.md`" **sí** es específica del formato hipotético — en `packages-uc` el
+> glosario es un fichero plano por dominio en una ruta compartida, y se ingiere íntegro. La regla que
+> sobrevive es "el glosario se trocea como cualquier otro documento", no de dónde sale.
+
 ## Contexto y planteamiento del problema
 
 La KB real son **268 UC** en **17 dominios** (Markdown con frontmatter + bloque Trazabilidad). El **81%**
@@ -36,7 +49,8 @@ Upsert **idempotente por `uc_id`**; `uc_id` duplicado → fail del batch; doc re
 
 ### Confirmación
 
-`rag-ingestion.md` (fuente verificada, chunking, peso `estado` §4) + `data-model.md` §8; `app/ingestion/`
+`rag-ingestion.md` (chunking, peso `estado` §4 — **no** su §1/§2, ver la contranota de arriba) +
+`data-model.md` §8; `app/ingestion/`
 (loader/parser/chunker/embedder/cli) y `app/rag/` (retriever/reranker/confidence/citations), guión doc-only.
 
 ## Consecuencias
