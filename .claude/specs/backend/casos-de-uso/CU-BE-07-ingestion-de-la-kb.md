@@ -12,7 +12,13 @@
 
 ## Precondiciones
 
-- La fuente `domains/*/uc/*.md` está disponible (268 UC / 17 dominios) con frontmatter y bloque Trazabilidad.
+- La fuente de la KB está disponible y su **tipo** (`source_type`) está configurado. Dos tipos soportados:
+  - **`packages-uc`** (default; formato **real verificado**): UC repartidos por subdirectorio de package
+    (`packages/<pkg>/docs/aiup/use-cases/UC-*.md`, 268 UC / 17 dominios) + un glosario plano por dominio
+    en una ubicación compartida. Frontmatter `id`/`dominio`/`estado`/`traza`; el título es el H1 y el
+    `package` se deriva del subdirectorio traducido por los **alias configurados**.
+  - **`vitepress-domains`** (formato hipotético, **nunca verificado** contra una fuente real):
+    `domains/*/uc/*.md` con frontmatter `title`/`domain`/`package`/`uc` + bloque `::: info Trazabilidad`.
 
 ## Garantía mínima
 
@@ -28,7 +34,8 @@
 
 ## Escenario principal (éxito)
 
-1. El loader lee los `.md`; el parser extrae frontmatter (`title/domain/package/uc`) + Trazabilidad (`estado`).
+1. El loader y el parser **del `source_type` configurado** leen los `.md` y extraen los metadatos
+   (`uc_id`/`domain`/`package`/`estado`/`title`/`traza`), cada uno según la convención de su tipo.
 2. El chunker parte por **H2 tolerante** (no asume estructura fija; no parte tablas/código; glosario del `index.md`).
 3. El embedder genera vectores (`vector(N)`, N desde config) y el pipeline hace **upsert idempotente por `uc_id`**.
 4. El pipeline reconcilia: los `uc_id` presentes en BD pero ausentes en origen se borran/tombstone.
@@ -58,12 +65,49 @@
   (nunca espera, nunca corre en paralelo con la primera).
 - **4b.** Un run sin documentos válidos que procesar (origen vacío o todo malformado): termina con éxito,
   reporta 0 procesados, y no toca la base de datos.
+- **1g.** El `source_type` pedido (por config o argumento de la CLI) no está registrado: la ejecución
+  falla como **error de uso** (código de salida `2`, mensaje claro), sin tocar la base de datos y sin
+  dejar escapar una traza cruda al operador.
+- **1h.** *(`packages-uc`)* El subdirectorio de package de un UC **no tiene alias configurado**, o su
+  alias apunta a un valor que **no es un `package` válido** del catálogo: el documento se **salta con
+  log**, igual que un frontmatter malformado (1a) — un typo en la configuración no aborta el batch ni
+  escapa como error inesperado.
+- **1i.** *(`packages-uc`)* Un UC **sin encabezado H1**: se **salta con log** (no hay título del que
+  derivar, y el frontmatter de este formato no trae `title`).
+- **1j.** *(`packages-uc`)* `traza` viene como **string único** en vez de lista: se normaliza a una lista
+  de un elemento; **no** es un documento malformado.
+- **1k.** *(`packages-uc`)* El origen contiene un **árbol hermano con otra convención de carpeta** (p. ej.
+  una generación legacy de los mismos UC): **nunca** se recoge — solo la convención que este tipo
+  reconoce.
+- **1l.** *(`packages-uc`)* **No hay ningún alias de package configurado** (el default): ningún UC supera
+  1h, así que no se procesa nada. El run **avisa por stderr** de que la configuración de alias está
+  vacía, para no confundirlo con un origen vacío legítimo (4b).
+- **2a.** *(`packages-uc`)* El glosario de un dominio es un **fichero plano** sin frontmatter y sin
+  sección `## Glosario`: se ingiere **íntegro** (a diferencia de `vitepress-domains`, donde solo el
+  bloque `## Glosario` de un `index.md` se conserva).
+- **1m.** La configuración de alias de package está presente pero **no es un JSON válido**: la ejecución
+  falla como **error de uso** (código `2`), acotada a la ingestión. **Nunca** impide el arranque del resto
+  de la aplicación (auth, tickets…): la config de alias se valida **de forma perezosa** donde se usa, no
+  al construir `Settings` — mismo criterio y mismo motivo que el `source_type` (1g).
+- **4c.** Se cambia el `source_type` entre ejecuciones **sobre la misma base de datos**: los documentos
+  del formato anterior que no reaparecen en el nuevo origen se **reconcilian (se borran)**, porque la
+  reconciliación compara `uc_id` origen-vs-BD **sin distinguir de qué tipo de fuente vino cada
+  documento**. Es el comportamiento **esperado** (el origen es la fuente de verdad), no un defecto — pero
+  es un efecto masivo que un operador puede disparar sin quererlo al cambiar la configuración, así que
+  queda fijado por un test y advertido en la documentación.
 
 ## Reglas de negocio
 
 - **RN-1** — La clave de upsert es `uc_id`; dos ficheros no pueden mapear al mismo `kb_document`.
 - **RN-2** — El `source_url` se **deriva** de la ruta (el frontmatter no trae `url`).
 - **RN-3** — Cambiar el modelo/dimensión de embeddings obliga a re-embeber todo el corpus (no en caliente).
+- **RN-4** — El `source_type` determina **de dónde sale cada metadato**, no solo cómo se descubren los
+  ficheros. La precedencia `package` frontmatter-vs-Trazabilidad (1c) es **específica de
+  `vitepress-domains`**: en `packages-uc` el `package` tiene una única fuente (el subdirectorio + alias),
+  así que no existe discrepancia posible que loguear.
+- **RN-5** — La traducción subdirectorio→`package` de `packages-uc` es **configuración de deployment**
+  (el vocabulario real de los packages del cliente), no una tabla en el código: sin configurarla, este
+  tipo de fuente no ingiere nada (1l).
 
 ## Criterios de aceptación (Gherkin)
 
@@ -135,4 +179,156 @@ Feature: Ingestión de la KB
     Given un origen vacío o donde todos los documentos son malformados
     When se ingiere la KB
     Then el run termina con éxito, reporta 0 documentos procesados, y no se toca la base de datos
+
+  # --- Selección del tipo de fuente y formato "packages-uc" (real verificado) ---
+
+  Scenario: Un tipo de fuente no reconocido falla como error de uso
+    Given una configuración que pide un tipo de fuente que no está registrado
+    When se ejecuta la ingestión
+    Then falla como error de uso, sin tocar la base de datos y sin exponer una traza cruda
+
+  Scenario: Ingesta de un UC del formato real
+    Given un UC del formato "packages-uc" con su identificador, dominio, estado y traza en el frontmatter
+      And un alias configurado para el subdirectorio de package en el que vive
+    When se ingiere la KB
+    Then el documento queda ingerido con el título tomado de su encabezado principal
+      And con el package resuelto a partir del alias configurado
+
+  Scenario Outline: Normalización de la traza según cómo venga declarada
+    Given un UC del formato real cuya traza se declara como <forma>
+    When se ingiere la KB
+    Then la traza del documento queda como <resultado>
+
+    Examples:
+      | forma                                | resultado                                   |
+      | una lista de rutas                   | esa misma lista                             |
+      | un valor suelto                      | una lista con ese único elemento            |
+      | una lista vacía                      | una lista vacía                             |
+      | ausente                              | una lista vacía                             |
+      | una lista con elementos no textuales | una lista con su representación textual     |
+
+  Scenario: Un package sin alias configurado se salta
+    Given un UC que vive en un subdirectorio de package para el que no hay alias configurado
+    When se ingiere la KB
+    Then ese documento se salta con log y el resto del batch se procesa
+
+  Scenario: Un alias que apunta a un package inexistente se salta
+    Given un alias configurado cuyo valor no es un package del catálogo
+    When se ingiere la KB
+    Then el documento afectado se salta con log, sin abortar el batch ni fallar como error inesperado
+
+  Scenario: Un UC sin encabezado principal se salta
+    Given un UC del formato real que no tiene encabezado principal del que derivar su título
+    When se ingiere la KB
+    Then ese documento se salta con log y no entra en el corpus
+
+  Scenario: Sin ningún alias configurado no se ingiere nada y se avisa
+    Given una configuración sin ningún alias de package
+    When se ingiere la KB del formato real
+    Then no se procesa ningún documento
+      And se avisa de que la configuración de alias está vacía, distinguiéndolo de un origen vacío
+
+  Scenario: El glosario del formato real se ingiere íntegro
+    Given un glosario de dominio que es un fichero plano, sin frontmatter ni sección de glosario
+    When se ingiere la KB
+    Then su contenido completo queda ingerido como el glosario de ese dominio
+
+  Scenario: Un árbol hermano con otra convención de carpeta nunca se recoge
+    Given un origen que contiene, junto a la convención reconocida, un árbol hermano con otra convención
+    When se ingiere la KB
+    Then ningún documento del árbol hermano entra en el corpus
+
+  # --- Configuración del tipo de fuente y transición entre formatos ---
+
+  Scenario: Una configuración de alias con JSON inválido falla acotada a la ingestión
+    Given una configuración de alias de package cuyo contenido no es un JSON válido
+    When se ejecuta la ingestión
+    Then falla como error de uso con un mensaje claro
+      And el arranque del resto de la aplicación no se ve afectado
+
+  Scenario: Un tipo de fuente que no usa alias no dispara el aviso de alias vacío
+    Given un tipo de fuente que no requiere alias de package
+      And una configuración sin ningún alias
+    When se ingiere la KB
+    Then no se avisa de alias vacíos
+
+  Scenario Outline: El tipo de fuente solo se reconoce en su forma canónica
+    Given una invocación que pide el tipo de fuente en <forma>
+    When se ejecuta la ingestión
+    Then <resultado>
+
+    Examples:
+      | forma                       | resultado                             |
+      | su forma canónica exacta    | se usa ese tipo de fuente             |
+      | la misma con otra caja      | falla como error de uso               |
+      | un nombre que no existe     | falla como error de uso               |
+
+  Scenario: Cambiar el tipo de fuente entre ejecuciones reconcilia el formato anterior
+    Given una KB ya ingerida con un tipo de fuente
+    When se vuelve a ingerir con otro tipo de fuente sobre la misma base de datos
+    Then los documentos del formato anterior que no reaparecen en el nuevo origen se reconcilian
+
+  # --- Descubrimiento de ficheros (formato real) ---
+
+  Scenario: El orden de descubrimiento sigue la convención documentada
+    Given un origen con UC en varios subdirectorios de package y varios glosarios
+    When se descubren los documentos de la KB
+    Then los UC aparecen antes que los glosarios
+      And dentro de cada grupo el orden es alfabético y estable entre ejecuciones
+
+  Scenario Outline: Entradas que matchean el patrón pero no son documentos ingeribles
+    Given un origen que contiene <entrada>
+    When se descubren los documentos de la KB
+    Then esa entrada se ignora sin error y el resto del recorrido se completa
+
+    Examples:
+      | entrada                                                             |
+      | un directorio cuyo nombre matchea el patrón de UC                   |
+      | un fichero del directorio de casos de uso sin el prefijo de UC      |
+      | un UC anidado más profundo que el nivel de la convención            |
+      | un glosario dentro de un package, no en la ruta compartida          |
+      | un fichero de UC cuyo prefijo o extensión difieren en la caja       |
+
+  Scenario Outline: Ausencias en el árbol de origen no rompen el recorrido
+    Given un origen sin <ausencia>
+    When se descubren los documentos de la KB
+    Then el recorrido se completa y devuelve el resto de documentos
+
+    Examples:
+      | ausencia                                     |
+      | el directorio de casos de uso de un package  |
+      | el directorio compartido de glosarios        |
+
+  Scenario: Un directorio sin permisos de lectura se salta con log
+    Given un directorio del origen sin permisos de lectura
+    When se descubren los documentos de la KB
+    Then ese directorio se salta con log y el resto del recorrido se completa
+
+  # --- Parseo (formato real): título y metadatos ---
+
+  Scenario: Una línea de comentario dentro de un bloque de código no se confunde con el título
+    Given un UC cuyo cuerpo tiene un bloque de código con una línea que empieza por almohadilla
+      And un encabezado principal real en el documento
+    When se parsea
+    Then el título es el del encabezado real, no el de la línea del bloque de código
+
+  Scenario: Con varios encabezados principales se toma el primero
+    Given un UC cuyo cuerpo tiene más de un encabezado principal
+    When se parsea
+    Then el título es el del primero
+
+  Scenario: Una ruta que no sigue la convención de package se salta como malformado
+    Given un documento cuya ruta no contiene el segmento de package
+    When se parsea
+    Then se salta como malformado, sin lanzar una excepción no controlada
+
+  Scenario: Un identificador de tipo no textual se salta como malformado
+    Given un UC cuyo identificador en el frontmatter no es un valor textual
+    When se parsea
+    Then se salta como malformado
+
+  Scenario: Un glosario vacío se ingiere como glosario sin contenido
+    Given un fichero de glosario sin contenido
+    When se parsea
+    Then queda como el glosario de su dominio con cuerpo vacío, no como malformado
 ```
