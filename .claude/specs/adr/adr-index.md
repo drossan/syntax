@@ -26,3 +26,4 @@
 | [0014](./0014-backend-mutation-testing-cosmic-ray.md) | Backend: mutation testing con cosmic-ray (mutmut descartado) | accepted | 2026-08-15 |
 | [0015](./0015-backend-observabilidad-structlog-request-id.md) | Backend: observabilidad con structlog + request-id por contextvars | accepted | 2026-08-15 |
 | [0016](./0016-rls-via-rol-dedicado-no-superuser-y-guc-de-bypass.md) | RLS multi-tenant vía rol dedicado no-superuser + GUC de bypass por transacción (refina 0006) | accepted | 2026-08-16 |
+| [0017](./0017-tipos-de-fuente-de-kb-en-codigo-y-alias-de-package.md) | Tipos de fuente de la KB registrados en código + alias de package como configuración (refina 0010) | accepted | 2026-08-24 |
