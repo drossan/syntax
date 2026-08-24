@@ -1,7 +1,7 @@
 ---
 id: backend-kb-source-packages-uc
 package: backend
-status: pending
+status: active
 branch: plan/backend/kb-source-packages-uc
 created: 2026-08-22
 updated: 2026-08-24
@@ -273,7 +273,7 @@ tiene su propio módulo de loader+parser **en código**.
 
 ## Tasks
 
-- [ ] `backend-kb-source-packages-uc-01` (P1) — Loader `packages_uc` (descubrimiento de ficheros:
+- [x] `backend-kb-source-packages-uc-01` (P1) — Loader `packages_uc` (descubrimiento de ficheros:
   `packages/*/docs/aiup/use-cases/UC-*.md` + `docs/aiup/glossaries/*.md`; exclusión verificada de un
   árbol hermano no reconocido) · depends_on: —
 - [ ] `backend-kb-source-packages-uc-02` (P1) — Parser `packages_uc` (frontmatter real, H1→title,
@@ -434,3 +434,35 @@ tiene su propio módulo de loader+parser **en código**.
   Dimensiones descartadas por el subagente con su porqué: **concurrencia** y **ciclo de vida/reentrada**
   (`load`/`parse`/`resolve_source` son puras; la única concurrencia real —dos `ingest()` simultáneos— ya
   la resuelve el advisory lock de `kb-ingestion` y este plan no la toca).
+- 2026-08-24: **plan arrancado** (`status: active`) y tarea `-01` ejecutada. El gate `/sdd-lint` del
+  cierre de la `-01` destapó **2 ERROR preexistentes** (ninguno introducido por la tarea, que no toca
+  artefactos SDD) y varios AVISO. Decisión del owner: **arreglar los dos ERROR ahora**.
+  1. **[ERROR, resuelto]** `FR-041` (resumen de analytics) no estaba referenciado en **ningún** caso de
+     uso → trazabilidad rota. Se crea **`CU-BE-11-resumen-de-analytics.md`**, fiel al comportamiento ya
+     implementado (`app/domain/services/analytics.py`, `app/infra/db/repositories/analytics.py`), y se
+     enlaza desde `spec.md`. **Supersede** la decisión de `grilling` del plan `routers-flujo-ia` de dejar
+     FR-041 "sin CU dedicado" — el docstring de `app/api/v1/routers/analytics.py` se actualiza para no
+     seguir afirmando lo contrario.
+  2. **[ERROR, resuelto]** `FR-033` ordenaba fallar el batch "reportando **el par**", mientras `CU-BE-07`
+     (ext. **1f** y su escenario) exige **todos** los ficheros en conflicto — el CU endureció el
+     comportamiento (ya testeado en `test_pipeline.py`) y el FR se quedó atrás. `spec.md:84` alineado con
+     el CU.
+  3. **[AVISO, enrutado a la `-03`]** `FR-032` describe solo el formato hoy declarado hipotético
+     (`title/domain/package/uc` + Trazabilidad) y **7 comportamientos de `CU-BE-07` no tienen FR**
+     (selección de `source_type` + código 2, config de alias inválida, advisory lock, run vacío, abort
+     ante fallo real, cambio de `source_type` entre ejecuciones). El plan preveía **no tocar `spec.md`**;
+     se corrige: la `-03` añade los FR que falten junto al resto de docs. **Amplía el alcance de la `-03`.**
+  4. **[AVISO, enrutado a la `-03`]** **ADR-0010** llama "fuente verificada" al formato que `CU-BE-07`
+     declara "nunca verificado"; `rag-ingestion.md:7` repite la afirmación. La `-03` ya corrige
+     `rag-ingestion.md` §1/§2 y escribe el ADR nuevo → **añade la contranota en ADR-0010** en vez de
+     dejar la contradicción en pie (matiza la decisión de `grilling` #9, que solo decía "no ampliar" el
+     ADR-0010; una contranota de trazabilidad no es ampliarlo).
+  5. **[AVISO, enrutado a la `-03`]** Contradicción interna en `CU-BE-07`: la ext. **4b** (origen vacío
+     "no toca la base de datos") es una **excepción no declarada** a la reconciliación del paso 4 /
+     FR-034 (con origen vacío, *todos* los `uc_id` de BD están ausentes). El comportamiento
+     implementado es 4b; falta declararlo como regla de negocio. La `-03` lo formaliza.
+  6. **[AVISO, aceptado sin cambio]** Escenarios de `CU-BE-07` que nombran etapas internas
+     (`When se descubren los documentos`, `When se parsea`): son los bloques que las tareas `-01`/`-02`
+     testean a nivel unit; se acepta la fuga de estructura a cambio de trazabilidad 1:1 test↔escenario.
+     Igual para el orden de extensiones no-Cockburn y los escenarios con más de una propiedad en el
+     `Then` — no se re-numera un CU vivo a mitad de plan.

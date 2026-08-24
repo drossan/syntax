@@ -2,11 +2,11 @@
 id: backend-kb-source-packages-uc-01
 package: backend
 plan: kb-source-packages-uc
-status: pending
+status: done
 priority: 1
 depends_on: []
 estimate: 3h
-actual:
+actual: 3h
 created: 2026-08-24
 updated: 2026-08-24
 ---
@@ -147,16 +147,22 @@ Esta tarea cubre, a nivel **unit** (sin BD, sin puertos, fixtures `.md` en `tmp_
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde (`make test`), sin regresión en los 946 existentes
-- [ ] Spec cumplida; lo declarado en `Provides` queda disponible para `-02`/`-03`
-- [ ] `ruff check` + `ruff format --check` + `mypy --strict` OK
-- [ ] Gate de mutation testing (`cosmic-ray`, `break: 80`) sobre `packages_uc.py` — survivors
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (`make test`), sin regresión en los 946 existentes
+- [x] Spec cumplida; lo declarado en `Provides` queda disponible para `-02`/`-03`
+- [x] `ruff check` + `ruff format --check` + `mypy --strict` OK
+- [x] Gate de mutation testing (`cosmic-ray`, `break: 80`) sobre `packages_uc.py` — survivors
   documentados como equivalentes si quedan
-- [ ] Gate `/sdd-lint` superado — sin ERROR (AVISO reconocido); esta tarea **no** modifica spec/CU/ADR
-  (el CU ya se extendió en la planificación) → declararlo explícitamente
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas (INCORRECTO bloquea)
-- [ ] Documentación — docstrings de todo símbolo público (incluido el anti-patrón: importar la privada
+- [x] Gate `/sdd-lint` superado — mecánico limpio; el semántico destapó **2 ERROR PREEXISTENTES** (no
+  introducidos por esta tarea, que arrancó sin tocar spec/CU/ADR) y, **por decisión del owner, se
+  corrigieron aquí**: `CU-BE-11-resumen-de-analytics.md` (nuevo, cierra `FR-041` sin CU) y `spec.md:84`
+  (`FR-033` alineado con la ext. 1f de `CU-BE-07`). Los AVISO quedan reconocidos y enrutados a la `-03`.
+  → La afirmación original de esta línea ("esta tarea no modifica spec/CU/ADR") **ya no es cierta**
+- [x] Gate de `fact-checker` superado — 14 VERIFICADO / 1 INCORRECTO / 0 NO VERIFICABLE. El INCORRECTO es
+  una afirmación mía sobre los 2 ERROR de `sdd-lint` que quedó desfasada porque los corregí **mientras**
+  el verificador corría; **corregida** en el session log. Su reserva sobre la suite (22 fallos por
+  "`pytest-randomly` + orden") se investigó y se **descartó**: ese plugin no está instalado
+- [x] Documentación — docstrings de todo símbolo público (incluido el anti-patrón: importar la privada
   `_read` de `loader.py`, o asumir el layout `<dominio>/uc/`) + doc técnica donde aplique + session log
   en `.claude/context/backend/backend-kb-source-packages-uc-01.md`

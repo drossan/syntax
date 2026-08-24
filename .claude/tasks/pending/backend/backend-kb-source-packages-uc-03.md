@@ -109,6 +109,23 @@ Cierra también la documentación de las tres capas (`rag-ingestion.md`, `data-m
     es el criterio para borrarlo**.
   - **Ningún fichero de producto** (código, `rag-ingestion.md`, `data-model.md`, `CU-BE-07`, ADR) menciona
     el nombre del cliente/proyecto del que se verificó el formato — `grep` de guardia antes de cerrar.
+- **Añadido por el gate `/sdd-lint` de la `-01`** (ver Registro de cambios del plan, entrada 2026-08-24,
+  puntos 3-5 — **amplía el alcance original de esta tarea**):
+  - `spec.md`: **añadir los FR que faltan**. `FR-032` describe hoy solo el formato `vitepress-domains`
+    (declarado hipotético en `CU-BE-07`), y **7 comportamientos del CU no tienen requisito** que los
+    ampare: selección del `source_type` + error de uso código `2` (1g), config de alias inválida (1m),
+    advisory lock anti-concurrencia (4a), run vacío sin efecto (4b), abort del run ante fallo real (3c) y
+    el cambio de `source_type` entre ejecuciones (4c). El plan preveía no tocar `spec.md`; se corrige.
+  - **ADR-0010**: contranota de trazabilidad — llama "fuente verificada" al formato que `CU-BE-07:20-21`
+    declara "nunca verificado", y `rag-ingestion.md:7` repite la afirmación. Se corrige la premisa, no la
+    decisión (pgvector / H2 tolerante / peso de `estado` no se tocan).
+  - `CU-BE-07`: declarar la ext. **4b** como **regla de negocio** — hoy es una excepción **no declarada** a
+    la reconciliación del paso 4 / FR-034 (con origen vacío, *todos* los `uc_id` de BD están ausentes, y la
+    regla general ordenaría borrar el corpus entero).
+  - `CU-BE-07`: unificar la redacción del duplicado — la ext. **1b** y su escenario dicen "se reporta **el
+    par** en conflicto" y la **1f** dice "**todos** los ficheros ... no solo un par". Se lee como
+    contradicción aunque 1b sea solo el caso N=2 (hallazgo del `fact-checker` de la `-01`); `FR-033` ya
+    quedó alineado con 1f.
 
 ## Fuera de alcance
 

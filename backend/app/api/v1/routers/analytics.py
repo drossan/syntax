@@ -1,8 +1,12 @@
 """app.api.v1.routers.analytics — resumen agregado del dashboard (contrato 06/12).
 
 `tenant_id = None` (agrega cross-tenant) cuando el subject tiene `analytics.read` en ámbito `global`;
-`subject.tenant_id` en ámbito `tenant` — mismo patrón que `approvals.py` (tarea 02). Sin CU dedicado
-(decisión del owner, `grilling`): FR-041 en `spec.md` es la única fuente EARS.
+`subject.tenant_id` en ámbito `tenant` — mismo patrón que `approvals.py` (tarea 02).
+
+**SDD**: FR-041 de `spec.md` + `casos-de-uso/CU-BE-11-resumen-de-analytics.md`. El CU se escribió a
+posteriori (tarea `backend-kb-source-packages-uc-01`, decisión del owner) y **supersede** la decisión de
+`grilling` del plan `routers-flujo-ia` de dejar FR-041 sin CU dedicado: el gate `sdd-lint` marcaba esa
+ausencia como trazabilidad rota (un FR sin ningún caso de uso).
 """
 
 from fastapi import APIRouter, Depends

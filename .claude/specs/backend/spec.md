@@ -81,7 +81,7 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 ### KB: ingestión y retrieval — [[../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]]
 
 - **FR-032** — Cuando se ingiere la KB, el sistema DEBERÁ parsear frontmatter (`title/domain/package/uc`) + bloque Trazabilidad, trocear por **H2 tolerante**, embeber y hacer **upsert idempotente por `uc_id`**.
-- **FR-033** — Si el frontmatter es malformado o falta `uc_id`, entonces el sistema DEBERÁ **saltar el documento con log** (no entra); si un `uc_id` está **duplicado**, DEBERÁ **fallar el batch** reportando el par.
+- **FR-033** — Si el frontmatter es malformado o falta `uc_id`, entonces el sistema DEBERÁ **saltar el documento con log** (no entra); si un `uc_id` está **duplicado**, DEBERÁ **fallar el batch** reportando **todos** los ficheros en conflicto para ese `uc_id` (no solo un par).
 - **FR-034** — Cuando un documento desaparece del origen, el sistema DEBERÁ **reconciliar** (borrar/tombstone sus `kb_document`/`kb_chunk`/`embedding` huérfanos).
 - **FR-035** — Cuando el agente recupera contexto, el sistema DEBERÁ buscar por **similitud coseno** (pgvector, top-k) con filtros `domain/package/estado`, aplicar el peso de `estado` (re-ranking, no filtro duro) y devolver **citas** (`uc_id/title/section_type/source_url`).
 
@@ -130,6 +130,7 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - [CU-BE-08: Scheduler de SLA](./casos-de-uso/CU-BE-08-scheduler-de-sla.md)
 - [CU-BE-09: Administración de tenants, usuarios y roles](./casos-de-uso/CU-BE-09-administracion-tenants-usuarios-roles.md)
 - [CU-BE-10: Notificaciones in-app](./casos-de-uso/CU-BE-10-notificaciones-in-app.md)
+- [CU-BE-11: Resumen de analytics](./casos-de-uso/CU-BE-11-resumen-de-analytics.md)
 
 ## Fuera de alcance
 
