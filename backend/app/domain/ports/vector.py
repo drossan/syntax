@@ -75,7 +75,20 @@ class UpsertReport:
 
 @dataclass(frozen=True)
 class Hit:
-    """Resultado de `search` (`rag-ingestion.md` §6) — sin implementar todavía (tarea 14)."""
+    """Un chunk recuperado por `search` (`rag-ingestion.md` §6.1).
+
+    La unidad es el **chunk**, no el documento: el camino del agente los consume tal cual (varias
+    secciones del mismo UC son varias piezas de contexto legítimas), y el camino HTTP los deduplica por
+    `uc_id` en `app.rag` antes de publicarlos.
+
+    - **`content`** es el texto COMPLETO del chunk: alimenta el `snippet` del panel y el prompt del nodo
+      `generate`. Truncarlo aquí dejaría al agente sin el texto, y pedirlo con una segunda query por
+      `chunk_id` sería un N+1 disfrazado de disciplina.
+    - **`score` es la similitud CRUDA**, acotada a `[0, 1]`, **sin** el peso de `estado`. El peso se
+      aplica al producir el `KBSearchHit` de la API (`app.rag.reranker`): si viajara ya aplicado aquí,
+      la confianza híbrida de CU-BE-05 —que se compone de esta similitud más el `grade` del LLM—
+      contaría `estado` **dos veces**.
+    """
 
     uc_id: str
     chunk_id: uuid.UUID
@@ -85,6 +98,7 @@ class Hit:
     domain: KbDomain
     estado: KbEstado
     score: float
+    content: str
 
 
 class KBIndexWriter(Protocol):

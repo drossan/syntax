@@ -536,16 +536,6 @@ async def test_existing_uc_ids_with_empty_corpus_returns_empty_set(session: Asyn
     assert await writer.existing_uc_ids() == set()
 
 
-# ── search (sin implementar) ──
-
-
-async def test_search_raises_not_implemented(session: AsyncSession) -> None:
-    writer = SqlAlchemyKBIndexWriter(session)
-
-    with pytest.raises(NotImplementedError):
-        await writer.search(_vector(0.1), top_k=5)
-
-
 # ── errores de infraestructura ──
 
 
@@ -632,3 +622,337 @@ async def test_try_acquire_ingestion_lock_returns_false_when_another_session_hol
     finally:
         await holder.close()
         await contender.close()
+
+
+# ── search (tarea backend-kb-retriever-04) ──────────────────────────────────────
+#
+# Vectores DETERMINISTAS de dimensión real para que el orden por coseno sea predecible: se usan
+# vectores "eje" (un 1.0 en una posición, 0.0 en el resto), cuya similitud coseno se conoce de
+# antemano — e0·e0 = 1, e0·e1 = 0, e0·(-e0) = -1. Un `[v] * 1536` no serviría: todos esos vectores son
+# proporcionales entre sí, así que su coseno es SIEMPRE 1 y cualquier orden pasaría el test.
+
+_EMBEDDING_MODEL = "text-embedding-3-small"
+
+
+def _axis(index: int, sign: float = 1.0) -> list[float]:
+    """Vector unitario sobre el eje `index` (opcionalmente invertido con `sign=-1.0`)."""
+    vector = [0.0] * EMBEDDING_DIM_LITERAL
+    vector[index] = sign
+    return vector
+
+
+async def _seed(
+    session: AsyncSession,
+    writer: SqlAlchemyKBIndexWriter,
+    uc_id: str,
+    vector: list[float] | None,
+    *,
+    domain: KbDomain = KbDomain.authoring_and_editor,
+    package: Package = Package.syntax_cx,
+    estado: KbEstado = KbEstado.active,
+    content: str = "contenido del chunk",
+    section_type: str = "comportamiento",
+    model: str = _EMBEDDING_MODEL,
+) -> None:
+    """Persiste un documento de un solo chunk. `vector=None` deja el chunk SIN fila de `embedding`."""
+    await writer.upsert_document(
+        _draft(uc_id=uc_id, domain=domain, package=package, estado=estado),
+        [
+            ChunkWrite(
+                ordinal=0,
+                section_type=section_type,
+                content=content,
+                token_count=3,
+                vector=vector,
+                model=model,
+            )
+        ],
+    )
+    await session.commit()
+
+
+def _searcher(session: AsyncSession) -> SqlAlchemyKBIndexWriter:
+    """Adaptador construido para el camino de LECTURA (necesita saber qué modelo compara)."""
+    return SqlAlchemyKBIndexWriter(session, embedding_model=_EMBEDDING_MODEL)
+
+
+async def test_search_orders_results_by_cosine_relevance(session: AsyncSession) -> None:
+    """CU-BE-12 · *La búsqueda devuelve documentos ordenados por relevancia* — orden por coseno.
+
+    Similitudes conocidas frente a la consulta `e0`: `UC-EXACTO` = 1, `UC-MEDIO` ≈ 0.707,
+    `UC-ORTOGONAL` = 0.
+    """
+    writer = SqlAlchemyKBIndexWriter(session)
+    medio = _axis(0)
+    medio[1] = 1.0
+    await _seed(session, writer, "UC-ORTOGONAL", _axis(1))
+    await _seed(session, writer, "UC-EXACTO", _axis(0))
+    await _seed(session, writer, "UC-MEDIO", medio)
+
+    hits = await _searcher(session).search(_axis(0), top_k=10)
+
+    assert [h.uc_id for h in hits] == ["UC-EXACTO", "UC-MEDIO", "UC-ORTOGONAL"]
+    assert hits[0].score > hits[1].score > hits[2].score
+
+
+async def test_search_returns_the_chunk_text_and_document_metadata(session: AsyncSession) -> None:
+    """Cada `Hit` trae el texto COMPLETO del chunk (`content`, para el snippet de `-06` y el prompt de
+    `generate`) más los metadatos de su documento."""
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(
+        session,
+        writer,
+        "UC-1",
+        _axis(0),
+        domain=KbDomain.media_and_dam,
+        package=Package.syntax_api,
+        estado=KbEstado.draft,
+        content="El editor permite subir vídeos de hasta 2 GB.",
+        section_type="reglas",
+    )
+
+    hit = (await _searcher(session).search(_axis(0), top_k=5))[0]
+
+    assert hit.uc_id == "UC-1"
+    assert hit.content == "El editor permite subir vídeos de hasta 2 GB."
+    assert hit.section_type == "reglas"
+    assert hit.title == "Título"
+    assert hit.domain is KbDomain.media_and_dam
+    assert hit.estado is KbEstado.draft
+    assert hit.chunk_id is not None
+
+
+async def test_search_clamps_a_negative_similarity_to_zero(session: AsyncSession) -> None:
+    """CU-BE-12 · *Una similitud negativa no invierte el orden de los resultados* (hallazgo C1).
+
+    `1 - cosine_distance` ∈ `[-1, 1]`. Sin el clamp, un score negativo haría que el boost
+    multiplicativo de `-05` (`score * (1 + w)`) **penalizara** al documento en vez de premiarlo,
+    invirtiendo su orden frente a un `draft`. Un coseno negativo es "menos relacionado que el azar":
+    no hay ranking que preservar por debajo de 0.
+    """
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-OPUESTO", _axis(0, sign=-1.0))
+
+    hits = await _searcher(session).search(_axis(0), top_k=5)
+
+    assert hits[0].uc_id == "UC-OPUESTO"
+    assert hits[0].score == 0.0
+
+
+async def test_search_scores_stay_within_the_raw_zero_one_range(session: AsyncSession) -> None:
+    """`Hit.score` es la similitud CRUDA acotada a `[0, 1]`: sin el peso de `estado`, que solo se
+    aplica al producir el `KBSearchHit` (hallazgo C2 — si viajara aquí, el futuro `confidence.py`
+    contaría `estado` dos veces)."""
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-ACTIVE", _axis(0), estado=KbEstado.active)
+    await _seed(session, writer, "UC-DRAFT", _axis(0), estado=KbEstado.draft)
+
+    hits = await _searcher(session).search(_axis(0), top_k=5)
+
+    assert all(0.0 <= h.score <= 1.0 for h in hits)
+    assert {h.score for h in hits} == {1.0}
+
+
+async def test_search_filters_by_domain(session: AsyncSession) -> None:
+    """CU-BE-12 · *Los filtros acotan la búsqueda*."""
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-MEDIA", _axis(0), domain=KbDomain.media_and_dam)
+    await _seed(session, writer, "UC-FORMS", _axis(0), domain=KbDomain.forms_and_submissions)
+    await _seed(session, writer, "UC-SEO", _axis(0), domain=KbDomain.seo_sitemaps_and_edge)
+
+    hits = await _searcher(session).search(_axis(0), top_k=10, domain=KbDomain.media_and_dam)
+
+    assert [h.uc_id for h in hits] == ["UC-MEDIA"]
+
+
+async def test_search_without_domain_filter_searches_the_whole_corpus(
+    session: AsyncSession,
+) -> None:
+    """CU-BE-05 · *Ticket no clasificable usa fallback sin filtro de dominio* — `domain=None` NO
+    filtra: el fallback recupera del corpus entero en vez de devolver vacío."""
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-MEDIA", _axis(0), domain=KbDomain.media_and_dam)
+    await _seed(session, writer, "UC-FORMS", _axis(0), domain=KbDomain.forms_and_submissions)
+
+    hits = await _searcher(session).search(_axis(0), top_k=10, domain=None)
+
+    assert {h.uc_id for h in hits} == {"UC-MEDIA", "UC-FORMS"}
+
+
+async def test_search_filters_by_package(session: AsyncSession) -> None:
+    """El package filtrado tiene vecinos a AMBOS lados en orden alfabético (`syntax-api` antes,
+    `syntax-render` después): con un solo vecino por un lado, una comparación de desigualdad daría el
+    mismo resultado que la de igualdad y el filtro parecería correcto estando roto."""
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-API", _axis(0), package=Package.syntax_api)
+    await _seed(session, writer, "UC-CX", _axis(0), package=Package.syntax_cx)
+    await _seed(session, writer, "UC-RENDER", _axis(0), package=Package.syntax_render)
+
+    hits = await _searcher(session).search(_axis(0), top_k=10, package=Package.syntax_cx)
+
+    assert [h.uc_id for h in hits] == ["UC-CX"]
+
+
+async def test_search_with_an_explicit_estado_filters_it_hard(session: AsyncSession) -> None:
+    """CU-BE-12 · *Pedir un estado concreto sí lo filtra* — RN-2 describe DOS comportamientos (peso
+    por defecto, filtro duro opt-in) y solo el peso tenía Gherkin. Aquí se fija el filtro duro."""
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-DRAFT", _axis(0), estado=KbEstado.draft)
+    await _seed(session, writer, "UC-ACTIVE", _axis(0), estado=KbEstado.active)
+
+    hits = await _searcher(session).search(_axis(0), top_k=10, estado=KbEstado.active)
+
+    assert [h.uc_id for h in hits] == ["UC-ACTIVE"]
+
+
+async def test_search_without_estado_filter_keeps_drafts(session: AsyncSession) -> None:
+    """`estado` es **opt-in** (ADR-0010): sin pedirlo, los `draft` participan — son el 81% del corpus
+    real y filtrarlos por defecto vaciaría el retrieval."""
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-DRAFT", _axis(0), estado=KbEstado.draft)
+    await _seed(session, writer, "UC-ACTIVE", _axis(0), estado=KbEstado.active)
+
+    hits = await _searcher(session).search(_axis(0), top_k=10)
+
+    assert {h.uc_id for h in hits} == {"UC-DRAFT", "UC-ACTIVE"}
+
+
+async def test_search_combines_filters_by_conjunction(session: AsyncSession) -> None:
+    """CU-BE-12 · *Los filtros combinados acotan por conjunción* — los tres a la vez: un documento que
+    cumple dos de tres NO entra."""
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(
+        session,
+        writer,
+        "UC-MATCH",
+        _axis(0),
+        domain=KbDomain.media_and_dam,
+        package=Package.syntax_api,
+        estado=KbEstado.draft,
+    )
+    await _seed(
+        session,
+        writer,
+        "UC-OTRO-DOMINIO",
+        _axis(0),
+        domain=KbDomain.forms_and_submissions,
+        package=Package.syntax_api,
+        estado=KbEstado.draft,
+    )
+    await _seed(
+        session,
+        writer,
+        "UC-OTRO-PACKAGE",
+        _axis(0),
+        domain=KbDomain.media_and_dam,
+        package=Package.syntax_render,
+        estado=KbEstado.draft,
+    )
+    await _seed(
+        session,
+        writer,
+        "UC-OTRO-ESTADO",
+        _axis(0),
+        domain=KbDomain.media_and_dam,
+        package=Package.syntax_api,
+        estado=KbEstado.active,
+    )
+
+    hits = await _searcher(session).search(
+        _axis(0),
+        top_k=10,
+        domain=KbDomain.media_and_dam,
+        package=Package.syntax_api,
+        estado=KbEstado.draft,
+    )
+
+    assert [h.uc_id for h in hits] == ["UC-MATCH"]
+
+
+async def test_search_honours_top_k(session: AsyncSession) -> None:
+    writer = SqlAlchemyKBIndexWriter(session)
+    for i in range(5):
+        await _seed(session, writer, f"UC-{i}", _axis(0))
+
+    hits = await _searcher(session).search(_axis(0), top_k=2)
+
+    assert len(hits) == 2
+
+
+async def test_search_asking_for_more_results_than_exist_returns_only_those(
+    session: AsyncSession,
+) -> None:
+    """CU-BE-12 · *Pedir más resultados de los que existen devuelve solo los que hay* — el resultado
+    no se rellena con documentos irrelevantes."""
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-1", _axis(0))
+    await _seed(session, writer, "UC-2", _axis(0))
+
+    hits = await _searcher(session).search(_axis(0), top_k=50)
+
+    assert len(hits) == 2
+
+
+async def test_search_on_an_empty_corpus_returns_no_hits(session: AsyncSession) -> None:
+    """CU-BE-12 · *Una búsqueda sin coincidencias devuelve vacío, no un error* (a nivel de adaptador)."""
+    assert await _searcher(session).search(_axis(0), top_k=10) == []
+
+
+async def test_search_only_considers_vectors_of_the_configured_model(
+    session: AsyncSession,
+) -> None:
+    """CU-BE-12 · *Solo participan los vectores del modelo de embeddings configurado* (hallazgo A3).
+
+    Comparar vectores generados por dos modelos distintos cruza espacios vectoriales distintos: el
+    resultado es **basura perfectamente ordenada**, sin ninguna señal de error. El del otro modelo se
+    siembran con el vector MÁS parecido a la consulta para que, de colarse, salieran los primeros, y
+    uno ordena ANTES del modelo configurado y otro DESPUÉS: así el filtro no puede confundirse con una
+    comparación de orden.
+    """
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-MODELO-POSTERIOR", _axis(0), model="text-embedding-ada-002")
+    await _seed(session, writer, "UC-MODELO-ANTERIOR", _axis(0), model="a-modelo-legacy")
+    lejano = _axis(0)
+    lejano[1] = 1.0
+    await _seed(session, writer, "UC-MODELO-BUENO", lejano, model=_EMBEDDING_MODEL)
+
+    hits = await _searcher(session).search(_axis(0), top_k=10)
+
+    assert [h.uc_id for h in hits] == ["UC-MODELO-BUENO"]
+
+
+async def test_search_ignores_chunks_without_an_embedding(session: AsyncSession) -> None:
+    """CU-BE-12 · *Un chunk sin embedding no participa ni rompe la búsqueda* (hallazgo A4).
+
+    Caso real: `ChunkWrite.vector=None` sobre un chunk **nuevo** no crea fila de `embedding`. El
+    `JOIN` lo excluye — comportamiento **decidido**, no accidental, y por eso tiene test.
+    """
+    writer = SqlAlchemyKBIndexWriter(session)
+    await _seed(session, writer, "UC-SIN-VECTOR", None)
+    await _seed(session, writer, "UC-CON-VECTOR", _axis(0))
+
+    hits = await _searcher(session).search(_axis(0), top_k=10)
+
+    assert [h.uc_id for h in hits] == ["UC-CON-VECTOR"]
+
+
+async def test_search_without_a_configured_embedding_model_fails_explicitly(
+    session: AsyncSession,
+) -> None:
+    """Un adaptador construido solo con `session` (el camino de INGESTIÓN) no sabe qué modelo comparar:
+    `search` falla explícito en vez de comparar contra todo el corpus mezclando espacios vectoriales."""
+    writer = SqlAlchemyKBIndexWriter(session)
+
+    with pytest.raises(PortError):
+        await writer.search(_axis(0), top_k=5)
+
+
+async def test_search_infrastructure_failure_propagates_wrapped_in_port_error(
+    broken_session: AsyncSession,
+) -> None:
+    """CU-BE-12 · *Un fallo de la base de datos no se disfraza de KB vacía* — sobre el `JOIN` de
+    `search`: `PortError` (→ 502), nunca una lista vacía."""
+    writer = SqlAlchemyKBIndexWriter(broken_session, embedding_model=_EMBEDDING_MODEL)
+
+    with pytest.raises(PortError):
+        await writer.search(_axis(0), top_k=5)

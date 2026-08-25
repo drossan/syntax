@@ -2,13 +2,13 @@
 id: backend-kb-retriever-04
 package: backend
 plan: kb-retriever
-status: pending
+status: done
 priority: 1
 depends_on: [backend-kb-retriever-01]
 estimate: 4h
-actual:
+actual: 3h
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-08-25
 ---
 
 # `SqlAlchemyKBIndexWriter.search()` real (pgvector, coseno)
@@ -99,20 +99,20 @@ Escenarios que materializa esta tarea:
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario del CU que materializa esta tarea tiene al menos un test (camino feliz + bordes)
-- [ ] Todos los tests en verde (`make test`, sin regresión sobre los 1064)
-- [ ] `grep -rn "NotImplementedError" app/infra/vector/` no devuelve nada
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK (`ruff`, `mypy --strict`)
-- [ ] Gate de mutation testing superado (`make mutation`, cosmic-ray `break: 80`) sobre los ficheros tocados
-- [ ] **Gate `sdd-lint` superado** — tras `mutation`, antes de `fact-checker`
-- [ ] Gate de `fact-checker` superado — antes de commit/resumen
-- [ ] **SDD** — sin cambios de spec/CU (los fijó `-01`); declararlo así en el session log
-- [ ] Documentación actualizada — tres capas:
-  - [ ] **Docstrings** — `search`, `Hit.content`, y los docstrings de módulo que decían "sin implementar"
-  - [ ] **Doc técnica** — donde aplique
-  - [ ] **Histórico** — session log en `.claude/context/backend/backend-kb-retriever-04.md`
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario del CU que materializa esta tarea tiene al menos un test (camino feliz + bordes)
+- [x] Todos los tests en verde (`make test`, sin regresión sobre los 1064)
+- [x] `grep -rn "NotImplementedError" app/infra/vector/` no devuelve nada
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK (`ruff`, `mypy --strict`)
+- [x] Gate de mutation testing superado (`make mutation`, cosmic-ray `break: 80`) sobre los ficheros tocados
+- [x] **Gate `sdd-lint` superado** — tras `mutation`, antes de `fact-checker`
+- [x] Gate de `fact-checker` superado — antes de commit/resumen
+- [x] **SDD** — sin cambios de spec/CU (los fijó `-01`); declararlo así en el session log
+- [x] Documentación actualizada — tres capas:
+  - [x] **Docstrings** — `search`, `Hit.content`, y los docstrings de módulo que decían "sin implementar"
+  - [x] **Doc técnica** — donde aplique
+  - [x] **Histórico** — session log en `.claude/context/backend/backend-kb-retriever-04.md`
 
 > ⚠️ **No solapar `pytest` con `cosmic-ray exec`**.
 > Requiere la DB: `docker compose -f backend/docker-compose.yml up -d db`.
