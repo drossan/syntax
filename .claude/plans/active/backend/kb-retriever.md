@@ -241,7 +241,7 @@ que no se abren dos transacciones) y `q`→422.
 
 - [x] `backend-kb-retriever-01` (P1) — SDD + contrato: `CU-BE-12`, FR, ADR, `rag-ingestion.md` §4/§6, docstrings falsos, `422`/`502` + `gen:api`  · depends_on: —
 - [x] `backend-kb-retriever-02` (P1) — `PgVectorStore.list_documents`/`get_document` (SQL plano, `ORDER BY uc_id ASC`)  · depends_on: backend-kb-retriever-01
-- [ ] `backend-kb-retriever-03` (P1) — `embed_query` (puerto + adaptador OpenAI) + settings `RAG_*`  · depends_on: backend-kb-retriever-01
+- [x] `backend-kb-retriever-03` (P1) — `embed_query` (puerto + adaptador OpenAI) + settings `RAG_*`  · depends_on: backend-kb-retriever-01
 - [ ] `backend-kb-retriever-04` (P1) — `SqlAlchemyKBIndexWriter.search()` + `Hit.content` + clamp del score + filtro por `embedding.model`  · depends_on: backend-kb-retriever-01
 - [ ] `backend-kb-retriever-05` (P2) — `app/rag/`: `reranker` (peso→`RankedHit`) + `dedup_by_uc_id` + `retriever` (ventana)  · depends_on: backend-kb-retriever-03, backend-kb-retriever-04
 - [ ] `backend-kb-retriever-06` (P1) — `PgVectorStore.search` + `snippet` end-to-end (entidad, schema, `_hit_to_schema`, truncado)  · depends_on: backend-kb-retriever-02, backend-kb-retriever-05

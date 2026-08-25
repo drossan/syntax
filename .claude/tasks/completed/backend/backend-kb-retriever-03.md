@@ -2,13 +2,13 @@
 id: backend-kb-retriever-03
 package: backend
 plan: kb-retriever
-status: pending
+status: done
 priority: 1
 depends_on: [backend-kb-retriever-01]
 estimate: 2h
-actual:
+actual: 2h
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-08-25
 ---
 
 # `embed_query` en el puerto de embeddings + settings `RAG_*`
@@ -87,18 +87,18 @@ end-to-end son de `-06`/`-07`):
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario del CU que materializa esta tarea tiene al menos un test (camino feliz + bordes)
-- [ ] Todos los tests en verde (`make test`, sin regresión sobre los 1064)
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK (`ruff`, `mypy --strict`) — cero secretos en código
-- [ ] Gate de mutation testing superado (`make mutation`, cosmic-ray `break: 80`) sobre los ficheros tocados
-- [ ] **Gate `sdd-lint` superado** — tras `mutation`, antes de `fact-checker`
-- [ ] Gate de `fact-checker` superado — antes de commit/resumen
-- [ ] **SDD** — sin cambios de spec/CU (los fijó `-01`); declararlo así en el session log
-- [ ] Documentación actualizada — tres capas:
-  - [ ] **Docstrings** — `embed_query` en puerto y adaptador; los tres settings nuevos
-  - [ ] **Doc técnica** — `.env.example` si documenta settings; `rag-ingestion.md` §5 si aplica
-  - [ ] **Histórico** — session log en `.claude/context/backend/backend-kb-retriever-03.md`
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario del CU que materializa esta tarea tiene al menos un test (camino feliz + bordes)
+- [x] Todos los tests en verde (`make test`, sin regresión sobre los 1064)
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK (`ruff`, `mypy --strict`) — cero secretos en código
+- [x] Gate de mutation testing superado (`make mutation`, cosmic-ray `break: 80`) sobre los ficheros tocados
+- [x] **Gate `sdd-lint` superado** — tras `mutation`, antes de `fact-checker`
+- [x] Gate de `fact-checker` superado — antes de commit/resumen
+- [x] **SDD** — sin cambios de spec/CU (los fijó `-01`); declararlo así en el session log
+- [x] Documentación actualizada — tres capas:
+  - [x] **Docstrings** — `embed_query` en puerto y adaptador; los tres settings nuevos
+  - [x] **Doc técnica** — `.env.example` si documenta settings; `rag-ingestion.md` §5 si aplica
+  - [x] **Histórico** — session log en `.claude/context/backend/backend-kb-retriever-03.md`
 
 > ⚠️ **No solapar `pytest` con `cosmic-ray exec`**.

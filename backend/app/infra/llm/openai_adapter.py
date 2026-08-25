@@ -71,6 +71,31 @@ class OpenAIEmbeddingModel:
             )
         return vectors
 
+    async def embed_query(self, text: str) -> list[float]:
+        """Vector de una consulta de búsqueda (`aembed_query` del SDK).
+
+        **Se valida la dimensión del vector devuelto**, en el mismo espíritu con el que
+        `embed_documents` valida el *número* de vectores: una respuesta bien formada con datos
+        incompatibles es un modo de fallo distinto de "el proveedor está caído", y sin este control
+        reventaría más tarde, en la comparación pgvector, como un error de driver que no dice qué pasó.
+
+        :raises app.domain.errors.PortError: fallo del proveedor, clave ausente, o vector de dimensión
+            distinta a `settings.embedding_dim`.
+        """
+        client = self._get_client()
+        try:
+            vector = await client.aembed_query(text)
+        except PortError:
+            raise
+        except Exception as exc:
+            raise PortError(f"fallo al embeber la consulta: {exc}") from exc
+        if len(vector) != self._settings.embedding_dim:
+            raise PortError(
+                f"el proveedor devolvió un vector de dimensión {len(vector)}; la configurada es "
+                f"{self._settings.embedding_dim}"
+            )
+        return vector
+
 
 def get_embedding_model(settings: Settings) -> EmbeddingModel:
     """Factory de `EmbeddingModel`, conmutable por `settings.llm_provider`."""
