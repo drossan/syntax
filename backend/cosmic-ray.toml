@@ -3,10 +3,10 @@
 # mantiene el gate en segundos). `test-command` corre los tests de ese módulo.
 # Sesión (SQLite) generada por `cosmic-ray init` → gitignore.
 [cosmic-ray]
-module-path = "app/ingestion/sources.py"
+module-path = "app/infra/vectorstore/pgvector.py"
 timeout = 90.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_sources.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_pgvector_store_documents.py"
 
 [cosmic-ray.distributor]
 name = "local"
