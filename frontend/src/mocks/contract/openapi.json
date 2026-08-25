@@ -1088,14 +1088,17 @@
     "/kb/search": {
       "get": {
         "tags": ["kb"],
-        "summary": "Búsqueda semántica en la KB (capacidad `kb.read`). Orden por `score desc`.",
+        "summary": "Búsqueda semántica en la KB (capacidad `kb.read`). Orden por `score desc` (relevancia re-rankeada con el peso de `estado`, puede superar `1.0`). Un `uc_id` aparece una sola vez; `total` cuenta los documentos distintos de la ventana de recuperación, no el corpus.\n",
         "parameters": [
           {
             "name": "q",
             "in": "query",
             "required": true,
+            "description": "Término de búsqueda. Vacío, solo espacios o más largo que `maxLength` → 422 sin llamar al proveedor de embeddings.\n",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
             }
           },
           {
@@ -1154,6 +1157,12 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
           }
         }
       }
@@ -1161,7 +1170,7 @@
     "/kb/documents": {
       "get": {
         "tags": ["kb"],
-        "summary": "Lista documentos de KB (filtros domain/package/estado).",
+        "summary": "Lista documentos de KB (filtros domain/package/estado). Orden determinista por `uc_id` ascendente; no usa el proveedor de embeddings.\n",
         "parameters": [
           {
             "name": "domain",
@@ -1216,6 +1225,9 @@
                 }
               }
             }
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
           }
         }
       }
@@ -1861,6 +1873,16 @@
       },
       "RateLimited": {
         "description": "Límite excedido (throttling de login / ai-draft).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "BadGateway": {
+        "description": "Fallo de una dependencia externa (proveedor de embeddings, base de datos, storage) — envuelto, nunca un 500 crudo y nunca disfrazado de resultado vacío.\n",
         "content": {
           "application/problem+json": {
             "schema": {
@@ -2538,6 +2560,7 @@
       },
       "KBSearchHit": {
         "type": "object",
+        "description": "Un documento de la KB como resultado de búsqueda: un `uc_id` aparece una sola vez, representado por su mejor sección.\n",
         "properties": {
           "uc_id": {
             "type": "string"
@@ -2546,7 +2569,8 @@
             "type": "string"
           },
           "section_type": {
-            "type": "string"
+            "type": "string",
+            "description": "Tipo de la sección que casó (la de mayor score dentro del documento)."
           },
           "domain": {
             "$ref": "#/components/schemas/KBDomain"
@@ -2558,10 +2582,12 @@
             "type": "string"
           },
           "score": {
-            "type": "number"
+            "type": "number",
+            "description": "Relevancia re-rankeada, NO una similitud coseno: incorpora el peso de `estado`, así que puede superar `1.0`.\n"
           },
           "snippet": {
-            "type": "string"
+            "type": "string",
+            "description": "Principio de la sección que casó, truncado por límite de palabra. No es un extracto centrado en el término buscado (la búsqueda es semántica).\n"
           }
         }
       },

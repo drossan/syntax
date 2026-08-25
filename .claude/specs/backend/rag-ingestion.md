@@ -150,8 +150,16 @@ Cada chunk queda categorizado por **5 facetas**, todas heredadas de su `kb_docum
 - La distribución real es **218 draft / 50 active** → **el 81% del corpus es `draft`**. Penalizar draft a
   ciegas vaciaría el retrieval.
 - `estado` es una **señal de re-ranking con peso configurable** (`RAG_ESTADO_WEIGHT`), **no un filtro
-  duro** por defecto. Default: peso **neutro-a-leve** (active recibe un pequeño boost; draft **no** se
-  hunde por debajo de un suelo). El peso es un desempate, no un veto.
+  duro** por defecto. El peso es un desempate, no un veto.
+- **Fórmula** ([ADR-0018](../adr/0018-retrieval-http-de-la-kb-ventana-dedup-y-peso-de-estado.md)):
+  `score' = score * (1 + RAG_ESTADO_WEIGHT)` si `estado is active`; **`draft` se deja intacto** (default
+  `0.05`). El "suelo" bajo el que draft no puede hundirse se cumple **por construcción**: lo que no se
+  toca no se hunde.
+- **Dónde se aplica**: en `app/rag/reranker.py`, **nunca en el `ORDER BY` del adaptador SQL**. La infra
+  devuelve **coseno crudo** (acotado, §6); meter la política en SQL dejaría inservible un índice ANN
+  futuro y la haría intestable sin Postgres.
+- El re-ranking opera sobre la **ventana de recuperación** (§6), no sobre la página: así un `active`
+  que por coseno crudo caería fuera de la primera página puede alcanzarla.
 - Filtrar por `estado` (p.ej. solo `active`) es **opt-in** por consulta, no el comportamiento base.
 
 ## 5. Embeddings
@@ -181,18 +189,62 @@ Cada chunk queda categorizado por **5 facetas**, todas heredadas de su `kb_docum
 
 ## 6. Retrieval (contrato para 05/14)
 
+> **Dos consumidores, una capa de recuperación.** El **camino del agente** (05) quiere **chunks** para
+> el prompt; el **camino HTTP** del panel (`/kb/search`,
+> [CU-BE-12](./casos-de-uso/CU-BE-12-consulta-de-la-kb-desde-el-panel.md)) quiere **documentos**
+> paginados. Comparten `app/rag/`, pero **no su forma de salida ni el significado de su `score`**
+> ([ADR-0018](../adr/0018-retrieval-http-de-la-kb-ventana-dedup-y-peso-de-estado.md)).
+
+### 6.1 Recuperación (común, en el adaptador — sin política de negocio)
+
 - **Búsqueda**: similitud pgvector por **coseno**, top-k sobre `embedding` (semántica; BM25 híbrido
   **diferido**, fuera de alcance).
+- **Score crudo acotado**: `score = max(0, 1 - cosine_distance)` ∈ `[0, 1]`. Una similitud negativa es
+  "menos relacionado que el azar": se acota a 0 en vez de propagarse, porque bajo cero el peso de §4
+  **penalizaría** en vez de premiar.
+- **Solo los vectores del modelo configurado** participan (`embedding.model == settings.embedding_model`):
+  comparar vectores de dos espacios distintos da un orden verosímil y **falso**.
+- Un chunk **sin fila `embedding`** (ingesta parcial, §5) no participa y no rompe la consulta.
 - **Filtros** (metadatos §4, aplicables por consulta): `domain` (el clasificador de 05 fija 1-de-17 y
   **filtra el retrieval**), `package`, `estado` (opt-in).
+- **Salida (por chunk)**: `{ uc_id, chunk_id, section_type, title, source_url, domain, estado, content,
+  score }`. `content` es el texto completo del chunk (alimenta el prompt de `generate` y el `snippet` del
+  panel); **`score` es el crudo**, sin peso de `estado`.
+
+### 6.2 Camino del agente (05) — chunks, `score` crudo
+
+- El retriever devuelve **chunks**, con su `chunk_id` y **sin deduplicar**: dos secciones del mismo UC
+  son dos piezas de contexto legítimas para el prompt.
 - **Confianza híbrida** (la consume 05 para auto vs escalado): la señal se compone de
-  **(a)** la **similitud** de los chunks recuperados (score coseno normalizado, este spec/14) y
+  **(a)** la **similitud** de los chunks recuperados (el `score` **crudo** de §6.1) y
   **(b)** el **grade** del LLM sobre relevancia (nodo de 05). Este fichero fija **(a)** y la **forma de
   salida**; **05** fija el **umbral** y la política auto/escalado/insuficiente→nota-al-humano.
-  - Salida del retriever (por chunk): `{ uc_id, chunk_id, section_type, title, source_url, domain,
-    estado, score }`. La lista ordenada por score (con el re-ranking de `estado`, §4) alimenta el grade.
+  - ⚠️ La señal (a) es el `score` **crudo a propósito**: si ya llevara el peso de `estado`, la confianza
+    híbrida contaría `estado` **dos veces**.
 - **Citas**: cada respuesta del agente cita las fuentes usadas por `uc_id` + `title` + `section_type`
   (+ `source_url` derivado). Se persisten en `agent_run.sources` (03 §4.2).
+
+### 6.3 Camino HTTP del panel (14) — documentos, `score` ponderado
+
+- **Ventana de recuperación** `RAG_SEARCH_WINDOW` (default **100**), expresada en **documentos** (= el
+  `page_size` máximo del contrato) y servida con un over-fetch de `RAG_SEARCH_WINDOW *
+  RAG_CHUNKS_PER_DOC` chunks (factor **6**, sobre los ~5.7 chunks/documento medidos). Se re-rankea la
+  ventana **entera**, se deduplica y se corta por página.
+- **Dedup por `uc_id`**: un item por documento, representado por su **mejor chunk** (su `score`, su
+  `section_type` y su `snippet`). Función pura en `app/rag/`, llamada **solo** desde este camino.
+- **`total` = documentos distintos dentro de la ventana**, no el corpus: una búsqueda ANN no tiene
+  cardinalidad. Una página más allá de la ventana devuelve `items: []` conservando ese `total`.
+- **El `score` que sale por la API es el ponderado** (§4), no el coseno: incorpora el peso de `estado` y
+  por tanto **puede superar `1.0`**. No es una similitud.
+- **`snippet`**: el **principio de la sección ganadora**, truncado a ~280 caracteres por límite de
+  palabra + elipsis. **No** es un extracto centrado en el término — la búsqueda es semántica y un chunk
+  puede casar sin contener la palabra.
+- **Listado** (`/kb/documents`): SQL plano sin vectores, con **orden determinista `uc_id` ASC**. La
+  estabilidad de la paginación se garantiza dentro de una ventana, **no** frente a una re-ingestión
+  concurrente (limitación aceptada, RN-8 de CU-BE-12).
+- **Entrada y fallos**: `q` vacía, solo espacios o más larga que el máximo → **422** sin llamar al
+  proveedor; fallo del proveedor (incluido un vector de dimensión inesperada) o de la BD → **502**.
+  Nunca una página vacía.
 
 ## 7. Refuerzos (scenario-coverage)
 

@@ -5,8 +5,12 @@ igual que en el resto de routers (decide `global_scope`/`tenant_scope` según el
 capacidad al subject), pero el resultado es indiferente aquí: `kb_document`/`kb_chunk` no llevan
 `TenantMixin`, así que ninguna política RLS depende del GUC que abra.
 
-El adaptador (`StubVectorStore`, tarea 09) devuelve siempre vacío/`None` — **comportamiento esperado,
-no un bug** — hasta que la tarea 14 (retriever real) lo sustituya sin tocar este router.
+**Estado transitorio**: el adaptador cableado hoy (`StubVectorStore`, tarea 09) devuelve siempre
+vacío/`None`, así que `/kb` se ve vacío aunque la KB esté ingerida. Es el andamio de la tarea 09, no un
+comportamiento deseable: el plan `kb-retriever` lo **borra** y cablea el adaptador real
+(`PgVectorStore`) en su tarea `-07`, que además valida `q` (vacía / solo espacios / demasiado larga →
+**422**, sin llamar al proveedor de embeddings) y añade el `snippet` que el contrato declara y este
+router todavía no mapea. Decisiones y porqués: CU-BE-12 + ADR-0018.
 """
 
 from fastapi import APIRouter, Depends, Query

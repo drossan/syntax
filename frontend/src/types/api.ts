@@ -1100,10 +1100,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Búsqueda semántica en la KB (capacidad `kb.read`). Orden por `score desc`. */
+    /** Búsqueda semántica en la KB (capacidad `kb.read`). Orden por `score desc` (relevancia re-rankeada con el peso de `estado`, puede superar `1.0`). Un `uc_id` aparece una sola vez; `total` cuenta los documentos distintos de la ventana de recuperación, no el corpus. */
     get: {
       parameters: {
         query: {
+          /** @description Término de búsqueda. Vacío, solo espacios o más largo que `maxLength` → 422 sin llamar al proveedor de embeddings. */
           q: string;
           domain?: components["schemas"]["KBDomain"];
           package?: components["schemas"]["Package"];
@@ -1129,6 +1130,8 @@ export interface paths {
           };
         };
         403: components["responses"]["Forbidden"];
+        422: components["responses"]["ValidationError"];
+        502: components["responses"]["BadGateway"];
       };
     };
     put?: never;
@@ -1146,7 +1149,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Lista documentos de KB (filtros domain/package/estado). */
+    /** Lista documentos de KB (filtros domain/package/estado). Orden determinista por `uc_id` ascendente; no usa el proveedor de embeddings. */
     get: {
       parameters: {
         query?: {
@@ -1173,6 +1176,7 @@ export interface paths {
             };
           };
         };
+        502: components["responses"]["BadGateway"];
       };
     };
     put?: never;
@@ -2046,14 +2050,18 @@ export interface components {
       /** Format: date-time */
       updated?: string;
     };
+    /** @description Un documento de la KB como resultado de búsqueda: un `uc_id` aparece una sola vez, representado por su mejor sección. */
     KBSearchHit: {
       uc_id?: string;
       title?: string;
+      /** @description Tipo de la sección que casó (la de mayor score dentro del documento). */
       section_type?: string;
       domain?: components["schemas"]["KBDomain"];
       estado?: components["schemas"]["KBEstado"];
       source_url?: string;
+      /** @description Relevancia re-rankeada, NO una similitud coseno: incorpora el peso de `estado`, así que puede superar `1.0`. */
       score?: number;
+      /** @description Principio de la sección que casó, truncado por límite de palabra. No es un extracto centrado en el término buscado (la búsqueda es semántica). */
       snippet?: string;
     };
     AnalyticsSummary: {
@@ -2134,6 +2142,15 @@ export interface components {
     };
     /** @description Límite excedido (throttling de login / ai-draft). */
     RateLimited: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        "application/problem+json": components["schemas"]["Problem"];
+      };
+    };
+    /** @description Fallo de una dependencia externa (proveedor de embeddings, base de datos, storage) — envuelto, nunca un 500 crudo y nunca disfrazado de resultado vacío. */
+    BadGateway: {
       headers: {
         [name: string]: unknown;
       };
