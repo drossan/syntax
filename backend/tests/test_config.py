@@ -272,3 +272,101 @@ def test_kb_source_path_override_from_environment(monkeypatch) -> None:
     """KB_SOURCE_PATH se puede sobreescribir por entorno."""
     monkeypatch.setenv("KB_SOURCE_PATH", "/otra/ruta")
     assert get_settings().kb_source_path == "/otra/ruta"
+
+
+# ── Settings del retrieval RAG (tarea backend-kb-retriever-03) ──────────────────
+
+
+def test_rag_estado_weight_defaults_to_a_light_boost() -> None:
+    """El peso de `estado` por defecto es un desempate leve (`score * (1 + 0.05)` para `active`),
+    no un veto: el 81% del corpus es `draft` y penalizarlo a ciegas vaciaría el retrieval."""
+    assert Settings(_env_file=None, jwt_secret="x").rag_estado_weight == 0.05
+
+
+@pytest.mark.parametrize("value", ["0", "0.0", "0.5", "1"])
+def test_rag_estado_weight_accepts_zero_and_positive_values(monkeypatch, value) -> None:
+    """`0.0` es un valor LEGÍTIMO (desempate desactivado: el orden queda el de la similitud pura),
+    no un valor inválido — de ahí `ge=0.0` y no `gt=0.0`."""
+    monkeypatch.setenv("RAG_ESTADO_WEIGHT", value)
+    assert get_settings().rag_estado_weight == float(value)
+
+
+def test_rag_estado_weight_rejects_a_negative_weight(monkeypatch) -> None:
+    """Un peso negativo invertiría el sentido del boost (hundiría `active` por debajo de `draft`):
+    se rechaza al construir, no se descubre por un ranking al revés."""
+    monkeypatch.setenv("RAG_ESTADO_WEIGHT", "-0.1")
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+def test_rag_search_window_defaults_to_the_max_contract_page_size() -> None:
+    """La ventana de recuperación son **100 documentos** = el `page_size` máximo del contrato, para
+    que la página 1 no salga truncada con ningún `page_size` legal."""
+    assert Settings(_env_file=None, jwt_secret="x").rag_search_window == 100
+
+
+@pytest.mark.parametrize("value", ["1", "250"])
+def test_rag_search_window_accepts_positive_values(monkeypatch, value) -> None:
+    """Frontera `gt=0`: el mínimo válido es 1."""
+    monkeypatch.setenv("RAG_SEARCH_WINDOW", value)
+    assert get_settings().rag_search_window == int(value)
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_rag_search_window_rejects_non_positive_values(monkeypatch, value) -> None:
+    """Una ventana de 0 documentos haría que toda búsqueda devolviera vacío — el fallo mudo que este
+    plan viene a eliminar. Se rechaza en el arranque."""
+    monkeypatch.setenv("RAG_SEARCH_WINDOW", value)
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+def test_rag_chunks_per_doc_defaults_to_the_measured_over_fetch_factor() -> None:
+    """Factor de over-fetch de chunks sobre la ventana: **6**, redondeando hacia arriba los ~5.7
+    chunks/documento medidos en el corpus real."""
+    assert Settings(_env_file=None, jwt_secret="x").rag_chunks_per_doc == 6
+
+
+@pytest.mark.parametrize("value", ["1", "12"])
+def test_rag_chunks_per_doc_accepts_positive_values(monkeypatch, value) -> None:
+    """Frontera `gt=0`: el mínimo válido es 1."""
+    monkeypatch.setenv("RAG_CHUNKS_PER_DOC", value)
+    assert get_settings().rag_chunks_per_doc == int(value)
+
+
+@pytest.mark.parametrize("value", ["0", "-3"])
+def test_rag_chunks_per_doc_rejects_non_positive_values(monkeypatch, value) -> None:
+    """Un factor de 0 dejaría la ventana sin chunks que recuperar."""
+    monkeypatch.setenv("RAG_CHUNKS_PER_DOC", value)
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+# ── Deuda preexistente cerrada aquí (destapada por el gate de mutation de -03) ──
+
+
+def test_max_upload_bytes_defaults_to_ten_mebibytes() -> None:
+    """El default de `MAX_UPLOAD_BYTES` es **10 MiB** exactos.
+
+    Ningún test fijaba este valor (los de `test_router_messages.py` lo inyectan explícitamente), así
+    que el gate de mutation sobre `config.py` reportaba 23 survivors sobre `10 * 1024 * 1024`: cualquier
+    aritmética distinta ahí pasaba inadvertida, y el límite que produce el **413** del contrato podía
+    cambiar sin que fallara nada. Deuda de la tarea 08, cerrada al mutar `config.py` por primera vez
+    entero (`backend-kb-retriever-03`).
+    """
+    assert Settings(_env_file=None, jwt_secret="x").max_upload_bytes == 10 * 1024 * 1024
+
+
+@pytest.mark.parametrize("value", ["1", "20971520"])
+def test_max_upload_bytes_accepts_positive_values(monkeypatch, value) -> None:
+    """Frontera `gt=0`: el mínimo válido es 1 byte."""
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", value)
+    assert get_settings().max_upload_bytes == int(value)
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_max_upload_bytes_rejects_non_positive_values(monkeypatch, value) -> None:
+    """Un máximo de 0 bytes rechazaría cualquier adjunto con un 413 inexplicable."""
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", value)
+    with pytest.raises(ValidationError):
+        get_settings()

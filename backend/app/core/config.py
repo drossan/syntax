@@ -93,6 +93,35 @@ class Settings(BaseSettings):
     (extensión 1m). Se parsea y valida donde se usa. Vacío por defecto → sin configurarlo, el tipo
     `packages-uc` no ingiere ningún UC (extensión 1l; la CLI avisa por stderr)."""
 
+    rag_estado_weight: float = Field(default=0.05, ge=0.0)
+    """Peso de `estado` en el re-ranking del retrieval: `score' = score * (1 + w)` para `active`;
+    `draft` **no se toca** (ADR-0010, ADR-0018).
+
+    `0.05` es un **desempate leve**, no un veto: el 81% del corpus real está en `draft` (218/268) y
+    penalizarlo a ciegas vaciaría el retrieval. El "suelo" bajo el que `draft` no puede hundirse se
+    cumple por construcción — lo que no se multiplica no baja.
+
+    **`ge=0.0`, no `gt`**: `0.0` es un valor legítimo (desempate desactivado → el orden queda el de la
+    similitud pura). Un peso **negativo** sí se rechaza: invertiría el sentido del boost.
+    """
+
+    rag_search_window: int = Field(default=100, gt=0)
+    """Ventana de recuperación de `/kb/search`, **en DOCUMENTOS** (no en chunks).
+
+    `100` = el `page_size` **máximo** del contrato compartido, para que la página 1 no salga truncada
+    con ningún `page_size` legal y para que `total` cuente la misma unidad que `items`. Se recupera la
+    ventana, se re-rankea entera, se deduplica por `uc_id` y se corta por página (ADR-0018).
+    """
+
+    rag_chunks_per_doc: int = Field(default=6, gt=0)
+    """Factor de **over-fetch** de chunks sobre `rag_search_window`: para traer N documentos se piden
+    `N * rag_chunks_per_doc` chunks, porque la búsqueda ANN devuelve chunks y varios pueden ser del
+    mismo documento.
+
+    `6` redondea hacia arriba los ~5.7 chunks/documento medidos en el corpus real (1626 chunks / 284
+    documentos). Hoy es gratis: sin índice ANN el seq scan ya calcula todas las distancias.
+    """
+
     storage_root: str = "./var/storage"
     """Directorio raíz de `LocalFilesystemStorage` (tarea 08) — relativo al cwd del proceso en dev."""
 

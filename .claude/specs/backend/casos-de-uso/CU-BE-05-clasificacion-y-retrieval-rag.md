@@ -4,6 +4,18 @@
 > [[../../adr/0008-grafo-langgraph-plano-edges-tipados]], [[../../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]],
 > [[../../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]]. Detalle: [`../rag-ingestion.md`](../rag-ingestion.md) §6,
 > [`../agent-graph.md`](../agent-graph.md) §4-§5.
+>
+> **Alcance de este CU frente al plan `kb-retriever`** (nota añadida 2026-08-25). Este CU cubre el
+> retrieval del **agente LangGraph**: chunks con `chunk_id`, **sin deduplicar**, con el `score` **crudo**
+> que alimenta la confianza híbrida. El camino de la **persona** que consulta la KB desde el panel
+> (documentos paginados, dedup por `uc_id`, `score` ponderado, `snippet`) vive en
+> [CU-BE-12](./CU-BE-12-consulta-de-la-kb-desde-el-panel.md) — comparten `app/rag/`, no su forma de
+> salida ([ADR-0018](../../adr/0018-retrieval-http-de-la-kb-ventana-dedup-y-peso-de-estado.md)).
+>
+> De los 5 escenarios de abajo, el plan `kb-retriever` materializa **solo los del retriever**: el **2**
+> (fallback sin filtro de dominio) y el **4** (los `draft` participan ponderados). Los escenarios **1**
+> (`classify` fija el dominio), **3** (contexto insuficiente escala) y **5** (citas) dependen de nodos
+> LLM del grafo que **todavía no existen** → los cierra el plan del **agent-graph**.
 
 - **Ámbito**: backend (nodos `classify`/`retrieve`/`grade` del grafo + retriever RAG)
 - **Nivel**: subfunción (dentro del run del agente, [CU-BE-06](./CU-BE-06-draft-ia-y-aprobacion-hitl.md))

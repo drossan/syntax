@@ -4,10 +4,16 @@
 (`app.domain.ports.vectorstore.VectorStore`, usado hoy por el router `kb`) — dos responsabilidades
 distintas (escritura de ingestión vs lectura del router) con el mismo nombre habrían colisionado.
 
-`search` se fija aquí con su firma FINAL (decisión de `grilling`/`design-review` del plan
-`kb-ingestion`): la tarea 14 (retriever, CU-BE-05) la implementará de verdad — hasta entonces el
-adaptador la deja en `NotImplementedError` (sin caller que la ejercite todavía). Cuando la tarea 14
-llegue, `VectorStore`/`StubVectorStore` quedan deprecados en favor de este puerto; no se tocan aquí.
+`search` se fijó aquí con su firma FINAL (decisión de `grilling`/`design-review` del plan
+`kb-ingestion`) y ya está implementada de verdad (`backend-kb-retriever-04`): la usan tanto el camino
+HTTP del panel como, en el plan del agent-graph, el nodo `retrieve`.
+
+**Los dos puertos se mantienen** (ADR-0018): este de escritura+`search`, y `VectorStore` para la lectura
+del router. Colapsarlos metería lectura paginada de negocio dentro de un puerto llamado `KBIndexWriter`
+e invertiría la dirección de dependencia del router — router y agente son consumidores con formas
+distintas (página de documentos deduplicados vs chunks con `chunk_id`). La deuda de tener dos puertos
+sobre la misma tabla está registrada en el ADR y mitigada con la regla **un solo sitio por operación**:
+el SQL de escritura de `kb_document` vive aquí, el de lectura en `PgVectorStore`.
 
 Los tipos de datos de este módulo (`KBDocumentDraft`/`ChunkWrite`/`UpsertReport`/`Hit`) son DTOs
 propios del puerto — mismo patrón que `PageResult` en `domain.ports.repositories` (`@dataclass`, no
@@ -66,7 +72,20 @@ class UpsertReport:
 
 @dataclass(frozen=True)
 class Hit:
-    """Resultado de `search` (`rag-ingestion.md` §6) — sin implementar todavía (tarea 14)."""
+    """Un chunk recuperado por `search` (`rag-ingestion.md` §6.1).
+
+    La unidad es el **chunk**, no el documento: el camino del agente los consume tal cual (varias
+    secciones del mismo UC son varias piezas de contexto legítimas), y el camino HTTP los deduplica por
+    `uc_id` en `app.rag` antes de publicarlos.
+
+    - **`content`** es el texto COMPLETO del chunk: alimenta el `snippet` del panel y el prompt del nodo
+      `generate`. Truncarlo aquí dejaría al agente sin el texto, y pedirlo con una segunda query por
+      `chunk_id` sería un N+1 disfrazado de disciplina.
+    - **`score` es la similitud CRUDA**, acotada a `[0, 1]`, **sin** el peso de `estado`. El peso se
+      aplica al producir el `KBSearchHit` de la API (`app.rag.reranker`): si viajara ya aplicado aquí,
+      la confianza híbrida de CU-BE-05 —que se compone de esta similitud más el `grade` del LLM—
+      contaría `estado` **dos veces**.
+    """
 
     uc_id: str
     chunk_id: uuid.UUID
@@ -76,6 +95,7 @@ class Hit:
     domain: KbDomain
     estado: KbEstado
     score: float
+    content: str
 
 
 class KBIndexWriter(Protocol):

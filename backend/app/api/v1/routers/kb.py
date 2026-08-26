@@ -1,12 +1,12 @@
-"""app.api.v1.routers.kb — búsqueda y documentos de KB (contrato 06/09).
+"""app.api.v1.routers.kb — búsqueda y documentos de KB (CU-BE-12, ADR-0018).
 
 KB es un recurso GLOBAL (sin `tenant_id`/RLS, `rbac.md`) — `require_capability("kb.read")` se reusa
 igual que en el resto de routers (decide `global_scope`/`tenant_scope` según el ámbito concedido de la
 capacidad al subject), pero el resultado es indiferente aquí: `kb_document`/`kb_chunk` no llevan
 `TenantMixin`, así que ninguna política RLS depende del GUC que abra.
 
-El adaptador (`StubVectorStore`, tarea 09) devuelve siempre vacío/`None` — **comportamiento esperado,
-no un bug** — hasta que la tarea 14 (retriever real) lo sustituya sin tocar este router.
+`get_vector_store()` (`app.core.deps`) cablea el adaptador real (`PgVectorStore`) — los tres endpoints
+sirven datos reales de la KB ingerida.
 """
 
 from fastapi import APIRouter, Depends, Query
@@ -20,8 +20,10 @@ from app.domain.entities.business import KBDocument as KBDocumentEntity
 from app.domain.entities.business import KBSearchHit as KBSearchHitEntity
 from app.domain.entities.enums import KbDomain, KbEstado, Package
 from app.domain.entities.identity import Subject
-from app.domain.errors import NotFound
+from app.domain.errors import NotFound, Validation
 from app.domain.ports.vectorstore import VectorStore
+
+_Q_MAX_LENGTH = 512
 
 router = APIRouter(prefix="/kb", tags=["kb"])
 
@@ -49,12 +51,13 @@ def _hit_to_schema(hit: KBSearchHitEntity) -> KBSearchHitSchema:
         estado=hit.estado.value,
         source_url=hit.source_url,
         score=hit.score,
+        snippet=hit.snippet,
     )
 
 
 @router.get("/search")
 async def search(
-    q: str = Query(...),
+    q: str = Query(..., min_length=1, max_length=_Q_MAX_LENGTH),
     domain: KbDomain | None = Query(None),
     package: Package | None = Query(None),
     estado: KbEstado | None = Query(None),
@@ -63,7 +66,20 @@ async def search(
     subject_session: tuple[Subject, AsyncSession] = Depends(require_capability(_CAPABILITY)),
     vector_store: VectorStore = Depends(get_vector_store),
 ) -> Page[KBSearchHitSchema]:
+    """`min_length`/`max_length` (`Query`) rechazan `q` vacía o demasiado larga como 422
+    `RequestValidationError` de FastAPI (ya mapeado a problem+json, `app/main.py`). Un `q` de solo
+    espacios los **pasa** (no está vacío ni excede el máximo), así que se valida aparte como regla de
+    negocio (`Validation` → 422 vía `app.api.errors`): una búsqueda sin término utilizable es una
+    petición mal formada, no una búsqueda sin resultados. Ambos casos cortan **antes** de tocar
+    `vector_store`, así que no consumen ninguna llamada al proveedor de embeddings.
+    """
     _subject, _session = subject_session
+    if not q.strip():
+        raise Validation(
+            "el término de búsqueda no puede ser solo espacios",
+            code="kb.search.blank_query",
+            details={"field": "q", "message": "el término de búsqueda no puede ser solo espacios"},
+        )
     hits, total = await vector_store.search(
         q, domain=domain, package=package, estado=estado, page=page, page_size=page_size
     )

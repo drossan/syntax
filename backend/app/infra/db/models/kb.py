@@ -3,8 +3,15 @@
 Grupo **global** (KB compartida entre tenants): SIN `tenant_id`, SIN RLS (§2/§6, ADR-0006). La columna
 `embedding.vector` es `Vector(1536)` **literal** (pgvector): la dimensión se congela en el modelo y en la
 migración (06) — usar `settings.embedding_dim` en import acoplaría a `Settings`/`JWT_SECRET` y daría un
-falso negativo en el drift-test. `settings.embedding_dim` solo lo lee `/health/ready` (09). Índice ANN
-(ivfflat/hnsw) diferido al plan RAG (13/14). Sin efectos en import.
+falso negativo en el drift-test. `settings.embedding_dim` solo lo lee `/health/ready` (09).
+
+**Índice ANN diferido con umbral** (ADR-0018): NO hay índice sobre `embedding.vector`. Con el corpus
+actual (~1626 chunks) el seq scan es **exacto** y suficiente; un índice ANN lo volvería aproximado sin
+ganancia medida, e `ivfflat` sobre una tabla casi vacía saldría mal particionado. Se crea **`hnsw`**
+(`vector_cosine_ops`) cuando `kb_chunk` supere **50.000 filas**. ⚠️ Nadie vigila ese conteo: el umbral
+se cruzará en silencio salvo que alguien lo mire.
+
+Sin efectos en import.
 """
 
 import uuid

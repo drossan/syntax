@@ -18,8 +18,13 @@ hace `rollback()` si `ingest()` lanza) — este módulo no conoce ni abre transa
 tiene ninguno de verdad (`ParsedUC.package`/`estado` llegan como `""` desde `-03`). Decisión de esta
 tarea, sin precedente en la spec: se persiste con `estado=KbEstado.active` (contenido de referencia,
 nunca señal "draft") y `package=Package.syntax_core` (placeholder neutro — el filtrado por `package` no
-tiene consumidor todavía, tarea 14). A revisar si el retriever necesita semántica real de `package` para
-glosarios.
+tiene consumidor todavía, tarea 14).
+
+⚠️ **El "a revisar" ya está revisado** (CU-BE-12 RN-9, plan `kb-retriever`): el camino de lectura de la KB
+**sí** filtra por `package`/`estado`, así que estos dos defaults dejan de ser inertes — quien filtre por
+`syntax-core`/`active` arrastra los 16 glosarios, que no pertenecen ahí de verdad. Es un **defecto de la
+ingestión**, no de la lectura: se corrige **aquí** (migración + re-ingesta), en su propio plan, no
+parcheando el retriever.
 
 Anti-patrón: escribir aunque sea un solo documento antes de validar `uc_id` duplicados del batch entero;
 re-embeber un chunk cuyo contenido no cambió.

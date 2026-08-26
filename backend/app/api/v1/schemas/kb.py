@@ -16,6 +16,14 @@ class KBDocument(BaseModel):
 
 
 class KBSearchHit(BaseModel):
+    """1:1 con el `KBSearchHit` de `api-contract.yaml`.
+
+    `snippet` estaba **declarado en el contrato y renderizado por el front** desde `routers-core`, pero
+    faltaba aquí: un drift que no se notaba solo porque el adaptador era un stub que devolvía `[]`. Con
+    datos reales, cada tarjeta habría pintado un snippet vacío. La guardia contrato↔OpenAPI de `-07`
+    existe para que no vuelva a pasar.
+    """
+
     uc_id: str
     title: str
     section_type: str
@@ -23,3 +31,4 @@ class KBSearchHit(BaseModel):
     estado: str
     source_url: str
     score: float
+    snippet: str = ""

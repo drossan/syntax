@@ -203,3 +203,94 @@ def test_get_embedding_model_with_unsupported_provider_fails_clear(provider: str
     un valor en la dirección donde `==` y esa comparación de orden difieren."""
     with pytest.raises(PortError):
         get_embedding_model(_settings(llm_provider=provider))
+
+
+# ── embed_query (tarea backend-kb-retriever-03) ─────────────────────────────────
+
+
+async def test_embed_query_delegates_with_configured_dimension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CU-BE-12 · camino feliz del puerto: `embed_query` devuelve el vector de la consulta, con la
+    dimensión configurada y los mismos parámetros de cliente que `embed_documents`."""
+    captured: dict[str, object] = {}
+
+    async def fake_aembed_query(self: OpenAIEmbeddings, text: str) -> list[float]:
+        captured["text"] = text
+        captured["dimensions"] = self.dimensions
+        captured["max_retries"] = self.max_retries
+        captured["request_timeout"] = self.request_timeout
+        return [0.5] * EMBEDDING_DIM_LITERAL
+
+    monkeypatch.setattr(OpenAIEmbeddings, "aembed_query", fake_aembed_query)
+
+    model = OpenAIEmbeddingModel(_settings())
+    result = await model.embed_query("cómo subo un vídeo")
+
+    assert captured["text"] == "cómo subo un vídeo"
+    assert captured["dimensions"] == EMBEDDING_DIM_LITERAL
+    assert captured["max_retries"] == 3
+    assert captured["request_timeout"] == 30.0
+    assert len(result) == EMBEDDING_DIM_LITERAL
+
+
+async def test_embed_query_provider_failure_propagates_wrapped_in_port_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CU-BE-12 · *Un fallo del proveedor de embeddings no se disfraza de KB vacía* — en la capa del
+    adaptador: cualquier fallo del proveedor sale como `PortError` (el router lo traduce a 502)."""
+
+    async def fake_aembed_query(self: OpenAIEmbeddings, text: str) -> list[float]:
+        raise TimeoutError("provider timed out")
+
+    monkeypatch.setattr(OpenAIEmbeddings, "aembed_query", fake_aembed_query)
+
+    model = OpenAIEmbeddingModel(_settings())
+    with pytest.raises(PortError):
+        await model.embed_query("consulta")
+
+
+async def test_embed_query_does_not_rewrap_an_existing_port_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Un `PortError` que ya venga de dentro se propaga TAL CUAL, sin re-envolverse: re-envolver
+    perdería el mensaje original dentro de otro genérico."""
+
+    async def fake_aembed_query(self: OpenAIEmbeddings, text: str) -> list[float]:
+        raise PortError("mensaje original del puerto")
+
+    monkeypatch.setattr(OpenAIEmbeddings, "aembed_query", fake_aembed_query)
+
+    model = OpenAIEmbeddingModel(_settings())
+    with pytest.raises(PortError, match="mensaje original del puerto"):
+        await model.embed_query("consulta")
+
+
+@pytest.mark.parametrize("returned_dim", [EMBEDDING_DIM_LITERAL - 1, EMBEDDING_DIM_LITERAL + 1, 0])
+async def test_embed_query_with_unexpected_vector_dimension_fails_as_a_port_error(
+    monkeypatch: pytest.MonkeyPatch, returned_dim: int
+) -> None:
+    """CU-BE-12 · *Un vector de dimensión inesperada se rechaza como fallo del proveedor*.
+
+    Modo de fallo DISTINTO de "proveedor caído": la respuesta está bien formada, pero los datos son
+    incompatibles. Sin este assert el vector llegaría a la comparación pgvector y reventaría como
+    error de driver, sin decir qué pasó realmente.
+    """
+
+    async def fake_aembed_query(self: OpenAIEmbeddings, text: str) -> list[float]:
+        return [0.1] * returned_dim
+
+    monkeypatch.setattr(OpenAIEmbeddings, "aembed_query", fake_aembed_query)
+
+    model = OpenAIEmbeddingModel(_settings())
+    with pytest.raises(PortError):
+        await model.embed_query("consulta")
+
+
+async def test_embed_query_without_api_key_fails_before_any_network_call() -> None:
+    """Sin `openai_api_key` el adaptador falla al construir el cliente (validación perezosa), no con
+    una llamada de red sin credenciales."""
+    model = OpenAIEmbeddingModel(Settings(_env_file=None, jwt_secret="x", openai_api_key=""))
+
+    with pytest.raises(PortError):
+        await model.embed_query("consulta")

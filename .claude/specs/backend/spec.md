@@ -78,7 +78,7 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-031** — El sistema DEBERÁ tratar el contenido del ticket como **input no confiable** (aislado del system-prompt; sin ejecutar instrucciones embebidas) y persistir la traza en `agent_run.langsmith_trace_url`.
 - **FR-040** — Si ya hay un `agent_run` no-terminal (`queued`/`running`) para el ticket, o el tenant excede el límite de tasa de `ai-draft` en la ventana actual, entonces el sistema DEBERÁ rechazar el disparo (**409**/**429** respectivamente) sin crear un `agent_run` nuevo.
 
-### KB: ingestión y retrieval — [[../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]]
+### KB: ingestión y retrieval — [[../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]] · [[../adr/0018-retrieval-http-de-la-kb-ventana-dedup-y-peso-de-estado]]
 
 - **FR-032** — Cuando se ingiere la KB, el sistema DEBERÁ extraer los metadatos de cada documento **según la convención del tipo de fuente configurado** (04 §2), trocear por **H2 tolerante**, embeber y hacer **upsert idempotente por `uc_id`**.
 - **FR-033** — Si el frontmatter es malformado o falta `uc_id`, entonces el sistema DEBERÁ **saltar el documento con log** (no entra); si un `uc_id` está **duplicado**, DEBERÁ **fallar el batch** reportando **todos** los ficheros en conflicto para ese `uc_id` (no solo un par).
@@ -103,6 +103,32 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-048** — El sistema DEBERÁ tratar el `uc_id` como un espacio de nombres **compartido** entre tipos
   de fuente: los que no reaparecen en el origen actual se reconcilian, y los que reaparecen se
   actualizan en vez de duplicarse, con independencia del tipo de fuente que los ingirió.
+- **FR-049** — Cuando un sujeto con `kb.read` busca un término en la KB, el sistema DEBERÁ embeber la
+  consulta y recuperar por **similitud coseno** —considerando **solo** los vectores del modelo de
+  embeddings configurado y acotando la similitud cruda a `[0, 1]`— una **ventana de recuperación** de
+  documentos, acotada por los filtros `domain`/`package`/`estado` que se pidan, aplicando el peso de
+  `estado` como **re-ranking** (nunca como filtro implícito) y devolviendo la página ordenada por
+  `score` **descendente**.
+- **FR-050** — El sistema DEBERÁ devolver **un solo resultado por `uc_id`** —el de su chunk de mayor
+  score—, con su `section_type` y un **`snippet`** que muestra el principio de esa sección truncado por
+  límite de palabra (no un extracto centrado en el término buscado).
+- **FR-051** — El `score` que el sistema DEBERÁ devolver en cada resultado de búsqueda es la
+  **relevancia re-rankeada** (similitud cruda **ponderada** por `estado`), no la similitud coseno: por
+  tanto **puede superar `1.0`**. La similitud cruda de FR-049 es una señal **interna**, que el sistema
+  DEBERÁ conservar sin ponderar para la confianza híbrida del agente (FR-025).
+- **FR-052** — El `total` de una búsqueda DEBERÁ contar los **documentos distintos dentro de la ventana
+  de recuperación**, no el corpus entero. Cuando se solicita una página que cae más allá de esa ventana,
+  el sistema DEBERÁ devolver `items` vacío conservando ese mismo `total`.
+- **FR-053** — Si el término de búsqueda está vacío, es solo espacios o **excede la longitud máxima**,
+  entonces el sistema DEBERÁ responder **422** sin llegar a llamar al proveedor de embeddings.
+- **FR-054** — Si falla el proveedor de embeddings (caído, sin clave, o devolviendo un vector de
+  **dimensión distinta** a la configurada) o falla la base de datos, entonces el sistema DEBERÁ responder
+  **502**, nunca una página de resultados vacía.
+- **FR-055** — Cuando un sujeto con `kb.read` lista los documentos de la KB, el sistema DEBERÁ paginarlos
+  con **orden determinista** (`uc_id` ascendente).
+- **FR-056** — Cuando un sujeto con `kb.read` pide un documento por su `uc_id`, el sistema DEBERÁ
+  servirlo; si ese `uc_id` no corresponde a ningún documento, entonces DEBERÁ responder **404** sin
+  revelar nada más.
 
 ### Administración y notificaciones
 
@@ -150,6 +176,7 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - [CU-BE-09: Administración de tenants, usuarios y roles](./casos-de-uso/CU-BE-09-administracion-tenants-usuarios-roles.md)
 - [CU-BE-10: Notificaciones in-app](./casos-de-uso/CU-BE-10-notificaciones-in-app.md)
 - [CU-BE-11: Resumen de analytics](./casos-de-uso/CU-BE-11-resumen-de-analytics.md)
+- [CU-BE-12: Consulta de la KB desde el panel](./casos-de-uso/CU-BE-12-consulta-de-la-kb-desde-el-panel.md)
 
 ## Fuera de alcance
 

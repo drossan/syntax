@@ -1,8 +1,16 @@
-"""app.infra.vector — adaptador SQLAlchemy+pgvector de `KBIndexWriter` (tarea backend-kb-ingestion-02).
+"""app.infra.vector — adaptador SQLAlchemy+pgvector de `KBIndexWriter` (tarea backend-kb-ingestion-02;
+`search` real en backend-kb-retriever-04).
 
-`search` deja `NotImplementedError`: sin caller en este plan, la implementará de verdad la tarea 14
-(retriever, CU-BE-05) — ver el docstring de `app.domain.ports.vector` para la resolución del doble
-contrato con `app.domain.ports.vectorstore.VectorStore`.
+Sirve a **dos caminos** con la misma tabla: la **escritura** de la ingestión (`upsert_document` y
+compañía) y la **búsqueda ANN** (`search`), que es la única puerta de entrada al retrieval — la usan
+tanto el camino HTTP del panel como el nodo `retrieve` del grafo. De ahí que `embedding_model` sea un
+parámetro **opcional** del constructor: solo `search` lo necesita. Ver el docstring de
+`app.domain.ports.vector` para la resolución del doble contrato con
+`app.domain.ports.vectorstore.VectorStore`.
+
+`search` devuelve **coseno crudo, sin política de negocio**: el peso de `estado` y el dedup viven en
+`app.rag` (ADR-0018). Meterlos en el `ORDER BY` dejaría inservible cualquier índice ANN futuro y haría
+la política intestable sin Postgres.
 
 Reconciliación en `upsert_document`: los `kb_chunk` (y su `embedding`, cascada a nivel de BD) cuyo
 `ordinal` ya no llega en `chunks` se borran con un `DELETE` real — necesario para que el
@@ -25,7 +33,7 @@ from app.infra.db.models.enums import KbEstado as KbEstadoOrm
 from app.infra.db.models.kb import Embedding
 from app.infra.db.models.kb import KBChunk as KBChunkModel
 from app.infra.db.models.kb import KBDocument as KBDocumentModel
-from app.infra.db.repositories._enum_bridge import to_orm
+from app.infra.db.repositories._enum_bridge import to_domain, to_orm
 
 _INGESTION_LOCK_KEY = 8199251
 """Clave arbitraria del advisory lock de ingestión (`pg_try_advisory_lock`) — una sola ejecución de
@@ -35,8 +43,16 @@ _INGESTION_LOCK_KEY = 8199251
 class SqlAlchemyKBIndexWriter:
     """Adaptador de `KBIndexWriter` (`app.domain.ports.vector`)."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, embedding_model: str | None = None) -> None:
+        """
+        :param session: sesión async; el llamante gobierna la transacción.
+        :param embedding_model: modelo contra el que compara `search` (`settings.embedding_model`).
+            **Solo lo necesita el camino de LECTURA**: la ingestión construye este adaptador con la
+            sesión a secas, y para ella exigirlo sería pedir un dato que no usa (hay ~60 callers así).
+            Sin él, `search` falla explícito en vez de comparar contra vectores de cualquier modelo.
+        """
         self._session = session
+        self._embedding_model = embedding_model
 
     async def existing_uc_ids(self) -> set[str]:
         try:
@@ -174,7 +190,77 @@ class SqlAlchemyKBIndexWriter:
         package: Package | None = None,
         estado: KbEstado | None = None,
     ) -> list[Hit]:
-        raise NotImplementedError("search real: tarea 14 (retriever, CU-BE-05)")
+        """Los `top_k` chunks más parecidos a `query_vector` por **similitud coseno**, sin política.
+
+        Devuelve el **coseno crudo acotado**: `score = max(0, 1 - distance)`. El clamp no es cosmético
+        — `1 - cosine_distance` ∈ `[-1, 1]`, y un score negativo haría que el boost multiplicativo de
+        `app.rag.reranker` **penalizara** al documento e invirtiera su orden frente a un `draft`. Un
+        coseno negativo es "menos relacionado que el azar": no hay ranking que preservar bajo 0.
+
+        Solo participan los vectores del **modelo configurado**: comparar dos espacios vectoriales
+        distintos devuelve basura perfectamente ordenada, sin ninguna señal de error. Por eso `search`
+        exige un adaptador construido con `embedding_model` y falla explícito si no lo tiene.
+
+        Los chunks **sin fila `embedding`** (ingesta parcial) quedan fuera por el `JOIN`: no participan
+        y no rompen la consulta.
+
+        Los filtros `domain`/`package`/`estado` son opcionales y se combinan por conjunción; `estado`
+        es **opt-in** (ADR-0010): sin pedirlo, los `draft` participan — son el 81% del corpus y
+        filtrarlos por defecto vaciaría el retrieval. El **peso** de `estado` y el dedup NO viven aquí,
+        sino en `app.rag` (ADR-0018): mantener la infra sin política es lo que deja utilizable un
+        futuro índice ANN, porque el `ORDER BY` no lleva expresiones ponderadas.
+
+        :raises app.domain.errors.PortError: si el adaptador se construyó sin `embedding_model`, o ante
+            un fallo de infraestructura (BD caída/timeout).
+        """
+        if self._embedding_model is None:
+            raise PortError(
+                "este adaptador se construyó sin `embedding_model` (camino de ingestión); `search` "
+                "necesita saber contra qué modelo comparar para no cruzar espacios vectoriales"
+            )
+        distance = Embedding.vector.cosine_distance(query_vector)
+        stmt = (
+            select(
+                KBDocumentModel.uc_id,
+                KBChunkModel.id,
+                KBChunkModel.section_type,
+                KBChunkModel.content,
+                KBDocumentModel.title,
+                KBDocumentModel.source_url,
+                KBDocumentModel.domain,
+                KBDocumentModel.estado,
+                distance.label("distance"),
+            )
+            .join(KBChunkModel, KBChunkModel.id == Embedding.chunk_id)
+            .join(KBDocumentModel, KBDocumentModel.id == KBChunkModel.document_id)
+            .where(Embedding.model == self._embedding_model)
+            .order_by(distance.asc())
+            .limit(top_k)
+        )
+        if domain is not None:
+            stmt = stmt.where(KBDocumentModel.domain == to_orm(KbDomainOrm, domain))
+        if package is not None:
+            stmt = stmt.where(KBDocumentModel.package == package.value)
+        if estado is not None:
+            stmt = stmt.where(KBDocumentModel.estado == to_orm(KbEstadoOrm, estado))
+        try:
+            rows = (await self._session.execute(stmt)).all()
+        except Exception as exc:
+            raise PortError("fallo al buscar en la KB") from exc
+        return [
+            Hit(
+                uc_id=row.uc_id,
+                chunk_id=row.id,
+                section_type=row.section_type,
+                title=row.title,
+                source_url=row.source_url,
+                domain=to_domain(KbDomain, row.domain),
+                estado=to_domain(KbEstado, row.estado),
+                score=max(0.0, 1.0 - row.distance),
+                content=row.content,
+            )
+            for row in rows
+        ]
 
     async def try_acquire_ingestion_lock(self) -> bool:
         try:

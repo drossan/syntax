@@ -155,8 +155,18 @@ class KBDocument(BaseModel):
 
 
 class KBSearchHit(BaseModel):
-    """Resultado de `VectorStore.search` — recorte de `KBDocument` + `section_type`/`score` del
-    retrieval (tarea 14: hoy el adaptador es un stub, el shape ya es el final)."""
+    """Un documento de la KB como resultado de búsqueda del panel (CU-BE-12).
+
+    La unidad es el **documento**, no el chunk: un `uc_id` aparece una sola vez por búsqueda,
+    representado por su mejor sección (RN-1). Por eso no expone `chunk_id` — es un id interno que el
+    contrato oculta a propósito, y dos hits del mismo UC serían dos tarjetas al mismo sitio.
+
+    - `score` — **relevancia re-rankeada**, no una similitud coseno: incorpora el peso de `estado` y
+      por tanto **puede superar `1.0`** (RN-4).
+    - `snippet` — **principio** de la sección que casó, truncado por límite de palabra. No es un
+      extracto centrado en el término buscado: la búsqueda es semántica y un chunk puede casar sin
+      contener la palabra (RN-5).
+    """
 
     uc_id: str
     title: str
@@ -165,6 +175,7 @@ class KBSearchHit(BaseModel):
     estado: KbEstado
     source_url: str
     score: float
+    snippet: str = ""
 
 
 class AnalyticsSummary(BaseModel):
