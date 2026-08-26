@@ -244,7 +244,7 @@ que no se abren dos transacciones) y `q`→422.
 - [x] `backend-kb-retriever-03` (P1) — `embed_query` (puerto + adaptador OpenAI) + settings `RAG_*`  · depends_on: backend-kb-retriever-01
 - [x] `backend-kb-retriever-04` (P1) — `SqlAlchemyKBIndexWriter.search()` + `Hit.content` + clamp del score + filtro por `embedding.model`  · depends_on: backend-kb-retriever-01
 - [x] `backend-kb-retriever-05` (P2) — `app/rag/`: `reranker` (peso→`RankedHit`) + `dedup_by_uc_id` + `retriever` (ventana)  · depends_on: backend-kb-retriever-03, backend-kb-retriever-04
-- [ ] `backend-kb-retriever-06` (P1) — `PgVectorStore.search` + `snippet` end-to-end (entidad, schema, `_hit_to_schema`, truncado)  · depends_on: backend-kb-retriever-02, backend-kb-retriever-05
+- [x] `backend-kb-retriever-06` (P1) — `PgVectorStore.search` + `snippet` end-to-end (entidad, schema, `_hit_to_schema`, truncado)  · depends_on: backend-kb-retriever-02, backend-kb-retriever-05
 - [ ] `backend-kb-retriever-07` (P1) — Swap: `get_vector_store()` + `q`→422 + borrar stub + reescribir `test_router_kb.py` + guardia del contrato  · depends_on: backend-kb-retriever-06
 
 Notas de ejecución:

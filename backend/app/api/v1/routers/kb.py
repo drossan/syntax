@@ -53,6 +53,7 @@ def _hit_to_schema(hit: KBSearchHitEntity) -> KBSearchHitSchema:
         estado=hit.estado.value,
         source_url=hit.source_url,
         score=hit.score,
+        snippet=hit.snippet,
     )
 
 
