@@ -4,19 +4,16 @@
 (`app.domain.ports.vectorstore.VectorStore`, usado hoy por el router `kb`) — dos responsabilidades
 distintas (escritura de ingestión vs lectura del router) con el mismo nombre habrían colisionado.
 
-`search` se fija aquí con su firma FINAL (decisión de `grilling`/`design-review` del plan
-`kb-ingestion`): la tarea 14 (retriever, CU-BE-05/CU-BE-12) la implementa de verdad — hasta entonces el
-adaptador la deja en `NotImplementedError` (sin caller que la ejercite todavía).
+`search` se fijó aquí con su firma FINAL (decisión de `grilling`/`design-review` del plan
+`kb-ingestion`) y ya está implementada de verdad (`backend-kb-retriever-04`): la usan tanto el camino
+HTTP del panel como, en el plan del agent-graph, el nodo `retrieve`.
 
 **Los dos puertos se mantienen** (ADR-0018): este de escritura+`search`, y `VectorStore` para la lectura
-del router. Una versión anterior de este docstring prometía que la tarea 14 dejaría
-`VectorStore`/`StubVectorStore` "deprecados en favor de este puerto" — **es imposible**: `KBIndexWriter`
-no tiene `list_documents` ni `get_document`, y colapsarlos metería lectura paginada de negocio dentro de
-un puerto llamado `KBIndexWriter` e invertiría la dirección de dependencia del router. Router y agente
-son consumidores con formas distintas (página de documentos deduplicados vs chunks con `chunk_id`). La
-deuda de tener dos puertos sobre la misma tabla está registrada en el ADR y mitigada con la regla **un
-solo sitio por operación**: el SQL de escritura de `kb_document` vive aquí, el de lectura en
-`PgVectorStore`. (`StubVectorStore` sí desaparece — lo sustituye el adaptador real.)
+del router. Colapsarlos metería lectura paginada de negocio dentro de un puerto llamado `KBIndexWriter`
+e invertiría la dirección de dependencia del router — router y agente son consumidores con formas
+distintas (página de documentos deduplicados vs chunks con `chunk_id`). La deuda de tener dos puertos
+sobre la misma tabla está registrada en el ADR y mitigada con la regla **un solo sitio por operación**:
+el SQL de escritura de `kb_document` vive aquí, el de lectura en `PgVectorStore`.
 
 Los tipos de datos de este módulo (`KBDocumentDraft`/`ChunkWrite`/`UpsertReport`/`Hit`) son DTOs
 propios del puerto — mismo patrón que `PageResult` en `domain.ports.repositories` (`@dataclass`, no

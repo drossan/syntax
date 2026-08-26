@@ -1,7 +1,7 @@
 ---
 id: backend-kb-retriever
 package: backend
-status: active           # pending | active | completed | cancelled
+status: completed        # pending | active | completed | cancelled
 branch: plan/backend/kb-retriever
 created: 2026-08-24
 updated: 2026-08-25
@@ -245,7 +245,7 @@ que no se abren dos transacciones) y `q`→422.
 - [x] `backend-kb-retriever-04` (P1) — `SqlAlchemyKBIndexWriter.search()` + `Hit.content` + clamp del score + filtro por `embedding.model`  · depends_on: backend-kb-retriever-01
 - [x] `backend-kb-retriever-05` (P2) — `app/rag/`: `reranker` (peso→`RankedHit`) + `dedup_by_uc_id` + `retriever` (ventana)  · depends_on: backend-kb-retriever-03, backend-kb-retriever-04
 - [x] `backend-kb-retriever-06` (P1) — `PgVectorStore.search` + `snippet` end-to-end (entidad, schema, `_hit_to_schema`, truncado)  · depends_on: backend-kb-retriever-02, backend-kb-retriever-05
-- [ ] `backend-kb-retriever-07` (P1) — Swap: `get_vector_store()` + `q`→422 + borrar stub + reescribir `test_router_kb.py` + guardia del contrato  · depends_on: backend-kb-retriever-06
+- [x] `backend-kb-retriever-07` (P1) — Swap: `get_vector_store()` + `q`→422 + borrar stub + reescribir `test_router_kb.py` + guardia del contrato  · depends_on: backend-kb-retriever-06
 
 Notas de ejecución:
 
@@ -343,3 +343,19 @@ Notas de ejecución:
   **`pnpm gen:api` sí mueve** `types/api.ts` y `mocks/contract/openapi.json` (A7 confirmado, regeneración
   commiteada). Gates: `/sdd-lint` 0 ERROR / 6 AVISO (5 corregidos, 1 reconocido), `fact-checker` 20/20
   VERIFICADO, `make test` 1064 sin regresión, frontend 332 en verde.
+- 2026-08-25: **plan cerrado**. Las 7 tareas en `done`, todas verificadas por `fact-checker` en su
+  cierre (VERIFICADO: 20/20, 14/15+1 corregida, 17/17, 16/16, 17/17, 12/12 tras un incidente corregido,
+  14/14 — sin ningún INCORRECTO que quedara sin resolver). `make test` final: **1215 passed**, sin
+  regresión sobre los 1064 de partida. `grep -rn "NotImplementedError" app/infra/vector/` y
+  `grep -rn "StubVectorStore" app/ tests/` — ambos vacíos, los dos criterios de éxito del objetivo 1 y 3
+  cumplidos literalmente. `/kb` deja de estar vacío en el panel: los tres endpoints sirven datos reales.
+  **Incidente real de la sesión** (documentado en el session log de `-06`): una interrupción de sesión a
+  mitad de `cosmic-ray exec` dejó una mutación sin revertir en disco (`*` → `<<` en el cálculo del
+  over-fetch); ningún test la detectó porque sobre-funcionaba en vez de romper — la encontró
+  `fact-checker` leyendo el fichero línea a línea. Corregida y re-verificada desde cero.
+  **Deuda ajena destapada, no de este plan**: el gate de mutation sobre ficheros grandes y compartidos
+  (`config.py` en `-03`, `deps.py` en `-07`) sacó a la luz defaults sin test (`max_upload_bytes`, tarea
+  08) y comparaciones de autenticación/tenant sin cobertura contra un test-command estrecho
+  (`get_current_subject`/`get_tenant_context`, código no tocado por este plan). La primera se corrigió
+  (barata, sin riesgo); la segunda se dejó como follow-up explícito (código de seguridad ajeno, fuera
+  del alcance del encargo).

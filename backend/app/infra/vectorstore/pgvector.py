@@ -1,9 +1,9 @@
 """app.infra.vectorstore.pgvector — adaptador Postgres del puerto de LECTURA de la KB
 (`app.domain.ports.vectorstore.VectorStore`), tarea `backend-kb-retriever-02`.
 
-Sustituye a `StubVectorStore` (que devolvía `[], 0` / `None` y por eso `/kb` se veía vacío en el
-panel). El **swap** de `get_vector_store()` lo hace la tarea `-07`, no esta: el router resuelve los
-tres endpoints por la MISMA dependencia, así que no puede cablearse a medias.
+Es el adaptador real que `get_vector_store()` (`app.core.deps`, `backend-kb-retriever-07`) cablea en
+el router: antes de esa tarea el adaptador stub que ocupaba su sitio devolvía siempre `[], 0`/`None`,
+y `/kb` se veía vacío en el panel aunque la KB estuviera ingerida.
 
 **Reparto del SQL de `kb_document`** (deuda de los dos puertos, ADR-0018): la **escritura** vive en
 `app.infra.vector.SqlAlchemyKBIndexWriter` y la **lectura** aquí, con **un solo sitio por operación**.

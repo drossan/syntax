@@ -31,6 +31,7 @@ from app.core.security import JWT_ALGORITHM, decode_access_token
 from app.domain.entities.enums import TenantStatus
 from app.domain.entities.identity import Subject
 from app.domain.ports.analytics import AnalyticsRepository
+from app.domain.ports.embeddings import EmbeddingModel
 from app.domain.ports.rate_limiter import RateLimiter
 from app.domain.ports.storage import Storage
 from app.domain.ports.vectorstore import VectorStore
@@ -59,10 +60,11 @@ from app.infra.db.repositories import (
 )
 from app.infra.db.session import get_session, global_scope, tenant_scope
 from app.infra.email import StubEmailPort
+from app.infra.llm.openai_adapter import get_embedding_model
 from app.infra.rate_limit.in_memory import InMemoryRateLimiter
 from app.infra.sla import StubSlaPolicy
 from app.infra.storage.local import LocalFilesystemStorage
-from app.infra.vectorstore.stub import StubVectorStore
+from app.infra.vectorstore.pgvector import PgVectorStore
 
 _ACCESS_TOKEN_PURPOSE = "access"  # noqa: S105 — claim `purpose`, no un secreto
 
@@ -112,10 +114,52 @@ def get_storage(settings: Settings = Depends(get_settings)) -> Storage:
     return LocalFilesystemStorage(settings.storage_root)
 
 
-def get_vector_store() -> VectorStore:
-    """Ensambla el adaptador de `VectorStore` (tarea 09) — stub sin estado hasta el retriever real
-    (tarea 14); sin parámetros de construcción, no necesita ninguna dependencia."""
-    return StubVectorStore()
+class _LazyEmbeddingModel:
+    """Envoltorio perezoso de `EmbeddingModel`, solo para el camino HTTP.
+
+    `get_vector_store()` es **una única** dependencia para los tres endpoints de `/kb`: si construyera
+    el adaptador real de embeddings de forma eager, `/kb/documents` —que no toca embeddings para
+    nada— podría tumbarse con un **502** por una `settings.embedding_dim` mal configurada
+    (`OpenAIEmbeddingModel.__init__` valida esa dimensión y lanza `PortError` **al construir**, no al
+    usar). Este envoltorio difiere esa construcción hasta la primera llamada real
+    (`embed_query`/`embed_documents`), que solo dispara `/kb/search`.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+        self._model: EmbeddingModel | None = None
+
+    def _resolve(self) -> EmbeddingModel:
+        if self._model is None:
+            self._model = get_embedding_model(self._settings)
+        return self._model
+
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return await self._resolve().embed_documents(texts)
+
+    async def embed_query(self, text: str) -> list[float]:
+        return await self._resolve().embed_query(text)
+
+
+def get_embeddings_port(settings: Settings = Depends(get_settings)) -> EmbeddingModel:
+    """`EmbeddingModel` con instanciación perezosa real (`_LazyEmbeddingModel`) — dependencia propia
+    (no inline en `get_vector_store`) para que los tests puedan sobrescribirla con un doble sin tocar
+    la sesión ni el resto del cableado."""
+    return _LazyEmbeddingModel(settings)
+
+
+def get_vector_store(
+    session: AsyncSession = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    embeddings: EmbeddingModel = Depends(get_embeddings_port),
+) -> VectorStore:
+    """Ensambla el adaptador real de `VectorStore` (`PgVectorStore`, tarea `backend-kb-retriever`).
+
+    Comparte la **misma** `AsyncSession` que abrió `require_capability` (caché de dependencias de
+    FastAPI por request): no se abren dos transacciones. `embeddings` llega perezoso —ver
+    `_LazyEmbeddingModel`— para que una configuración de embeddings rota no tumbe `/kb/documents`.
+    """
+    return PgVectorStore(session, embeddings=embeddings, settings=settings)
 
 
 @lru_cache

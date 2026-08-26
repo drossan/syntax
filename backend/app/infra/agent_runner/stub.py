@@ -6,7 +6,7 @@ del grafo**, pero SÍ crea la fila real: el CAS bajo concurrencia vive en el ín
 `add()` traduce a `Conflict` (`SqlAlchemyAgentRunRepository`), y este adaptador es el único punto de la
 capa de dominio que llama a `add()` — `agent_service` solo lee (`get_active_for_ticket`/`next_run_seq`/
 `get`), nunca escribe `agent_run` directamente. El adaptador real (15/16) sustituye esta clase sin tocar
-`agent_service` ni el router `agent` — mismo criterio que `StubVectorStore`/`StubSlaPolicy`.
+`agent_service` ni el router `agent` — mismo criterio que `StubSlaPolicy`.
 
 `resume()` es también un no-op: sin grafo real que reanudar, no hay nada que hacer todavía (consumidor
 real: 16).

@@ -1,10 +1,11 @@
 """app.domain.ports.vectorstore — puerto de búsqueda/lectura de la KB (recortado a lo que el router
-`kb` necesita hoy, tarea 09).
+`kb` necesita, tarea 09; implementado de verdad por `PgVectorStore` en `backend-kb-retriever`).
 
-El retriever real (embeddings + pgvector ANN + reranking + citas) es la tarea 14, todavía inexistente
-— este puerto ya fija el shape final para que esa tarea solo sustituya el adaptador (`StubVectorStore`
-→ el real), sin tocar el router. KB es un recurso GLOBAL (sin `tenant_id`/RLS, `rbac.md`) — el puerto
-no recibe `tenant_id` en ninguna firma.
+Se mantiene como puerto **propio**, distinto de `app.domain.ports.vector.KBIndexWriter` (escritura de
+ingestión): son dos consumidores con formas de salida distintas —página de documentos deduplicados vs
+chunks con `chunk_id`— y colapsarlos metería lectura paginada de negocio dentro de un puerto llamado
+`KBIndexWriter` (deuda registrada en ADR-0018). KB es un recurso GLOBAL (sin `tenant_id`/RLS,
+`rbac.md`) — el puerto no recibe `tenant_id` en ninguna firma.
 """
 
 from typing import Protocol
