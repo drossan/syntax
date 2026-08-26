@@ -70,5 +70,11 @@ class MeUser(BaseModel):
 
 
 class Me(BaseModel):
+    """1:1 con `api-contract.yaml:1112-1130` — `active_tenant_id` y `available_tenants` son
+    `required` en el contrato: el front (`TenantProvider`) los lee al bootstrapear la sesión y sin
+    ellos revienta en cualquier página autenticada, no solo en una feature concreta."""
+
     user: MeUser
+    active_tenant_id: uuid.UUID
     capabilities: list[CapabilityGrant]
+    available_tenants: list[TenantChoice]

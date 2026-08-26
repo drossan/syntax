@@ -422,6 +422,96 @@ async def test_me_when_the_membership_is_missing_is_not_found(
     assert r.headers["content-type"].startswith("application/problem+json")
 
 
+async def test_me_returns_the_active_tenant_id(app: FastAPI, db: AsyncSession) -> None:
+    """`Me.active_tenant_id` (contrato, `api-contract.yaml:1117-1123`) es el único campo donde el
+    front puede leer el tenant de la sesión actual — sin él, `TenantProvider` no puede resolverlo."""
+    user, tenant = await _seed_user_with_membership(db)
+    token = _access_token(user.id, tenant.id)
+
+    async with _client(app) as c:
+        r = await c.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert r.status_code == 200
+    assert r.json()["active_tenant_id"] == str(tenant.id)
+
+
+async def test_me_returns_available_tenants_with_a_single_membership(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """Con una sola membership `active`, `available_tenants` trae ESE tenant (incluye siempre el
+    de la sesión activa)."""
+    user, tenant = await _seed_user_with_membership(db)
+    token = _access_token(user.id, tenant.id)
+
+    async with _client(app) as c:
+        r = await c.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    body = r.json()
+    assert body["available_tenants"] == [
+        {"id": str(tenant.id), "slug": tenant.slug, "name": tenant.name}
+    ]
+
+
+async def test_me_available_tenants_lists_every_active_membership(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """Un usuario con 2+ membresías `active` ve TODAS en `available_tenants` — es lo que habilita el
+    switcher de tenant en el front, no solo el de la sesión actual."""
+    user, tenant_a = await _seed_user_with_membership(db)
+    tenant_b = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await SqlAlchemyUserTenantMembershipRepository(db).add(
+        UserTenantMembership(user_id=user.id, tenant_id=tenant_b.id, status=UserStatus.active)
+    )
+    await db.commit()
+    token = _access_token(user.id, tenant_a.id)
+
+    async with _client(app) as c:
+        r = await c.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    ids = {t["id"] for t in r.json()["available_tenants"]}
+    assert ids == {str(tenant_a.id), str(tenant_b.id)}
+
+
+async def test_me_available_tenants_excludes_a_disabled_membership(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """Una membership `disabled` en otro tenant NO cuenta como disponible — mismo criterio que el
+    login multi-tenant (`AuthService._eligible_memberships`, reusado aquí)."""
+    user, tenant_a = await _seed_user_with_membership(db)
+    tenant_b = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await SqlAlchemyUserTenantMembershipRepository(db).add(
+        UserTenantMembership(user_id=user.id, tenant_id=tenant_b.id, status=UserStatus.disabled)
+    )
+    await db.commit()
+    token = _access_token(user.id, tenant_a.id)
+
+    async with _client(app) as c:
+        r = await c.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    ids = {t["id"] for t in r.json()["available_tenants"]}
+    assert ids == {str(tenant_a.id)}
+
+
+async def test_me_available_tenants_excludes_membership_in_a_disabled_tenant(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """Una membership `active` en un tenant `disabled` tampoco cuenta — el tenant deshabilitado
+    invalida la membership aunque ella misma siga `active` (scenario-coverage)."""
+    user, tenant_a = await _seed_user_with_membership(db)
+    tenant_b = await SqlAlchemyTenantRepository(db).add(_make_tenant(status=TenantStatus.disabled))
+    await SqlAlchemyUserTenantMembershipRepository(db).add(
+        UserTenantMembership(user_id=user.id, tenant_id=tenant_b.id, status=UserStatus.active)
+    )
+    await db.commit()
+    token = _access_token(user.id, tenant_a.id)
+
+    async with _client(app) as c:
+        r = await c.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    ids = {t["id"] for t in r.json()["available_tenants"]}
+    assert ids == {str(tenant_a.id)}
+
+
 # ── require_capability: decisión de ámbito ──
 
 
@@ -610,6 +700,93 @@ async def test_reset_password_with_a_valid_token_updates_it(app: FastAPI, db: As
 
     assert r.status_code == 204
     assert relogin.status_code == 200
+
+
+async def test_reset_password_rejects_a_password_shorter_than_the_minimum(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """Frontera `ResetPasswordRequest.new_password: Field(min_length=8)` — 7 caracteres no llega al
+    mínimo. Ningún test lo cubría (destapado por el gate de mutation)."""
+    user, _tenant = await _seed_user_with_membership(db, password="old-password")
+    raw_token = new_opaque_token()
+    await SqlAlchemyAuthTokenRepository(db).add(
+        AuthToken(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            kind=AuthTokenKind.password_reset,
+            token_hash=hash_token(raw_token),
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+    )
+    await db.commit()
+
+    async with _client(app) as c:
+        r = await c.post(
+            "/api/v1/auth/password/reset",
+            json={"token": raw_token, "new_password": "short12"},
+        )
+
+    assert r.status_code == 422
+
+
+async def test_password_change_rejects_a_password_shorter_than_the_minimum(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """Frontera `ChangePasswordRequest.new_password: Field(min_length=8)`."""
+    user, tenant = await _seed_user_with_membership(db, password="old-password")
+    token = _access_token(user.id, tenant.id)
+
+    async with _client(app) as c:
+        r = await c.post(
+            "/api/v1/auth/password/change",
+            json={"current_password": "old-password", "new_password": "short12"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert r.status_code == 422
+
+
+async def test_reset_password_accepts_exactly_the_minimum_length(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """Frontera exacta: `min_length=8` — un password de exactamente 8 caracteres es válido (el tope
+    es inclusivo)."""
+    user, _tenant = await _seed_user_with_membership(db, password="old-password")
+    raw_token = new_opaque_token()
+    await SqlAlchemyAuthTokenRepository(db).add(
+        AuthToken(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            kind=AuthTokenKind.password_reset,
+            token_hash=hash_token(raw_token),
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+    )
+    await db.commit()
+
+    async with _client(app) as c:
+        r = await c.post(
+            "/api/v1/auth/password/reset",
+            json={"token": raw_token, "new_password": "eight888"},
+        )
+
+    assert r.status_code == 204
+
+
+async def test_password_change_accepts_exactly_the_minimum_length(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    user, tenant = await _seed_user_with_membership(db, password="old-password")
+    token = _access_token(user.id, tenant.id)
+
+    async with _client(app) as c:
+        r = await c.post(
+            "/api/v1/auth/password/change",
+            json={"current_password": "old-password", "new_password": "eight888"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert r.status_code == 204
 
 
 async def test_password_change_with_correct_current_password_updates_it(
