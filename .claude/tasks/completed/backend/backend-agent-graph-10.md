@@ -2,11 +2,11 @@
 id: backend-agent-graph-10
 package: backend
 plan: agent-graph
-status: pending
+status: done
 priority: 1
 depends_on: [backend-agent-graph-09]
 estimate: 3h
-actual:
+actual: ~3h
 created: 2026-08-27
 updated: 2026-08-27
 ---
@@ -63,18 +63,18 @@ Feature: Swap de StubAgentRunner por el adaptador real
 - Backend con el flujo IA end-to-end real y accesible por HTTP — cierra el objetivo 4 del plan.
 
 ## Definition of Done
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break: 80`)
-- [ ] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer)
-- [ ] **SDD** — sin cambios de spec/CU (wiring puro, comportamiento ya cubierto por CU-BE-05/06 vía 05-09)
-- [ ] Documentación actualizada — tres capas:
-  - [ ] TSDoc en el código (comentario en `deps.py` explicando el swap y sus dependencias)
-  - [ ] Doc técnica — actualizar `agent.py`/`approvals.py` docstrings que hoy dicen "el grafo real no
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break: 80`) — 14.89%
+- [x] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce) — limpio
+- [x] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer) — 11/11 VERIFICADO
+- [x] **SDD** — sin cambios de spec/CU (wiring puro, comportamiento ya cubierto por CU-BE-05/06 vía 05-09)
+- [x] Documentación actualizada — tres capas:
+  - [x] TSDoc en el código (comentario en `deps.py` explicando el swap y sus dependencias)
+  - [x] Doc técnica — actualizar `agent.py`/`approvals.py` docstrings que hoy dicen "el grafo real no
     existe todavía" (ya no es cierto)
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-10.md`
-- [ ] Docs de dev / usuario final — no aplica
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-10.md`
+- [x] Docs de dev / usuario final — no aplica
