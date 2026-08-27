@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { E2E_USERS } from "./credentials";
+import { login } from "./helpers";
 
 /**
  * Ciclo completo de `tenant.ai_auto_draft` contra el backend real (Postgres + OpenAI real, sin MSW):
@@ -13,17 +14,6 @@ import { E2E_USERS } from "./credentials";
  * Coste real: dispara `agent.trigger` de verdad (clasifica + recupera + puntúa + redacta contra
  * OpenAI) — timeout largo porque esa cadena real puede tardar >10s.
  */
-async function login(
-  page: import("@playwright/test").Page,
-  user: { email: string; password: string },
-) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(user.email);
-  await page.getByLabel("Contraseña").fill(user.password);
-  await page.getByRole("button", { name: "Iniciar sesión" }).click();
-  await expect(page.getByRole("heading", { name: "Bandeja de tickets" })).toBeVisible();
-}
-
 test("ai_auto_draft: crear ticket dispara el draft solo; Soporte lo aprueba; se publica", async ({
   browser,
 }) => {

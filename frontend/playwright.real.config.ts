@@ -9,9 +9,11 @@ import { defineConfig, devices } from "@playwright/test";
  *   3. `python -m app.infra.db.seed` corrido al menos una vez (`globalSetup` lo confirma, no lo
  *      dispara él mismo — requeriría un venv de Python desde Node, frágil entre entornos).
  *
- * Coste real: cada spec dispara al menos una llamada real a OpenAI (vía `agent.trigger`) — la suite se
- * mantiene deliberadamente pequeña (los caminos que MSW no puede verificar de verdad: CORS+cookies
- * cross-origin del login real, y el ciclo completo de `ai_auto_draft`), no exhaustiva.
+ * Cubre el flujo completo de los dos perfiles reales de usuario: `support-admin` (rol global, todas
+ * las capacidades — navegación, alta/ajustes de tenant, invitación de usuario, asignación de rol,
+ * aprobaciones, KB, notificaciones) y `client-agent` (usuario de tenant acotado por RBAC — nav
+ * reducida, alta de ticket real). Solo `ticket-ai-auto-draft.spec.ts` dispara el ciclo completo de
+ * `agent.trigger` (coste real de OpenAI, ~10-15s); el resto de specs no lo repite.
  */
 export default defineConfig({
   testDir: "./e2e-real",
