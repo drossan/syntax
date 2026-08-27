@@ -38,8 +38,22 @@ thread nuevo); el anterior queda superado.
 ### Confirmación
 
 `agent-graph.md` §6 (detalle alto: reinicio, doble decisión→409, consistencia ante fallo del LLM);
-`app/agents/{checkpointer,hitl,runner}.py` (guión); endpoints `approvals` en `api-contract` (409 en doble
-decisión). Verificación real (integración HITL + reinicio) = tarea al implementar el backend.
+`app/agents/{checkpointer,hitl,runner}.py` (real, tareas 07/08/09); endpoints `approvals` en
+`api-contract` (409 en doble decisión, CAS de `approval_service`, plan `domain-services`).
+
+**Verificación real cerrada** (tarea `backend-agent-graph-09`, integración contra Postgres real, sin
+mocks de checkpointer/HITL):
+- Aprobación/edición/rechazo reanudan y publican (o no) el mensaje esperado.
+- **Reinicio a mitad de run**: un runner/checkpointer construido de cero (simula un proceso nuevo)
+  reanuda desde el checkpoint sin re-invocar `classify`/`retrieve`/`grade`/`generate` — verificado con
+  espías de llamadas al `ChatModel`/`Retriever`, no asumido.
+- **Defensa en profundidad**: reanudar un run ya terminal (thread sin interrupt pendiente) es un no-op
+  verificado contra el SDK real (`ainvoke(Command(resume=...))` sobre un grafo terminado devuelve el
+  estado final sin re-ejecutar nada) — la garantía primaria de no-doble-resume sigue siendo el CAS de
+  `approval_service.decide_if_pending`, no este adaptador.
+- **Re-draft tras reopen**: un `AgentRun` superado no interfiere con el run activo del mismo ticket
+  (thread_ids distintos, aislamiento ya garantizado por el checkpointer, tarea 07).
+- `resume()` sobre un `agent_run_id` inexistente falla con `NotFound`, no una excepción cruda.
 
 ## Consecuencias
 

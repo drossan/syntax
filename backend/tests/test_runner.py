@@ -26,7 +26,8 @@ from app.domain.entities.enums import (
     TicketStatus,
 )
 from app.domain.entities.identity import Tenant
-from app.domain.errors import PortError
+from app.domain.errors import NotFound, PortError
+from app.domain.ports.agent_runner import ApprovalOutcome
 from app.domain.ports.vector import Hit
 from app.domain.services.classification import Classification
 from app.infra.db.repositories.agent_run import SqlAlchemyAgentRunRepository
@@ -96,23 +97,31 @@ class _FakeChatModel:
         self._classification = classification
         self._grade = grade
         self._draft = draft
+        self.classify_calls = 0
+        self.grade_calls = 0
+        self.generate_calls = 0
 
     async def classify(self, text: str, schema: type) -> Classification:
+        self.classify_calls += 1
         return self._classification
 
     async def grade(self, prompt: str, schema: type) -> Grade:
+        self.grade_calls += 1
         assert self._grade is not None
         return self._grade
 
     async def generate(self, prompt: str) -> str:
+        self.generate_calls += 1
         return self._draft
 
 
 class _FakeRetriever:
     def __init__(self, hits: list[RankedHit] | None = None) -> None:
         self._hits = hits if hits is not None else []
+        self.calls = 0
 
     async def retrieve(self, query: str, *, top_k: int, domain=None, **kwargs) -> list[RankedHit]:
+        self.calls += 1
         return self._hits
 
 
@@ -400,3 +409,275 @@ async def test_trigger_fetches_the_full_public_message_window(session: AsyncSess
     assert call["page"] == 1
     assert call["page_size"] == 100
     assert call["visibilities"] == [MessageVisibility.public]
+
+
+# ── resume() (tarea backend-agent-graph-09) ─────────────────────────────────────
+
+
+class _FailingMessageRepository:
+    """`add()` siempre falla — simula un fallo del LLM/infra al publicar, para forzar el camino
+    `AgentRun → failed` de `resume()` sin depender de un fallo real del proveedor."""
+
+    async def add(self, message: Message) -> Message:
+        raise PortError("fallo simulado al publicar el mensaje")
+
+    async def get(self, message_id):  # pragma: no cover - no usado
+        raise NotImplementedError
+
+    async def list_by_ticket(self, ticket_id, **kwargs):  # pragma: no cover - no usado
+        raise NotImplementedError
+
+
+async def _trigger_pending_run(
+    session: AsyncSession, *, auto_approve: bool = False, draft: str = "borrador pendiente"
+):
+    tenant = await _make_tenant(session, auto_approve=auto_approve)
+    ticket = await _make_ticket_with_message(session, tenant.id, "¿cómo subo un vídeo?")
+    classification = Classification(
+        categoria="incidencia",
+        dominio=KbDomain.media_and_dam,
+        prioridad=TicketPriority.normal,
+        resoluble=True,
+    )
+    grade = Grade(suficiente=True, motivo="basta")
+    chat_model = _FakeChatModel(classification=classification, grade=grade, draft=draft)
+    retriever = _FakeRetriever([_hit()])
+    runner = _make_runner(session, chat_model=chat_model, retriever=retriever)
+    run = await runner.trigger(tenant.id, ticket.id, 1, f"ticket_{ticket.id}_run_1")
+    return tenant, ticket, run
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected_body_fragment"),
+    [
+        (
+            ApprovalOutcome(status=ApprovalStatus.approved, final_body=None, human_note=None),
+            "borrador",
+        ),
+        (
+            ApprovalOutcome(
+                status=ApprovalStatus.edited, final_body="texto corregido", human_note=None
+            ),
+            "texto corregido",
+        ),
+    ],
+    ids=["approved_publishes_the_draft", "edited_publishes_the_final_body"],
+)
+async def test_resume_with_a_decision_publishes_the_expected_body(
+    session: AsyncSession, decision: ApprovalOutcome, expected_body_fragment: str
+) -> None:
+    _tenant, ticket, run = await _trigger_pending_run(session)
+    assert run.status is AgentRunStatus.running
+    runner = _make_runner(
+        session,
+        chat_model=_FakeChatModel(
+            classification=Classification(
+                categoria="x", dominio=None, prioridad=TicketPriority.low, resoluble=True
+            )
+        ),
+        retriever=_FakeRetriever([]),
+    )
+
+    await runner.resume(run.id, decision)
+
+    updated = await SqlAlchemyAgentRunRepository(session).get(run.id)
+    assert updated is not None
+    assert updated.status is AgentRunStatus.succeeded
+    assert updated.escalated is True  # el run pasó por HITL (interrupt) para llegar aquí
+    messages = await SqlAlchemyMessageRepository(session).list_by_ticket(ticket.id)
+    published = [m for m in messages.items if m.is_ai_draft]
+    assert len(published) == 1
+    assert expected_body_fragment in published[0].body
+
+
+async def test_resume_with_a_rejection_publishes_nothing_and_keeps_the_run_terminal(
+    session: AsyncSession,
+) -> None:
+    _tenant, ticket, run = await _trigger_pending_run(session)
+    runner = _make_runner(
+        session,
+        chat_model=_FakeChatModel(
+            classification=Classification(
+                categoria="x", dominio=None, prioridad=TicketPriority.low, resoluble=True
+            )
+        ),
+        retriever=_FakeRetriever([]),
+    )
+    decision = ApprovalOutcome(
+        status=ApprovalStatus.rejected, final_body=None, human_note="no procede"
+    )
+
+    await runner.resume(run.id, decision)
+
+    updated = await SqlAlchemyAgentRunRepository(session).get(run.id)
+    assert updated is not None
+    assert updated.status is AgentRunStatus.succeeded
+    messages = await SqlAlchemyMessageRepository(session).list_by_ticket(ticket.id)
+    assert [m for m in messages.items if m.is_ai_draft] == []
+
+
+async def test_restart_mid_run_resumes_from_checkpoint_without_rerunning_completed_nodes(
+    session: AsyncSession,
+) -> None:
+    """Reinicio a mitad de run: un runner/checkpointer NUEVO (simula un proceso reiniciado) reanuda
+    desde el checkpoint SIN re-ejecutar classify/retrieve/grade/generate — el estado vive solo en
+    Postgres, verificado con espías de llamadas al ChatModel/Retriever del runner descartado vs. el
+    nuevo."""
+    tenant, ticket, run = await _trigger_pending_run(session, draft="borrador del primer proceso")
+
+    chat_model_2 = _FakeChatModel(
+        classification=Classification(
+            categoria="x", dominio=None, prioridad=TicketPriority.low, resoluble=True
+        ),
+        draft="NO DEBERÍA GENERARSE OTRA VEZ",
+    )
+    retriever_2 = _FakeRetriever([])
+    runner_2 = _make_runner(session, chat_model=chat_model_2, retriever=retriever_2)
+    decision = ApprovalOutcome(status=ApprovalStatus.approved, final_body=None, human_note=None)
+
+    await runner_2.resume(run.id, decision)
+
+    assert chat_model_2.classify_calls == 0
+    assert chat_model_2.grade_calls == 0
+    assert chat_model_2.generate_calls == 0
+    assert retriever_2.calls == 0
+    messages = await SqlAlchemyMessageRepository(session).list_by_ticket(ticket.id)
+    published = [m for m in messages.items if m.is_ai_draft]
+    assert len(published) == 1
+    assert "borrador del primer proceso" in published[0].body
+
+
+async def test_llm_failure_during_resume_fails_the_run_without_a_raw_exception(
+    session: AsyncSession,
+) -> None:
+    _tenant, _ticket, run = await _trigger_pending_run(session)
+    failing_runner = _make_runner(
+        session,
+        chat_model=_FakeChatModel(
+            classification=Classification(
+                categoria="x", dominio=None, prioridad=TicketPriority.low, resoluble=True
+            )
+        ),
+        retriever=_FakeRetriever([]),
+        messages_repo=_FailingMessageRepository(),
+    )
+    decision = ApprovalOutcome(status=ApprovalStatus.approved, final_body=None, human_note=None)
+
+    await failing_runner.resume(run.id, decision)
+
+    updated = await SqlAlchemyAgentRunRepository(session).get(run.id)
+    assert updated is not None
+    assert updated.status is AgentRunStatus.failed
+    assert updated.error is not None
+    assert "fallo simulado" in updated.error
+
+
+async def test_resume_with_a_missing_agent_run_id_fails_controlled(session: AsyncSession) -> None:
+    runner = _make_runner(
+        session,
+        chat_model=_FakeChatModel(
+            classification=Classification(
+                categoria="x", dominio=None, prioridad=TicketPriority.low, resoluble=True
+            )
+        ),
+        retriever=_FakeRetriever([]),
+    )
+    decision = ApprovalOutcome(status=ApprovalStatus.approved, final_body=None, human_note=None)
+
+    with pytest.raises(NotFound):
+        await runner.resume(uuid.uuid4(), decision)
+
+
+async def test_resume_on_a_thread_without_a_pending_interrupt_is_a_defensive_no_op(
+    session: AsyncSession,
+) -> None:
+    """Defensa en profundidad (la garantía real de no-doble-reanudación la da el CAS de
+    `approval_service`, fuera de alcance aquí): reanudar un run ya terminado (auto-aprobado, nunca
+    interrumpió) no revienta y no publica un segundo mensaje — verificado el comportamiento real de
+    LangGraph, no asumido."""
+    _tenant, ticket, run = await _trigger_pending_run(session, auto_approve=True)
+    assert run.status is AgentRunStatus.succeeded
+    messages_before = await SqlAlchemyMessageRepository(session).list_by_ticket(ticket.id)
+    published_before = [m for m in messages_before.items if m.is_ai_draft]
+    assert len(published_before) == 1
+
+    runner = _make_runner(
+        session,
+        chat_model=_FakeChatModel(
+            classification=Classification(
+                categoria="x", dominio=None, prioridad=TicketPriority.low, resoluble=True
+            )
+        ),
+        retriever=_FakeRetriever([]),
+    )
+    decision = ApprovalOutcome(status=ApprovalStatus.approved, final_body=None, human_note=None)
+
+    await runner.resume(run.id, decision)  # no debe lanzar
+
+    messages_after = await SqlAlchemyMessageRepository(session).list_by_ticket(ticket.id)
+    published_after = [m for m in messages_after.items if m.is_ai_draft]
+    assert len(published_after) == 1
+    run_after = await SqlAlchemyAgentRunRepository(session).get(run.id)
+    assert run_after is not None
+    assert run_after.escalated is False  # no se pisa: nunca fue un run escalado
+    assert run_after.finished_at == run.finished_at  # no se toca un run ya terminal
+
+
+async def test_resuming_a_superseded_run_does_not_affect_the_active_run_of_the_same_ticket(
+    session: AsyncSession,
+) -> None:
+    """Re-draft tras reopen: un `AgentRun` superado (`run_seq=n`) no interfiere con el run activo
+    (`run_seq=n+1`, `thread_id` nuevo) — una decisión tardía sobre el thread superado no reanuda ni
+    afecta al run activo."""
+    tenant = await _make_tenant(session, auto_approve=False)
+    ticket = await _make_ticket_with_message(session, tenant.id, "pregunta")
+    classification = Classification(
+        categoria="incidencia",
+        dominio=KbDomain.media_and_dam,
+        prioridad=TicketPriority.normal,
+        resoluble=True,
+    )
+    grade = Grade(suficiente=True, motivo="basta")
+
+    runner_1 = _make_runner(
+        session,
+        chat_model=_FakeChatModel(
+            classification=classification, grade=grade, draft="draft del run 1"
+        ),
+        retriever=_FakeRetriever([_hit()]),
+    )
+    run_1 = await runner_1.trigger(tenant.id, ticket.id, 1, f"ticket_{ticket.id}_run_1")
+    assert run_1.status is AgentRunStatus.running
+    await SqlAlchemyAgentRunRepository(session).update_result(
+        run_1.id, status=AgentRunStatus.failed, error="superado por reapertura del ticket"
+    )
+
+    runner_2 = _make_runner(
+        session,
+        chat_model=_FakeChatModel(
+            classification=classification, grade=grade, draft="draft del run 2"
+        ),
+        retriever=_FakeRetriever([_hit()]),
+    )
+    run_2 = await runner_2.trigger(tenant.id, ticket.id, 2, f"ticket_{ticket.id}_run_2")
+    assert run_2.status is AgentRunStatus.running
+
+    late_decision_runner = _make_runner(
+        session,
+        chat_model=_FakeChatModel(
+            classification=Classification(
+                categoria="x", dominio=None, prioridad=TicketPriority.low, resoluble=True
+            )
+        ),
+        retriever=_FakeRetriever([]),
+    )
+    decision = ApprovalOutcome(status=ApprovalStatus.rejected, final_body=None, human_note="tardía")
+
+    await late_decision_runner.resume(run_1.id, decision)
+
+    run_2_after = await SqlAlchemyAgentRunRepository(session).get(run_2.id)
+    assert run_2_after is not None
+    assert run_2_after.status is AgentRunStatus.running
+    approvals = await SqlAlchemyApprovalRepository(session).list(tenant.id, page=1, page_size=10)
+    run_2_task = next(t for t in approvals.items if t.agent_run_id == run_2.id)
+    assert run_2_task.status is ApprovalStatus.pending

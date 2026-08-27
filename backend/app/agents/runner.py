@@ -1,10 +1,11 @@
-"""app.agents.runner — `LangGraphAgentRunner.trigger()` (ADR-0007, núcleo de riesgo).
+"""app.agents.runner — `LangGraphAgentRunner` completo (`trigger`/`resume`, ADR-0007, núcleo de riesgo).
 
 Implementa `AgentRunner` (`app.domain.ports.agent_runner`) sobre el grafo real (`build_graph`, tarea
-06) compilado con el checkpointer real (`get_checkpointer`, tarea 07). Cubre el camino **auto** (sin
-HITL, `respond` publica directo) y el que llega a `interrupt()` y queda pendiente de aprobación
-(crea la `ApprovalTask`, mapeo 1:1 interrupt↔ApprovalTask). `resume()` — la reanudación tras la
-decisión humana — es la tarea 09.
+06) compilado con el checkpointer real (`get_checkpointer`, tarea 07). `trigger()` cubre el camino
+**auto** (sin HITL, `respond` publica directo) y el que llega a `interrupt()` y queda pendiente de
+aprobación (crea la `ApprovalTask`, mapeo 1:1 interrupt↔ApprovalTask). `resume()` reanuda tras la
+decisión humana (`hitl.py`, tarea 09) — el estado vive SOLO en el checkpoint Postgres, así que una
+instancia nueva del runner (proceso reiniciado) reanuda igual de bien que la original.
 
 **NO es un singleton de proceso**: se construye por request (mismo criterio que `StubAgentRunner`,
 decisión de diseño #4 del plan) — evita que el `MessageRepository` con sesión de una request quede
@@ -21,10 +22,11 @@ from langchain_core.runnables import RunnableConfig
 
 from app.agents.checkpointer import get_checkpointer
 from app.agents.graph import build_graph
+from app.agents.hitl import to_resume_command
 from app.agents.state import HelpdeskState
 from app.domain.entities.business import AgentRun, ApprovalTask
 from app.domain.entities.enums import AgentRunStatus, ApprovalStatus, MessageVisibility
-from app.domain.errors import PortError
+from app.domain.errors import NotFound, PortError
 from app.domain.ports.agent_runner import ApprovalOutcome
 from app.domain.ports.clock import Clock
 from app.domain.ports.llm import ChatModel
@@ -175,5 +177,48 @@ class LangGraphAgentRunner:
         )
 
     async def resume(self, agent_run_id: uuid.UUID, outcome: ApprovalOutcome) -> None:
-        """Placeholder — la reanudación real (`Command(resume=)`) es la tarea `backend-agent-graph-09`."""
-        raise NotImplementedError("resume() lo implementa la tarea backend-agent-graph-09")
+        """Reanuda el run interrumpido asociado a `agent_run_id` con la decisión humana `outcome`.
+
+        Resuelve `thread_id` desde `agent_run_id` (este adaptador, no `approval_service`, traduce
+        entre ambos — ver `agent_runner.py`). Compila el MISMO grafo con el checkpointer real: el
+        estado vive solo en Postgres, así que una instancia nueva del runner (proceso reiniciado)
+        reanuda igual — no se re-ejecutan los nodos ya completados.
+
+        **Defensa en profundidad** (no la garantía primaria — esa es el CAS de
+        `approval_service.decide_if_pending`, fuera de alcance de este adaptador): reanudar un thread
+        SIN interrupt pendiente (verificado contra el SDK instalado, no asumido) no lanza ni re-ejecuta
+        nada — `ainvoke(Command(resume=...))` sobre un grafo ya terminado devuelve el estado final tal
+        cual, así que llamar a `resume()` dos veces es, en la práctica, un no-op la segunda vez.
+
+        :raises app.domain.errors.NotFound: si `agent_run_id` no existe.
+        """
+        run = await self._agent_runs.get(agent_run_id)
+        if run is None:
+            raise NotFound(f"agent_run {agent_run_id} no existe", code="agent_run.not_found")
+        if run.status is not AgentRunStatus.running:
+            # Ya terminal (succeeded/failed) — nada que reanudar. Defensa en profundidad adicional:
+            # ni siquiera toca el checkpointer, así que no arriesga sobreescribir `escalated`/
+            # `finished_at` de un run que ya cerró (la garantía primaria de no-doble-resume es el CAS
+            # de `approval_service.decide_if_pending`, fuera de alcance de este adaptador).
+            return
+
+        config: RunnableConfig = {"configurable": {"thread_id": run.langgraph_thread_id}}
+        compiled = self._graph.compile(checkpointer=await get_checkpointer())
+
+        try:
+            result = await compiled.ainvoke(to_resume_command(outcome), config=config)
+        except PortError as exc:
+            await self._agent_runs.update_result(
+                run.id, status=AgentRunStatus.failed, error=str(exc), finished_at=self._clock.now()
+            )
+            return
+
+        sources = build_citations(result["retrieved"])
+        await self._agent_runs.update_result(
+            run.id,
+            status=AgentRunStatus.succeeded,
+            confidence=result["confidence"],
+            sources=sources,
+            escalated=True,
+            finished_at=self._clock.now(),
+        )
