@@ -184,6 +184,7 @@
     "generate": "Generar borrador",
     "retry": "Reintentar",
     "generating": "Generando el borrador…",
+    "awaitingApproval": "Borrador listo — esperando aprobación en la cola de aprobaciones.",
     "ready": "Borrador listo",
     "failed": "La generación falló.",
     "confidence": "Confianza",

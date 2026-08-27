@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { Can } from "@/features/rbac/can";
 
-import { formatConfidencePercent, isTerminal } from "./agent-run";
+import { formatConfidencePercent, isAwaitingApproval, isTerminal } from "./agent-run";
 import { useActiveAgentRun, useAgentRun, useTriggerDraft } from "./use-agent-draft";
 
 /**
@@ -34,7 +34,9 @@ export function AiDraftPanel({
 }) {
   const t = useTranslations("aiDraft");
   const trigger = useTriggerDraft(ticketId);
-  const activeRun = useActiveAgentRun(ticketId);
+  // Reusa `pollMs` también para el intervalo de reintento del descubrimiento (mismo prop que ya
+  // aceptan los tests para acelerar el polling — no duplica una segunda prop para lo mismo).
+  const activeRun = useActiveAgentRun(ticketId, pollMs);
   // `triggeredRunId`: solo el run que ESTE cliente disparó explícitamente. El id efectivo prioriza
   // ese sobre el descubierto (`activeRun.data`) — una vez el usuario dispara, ya no depende del
   // descubrimiento inicial. Derivado en render, sin `useEffect`: evita el cascading-render de
@@ -44,10 +46,15 @@ export function AiDraftPanel({
   const run = useAgentRun(runId, pollMs);
 
   const status = runId === null ? undefined : run.data?.status;
-  const active = runId !== null && !isTerminal(status);
-  // Mientras no sabemos si el servidor ya disparó un run (`ai_auto_draft`), no decidimos todavía qué
-  // pintar — evita el parpadeo de "Generar borrador" → "generando" en cuanto llega la respuesta.
-  const discovering = triggeredRunId === null && activeRun.isLoading;
+  const awaitingApproval = runId !== null && isAwaitingApproval(status, run.data?.escalated);
+  const active = runId !== null && !isTerminal(status) && !awaitingApproval;
+  // Mientras `useActiveAgentRun` sigue reintentando (todavía sin encontrar nada, ver su docstring —
+  // el run del auto-disparo puede tardar unas decenas de ms en existir) no decidimos qué pintar aún:
+  // evita mostrar "Generar borrador" solo para que desaparezca un segundo después.
+  const discovering =
+    triggeredRunId === null &&
+    activeRun.data == null &&
+    (activeRun.isLoading || activeRun.isFetching);
 
   function generate() {
     trigger.mutate(undefined, { onSuccess: (agentRun) => setTriggeredRunId(agentRun.id ?? null) });
@@ -90,6 +97,10 @@ export function AiDraftPanel({
       ) : active ? (
         <p role="status" aria-live="polite" className="text-muted-foreground">
           {t("generating")}
+        </p>
+      ) : awaitingApproval ? (
+        <p role="status" aria-live="polite" className="text-muted-foreground">
+          {t("awaitingApproval")}
         </p>
       ) : status === "succeeded" ? (
         <div className="flex flex-col gap-2">

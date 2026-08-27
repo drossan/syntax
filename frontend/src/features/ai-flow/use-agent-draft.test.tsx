@@ -79,4 +79,46 @@ describe("useActiveAgentRun (descubrimiento)", () => {
 
     await waitFor(() => expect(result.current.data?.id).toBe(RUN_ID));
   });
+
+  it("reintenta si la primera consulta llega ANTES de que exista el run (carrera reproducida en vivo)", async () => {
+    let calls = 0;
+    server.use(
+      http.get(ACTIVE_RUN, () => {
+        calls += 1;
+        // 1ª consulta: el `BackgroundTasks` del servidor aún no ha creado la fila — null. 2ª: ya
+        // existe. Sin reintentos, `null` se quedaría cacheado para siempre (bug real reproducido).
+        if (calls === 1) return HttpResponse.json(null);
+        return HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "running" }));
+      }),
+    );
+
+    const { result } = renderHook(() => useActiveAgentRun(TICKET_ID, 10), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data?.id).toBe(RUN_ID), { timeout: 2000 });
+    expect(calls).toBeGreaterThanOrEqual(2);
+  });
+
+  it("se rinde tras agotar los reintentos si de verdad no hay ningún run", async () => {
+    let calls = 0;
+    server.use(
+      http.get(ACTIVE_RUN, () => {
+        calls += 1;
+        return HttpResponse.json(null);
+      }),
+    );
+
+    const { result } = renderHook(() => useActiveAgentRun(TICKET_ID, 10), {
+      wrapper: makeWrapper(),
+    });
+
+    // Espera al recuento exacto de llamadas (no `fetchStatus === "idle"`: ese estado también es
+    // cierto, brevemente, en el hueco ENTRE dos reintentos — flaky bajo carga, reproducido).
+    await waitFor(() => expect(calls).toBe(20), { timeout: 2000 }); // DISCOVERY_RETRY_ATTEMPTS
+    // Tras el 20º reintento deja de programar más: el recuento no sigue creciendo.
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(calls).toBe(20);
+    expect(result.current.data).toBeNull();
+  });
 });

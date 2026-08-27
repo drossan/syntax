@@ -99,6 +99,29 @@ describe("AiDraftPanel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("running + escalated=true: muestra 'esperando aprobación', NO 'generando' para siempre", async () => {
+    serveTrigger();
+    let runCalls = 0;
+    server.use(
+      http.get(RUN, () => {
+        runCalls += 1;
+        return HttpResponse.json(
+          agentRunFixture({ id: RUN_ID, status: "running", escalated: true }),
+        );
+      }),
+    );
+
+    renderWithSession(<AiDraftPanel ticketId={TICKET_ID} pollMs={10} />, { me });
+    await userEvent.click(await screen.findByRole("button", { name: /generar borrador/i }));
+
+    expect(await screen.findByText(/esperando aprobación/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^generando/i)).not.toBeInTheDocument();
+    // También deja de sondear (draftPollInterval=false): el nº de GETs no sigue creciendo.
+    const callsAtAwaiting = runCalls;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(runCalls).toBe(callsAtAwaiting);
+  });
+
   it("ai_auto_draft: descubre un run ya disparado por el servidor SIN que el usuario haga clic", async () => {
     server.use(
       http.get(ACTIVE_RUN, () =>

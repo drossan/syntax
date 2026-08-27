@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { draftPollInterval, formatConfidencePercent, isTerminal } from "./agent-run";
+import {
+  draftPollInterval,
+  formatConfidencePercent,
+  isAwaitingApproval,
+  isTerminal,
+} from "./agent-run";
 
 /** Lógica del ciclo de draft: terminalidad, intervalo de polling y formato de confianza. */
 describe("isTerminal", () => {
@@ -19,15 +24,35 @@ describe("isTerminal", () => {
   });
 });
 
+describe("isAwaitingApproval", () => {
+  it("running + escalated=true es 'esperando aprobación'", () => {
+    expect(isAwaitingApproval("running", true)).toBe(true);
+  });
+
+  it("running + escalated=false (todavía generando) NO es 'esperando aprobación'", () => {
+    expect(isAwaitingApproval("running", false)).toBe(false);
+  });
+
+  it("queued/succeeded/failed nunca son 'esperando aprobación', escalated o no", () => {
+    expect(isAwaitingApproval("queued", true)).toBe(false);
+    expect(isAwaitingApproval("succeeded", true)).toBe(false);
+    expect(isAwaitingApproval("failed", true)).toBe(false);
+  });
+});
+
 describe("draftPollInterval", () => {
-  it("sondea mientras no sea terminal", () => {
-    expect(draftPollInterval("running", 2000)).toBe(2000);
-    expect(draftPollInterval("queued", 500)).toBe(500);
+  it("sondea mientras no sea terminal ni esté esperando aprobación", () => {
+    expect(draftPollInterval("running", false, 2000)).toBe(2000);
+    expect(draftPollInterval("queued", false, 500)).toBe(500);
   });
 
   it("para el polling (false) cuando el run es terminal", () => {
-    expect(draftPollInterval("succeeded", 2000)).toBe(false);
-    expect(draftPollInterval("failed", 2000)).toBe(false);
+    expect(draftPollInterval("succeeded", false, 2000)).toBe(false);
+    expect(draftPollInterval("failed", false, 2000)).toBe(false);
+  });
+
+  it("para el polling (false) cuando queda esperando aprobación humana (HITL)", () => {
+    expect(draftPollInterval("running", true, 2000)).toBe(false);
   });
 });
 
