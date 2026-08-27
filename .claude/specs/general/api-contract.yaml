@@ -465,6 +465,27 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AgentRun' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /tickets/{id}/agent-runs/active:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    get:
+      tags: [ai-flow]
+      summary: >
+        El AgentRun no-terminal (`queued`/`running`) de este ticket, o `null` si no hay ninguno.
+        Cierra el gap de descubrimiento de `tenant.ai_auto_draft`: el servidor puede disparar un run
+        sin que el cliente lo pida (al crear el ticket), así que el cliente nunca recibe su `id` en la
+        respuesta de `POST /tickets` — este endpoint es la única forma de encontrarlo. "Sin run
+        activo" es un resultado legítimo (200 + `null`), nunca 404.
+      responses:
+        '200':
+          description: AgentRun activo, o `null`.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/AgentRun' }
+                  - { type: 'null' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /approvals:
     get:
       tags: [ai-flow]
@@ -1150,6 +1171,13 @@ components:
       type: object
       properties:
         auto_approve: { type: boolean, default: false }
+        ai_auto_draft:
+          type: boolean
+          default: true
+          description: >
+            Si está activo, `POST /tickets` dispara `agent.trigger` automáticamente tras crear el
+            ticket (best-effort — un fallo no bloquea la creación). Independiente de `auto_approve`:
+            solo decide si se GENERA el draft, no si se publica sin revisión.
     User:
       type: object
       description: >
