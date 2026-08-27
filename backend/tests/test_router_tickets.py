@@ -11,14 +11,17 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 import pytest_asyncio
 from app.core.config import Settings, get_settings
-from app.core.deps import get_agent_service, get_db_session, get_notification_service
+from app.core.deps import get_db_session, get_notification_service
 from app.core.security import JWT_ALGORITHM, create_access_token, hash_password
-from app.domain.entities.business import AgentRun, Ticket
+from app.domain.entities.business import Ticket
 from app.domain.entities.enums import (
-    AgentRunStatus,
+    KbDomain,
+    KbEstado,
     NotificationType,
+    Package,
     RoleKind,
     TenantStatus,
     TicketPriority,
@@ -38,6 +41,7 @@ from app.infra.db.repositories import (
     SqlAlchemyUserTenantMembershipRepository,
 )
 from app.main import create_app
+from app.rag.reranker import RankedHit
 from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -769,44 +773,30 @@ async def test_a_notification_failure_does_not_affect_the_assign_response(
 
 
 # ── auto-disparo del draft IA al crear un ticket (`tenant.ai_auto_draft`) ───────
+#
+# El disparo real corre en `BackgroundTasks` (`_trigger_ai_draft_in_background`, tickets.py), NO vía
+# `Depends(get_agent_service)` — reconstruye sus propias dependencias a mano (sesión propia, ver
+# docstring del módulo) para no depender de la sesión del request, ya cerrada quando esto corre. Por
+# eso estos tests sustituyen `_trigger_ai_draft_in_background` (`monkeypatch`, no
+# `dependency_overrides`): verifican SOLO que el router la programa (o no) según
+# `tenant.ai_auto_draft`, sin tumbar la creación si falla — el disparo real end-to-end (contra Postgres
+# + fakes de LLM/retriever) ya lo cubren `test_router_agent.py`/`test_runner.py`.
 
 
-class _SpyAgentService:
-    """Sustituye `get_agent_service` — no ejercita el grafo real (ya cubierto por
-    `test_router_agent.py`/`test_runner.py`); solo verifica QUE el router de tickets llama (o no)
-    a `trigger()` según `tenant.ai_auto_draft`, sin tumbar la creación si falla."""
-
-    def __init__(self, *, should_fail: bool = False) -> None:
-        self.trigger_calls: list[tuple[uuid.UUID, uuid.UUID]] = []
-        self._should_fail = should_fail
-
-    async def trigger(self, tenant_id: uuid.UUID, ticket_id: uuid.UUID) -> AgentRun:
-        self.trigger_calls.append((tenant_id, ticket_id))
-        if self._should_fail:
-            raise RateLimited("límite de ai-draft excedido")
-        return AgentRun(
-            id=uuid.uuid4(),
-            tenant_id=tenant_id,
-            ticket_id=ticket_id,
-            langgraph_thread_id=f"ticket_{ticket_id}_run_1",
-            run_seq=1,
-            status=AgentRunStatus.queued,
-        )
-
-    async def get(self, agent_run_id: uuid.UUID) -> AgentRun:  # pragma: no cover - no usado
-        raise NotImplementedError
-
-
-async def test_creating_a_ticket_auto_triggers_the_ai_draft_by_default(
-    app: FastAPI, db: AsyncSession
+async def test_creating_a_ticket_schedules_the_ai_auto_draft_by_default(
+    app: FastAPI, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())  # ai_auto_draft=True default
     await db.commit()
     _agent, token = await _agent_with_capabilities(
         db, tenant=tenant, capabilities=["ticket.create"]
     )
-    spy = _SpyAgentService()
-    app.dependency_overrides[get_agent_service] = lambda: spy
+    calls: list[tuple[uuid.UUID, uuid.UUID]] = []
+
+    async def _spy(tenant_id: uuid.UUID, ticket_id: uuid.UUID) -> None:
+        calls.append((tenant_id, ticket_id))
+
+    monkeypatch.setattr("app.api.v1.routers.tickets._trigger_ai_draft_in_background", _spy)
 
     async with _client(app) as c:
         r = await c.post(
@@ -817,19 +807,23 @@ async def test_creating_a_ticket_auto_triggers_the_ai_draft_by_default(
 
     assert r.status_code == 201
     ticket_id = uuid.UUID(r.json()["id"])
-    assert spy.trigger_calls == [(tenant.id, ticket_id)]
+    assert calls == [(tenant.id, ticket_id)]
 
 
-async def test_creating_a_ticket_does_not_trigger_the_ai_draft_when_disabled(
-    app: FastAPI, db: AsyncSession
+async def test_creating_a_ticket_does_not_schedule_the_ai_auto_draft_when_disabled(
+    app: FastAPI, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant(ai_auto_draft=False))
     await db.commit()
     _agent, token = await _agent_with_capabilities(
         db, tenant=tenant, capabilities=["ticket.create"]
     )
-    spy = _SpyAgentService()
-    app.dependency_overrides[get_agent_service] = lambda: spy
+    calls: list[tuple[uuid.UUID, uuid.UUID]] = []
+
+    async def _spy(tenant_id: uuid.UUID, ticket_id: uuid.UUID) -> None:
+        calls.append((tenant_id, ticket_id))
+
+    monkeypatch.setattr("app.api.v1.routers.tickets._trigger_ai_draft_in_background", _spy)
 
     async with _client(app) as c:
         r = await c.post(
@@ -839,19 +833,25 @@ async def test_creating_a_ticket_does_not_trigger_the_ai_draft_when_disabled(
         )
 
     assert r.status_code == 201
-    assert spy.trigger_calls == []
+    assert calls == []
 
 
 async def test_an_ai_auto_draft_failure_does_not_affect_the_create_response(
-    app: FastAPI, db: AsyncSession
+    app: FastAPI, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
     await db.commit()
     _agent, token = await _agent_with_capabilities(
         db, tenant=tenant, capabilities=["ticket.create"]
     )
-    spy = _SpyAgentService(should_fail=True)
-    app.dependency_overrides[get_agent_service] = lambda: spy
+
+    async def _failing(tenant_id: uuid.UUID, ticket_id: uuid.UUID) -> None:
+        # `_trigger_ai_draft_in_background` YA se traga `DomainError` internamente (best-effort) —
+        # una excepción que se le escapara aquí sería un bug real de esa función, no algo que este
+        # test deba enmascarar; por eso el spy no vuelve a intentar tragarla.
+        raise RateLimited("límite de ai-draft excedido")
+
+    monkeypatch.setattr("app.api.v1.routers.tickets._trigger_ai_draft_in_background", _failing)
 
     async with _client(app) as c:
         r = await c.post(
@@ -861,4 +861,170 @@ async def test_an_ai_auto_draft_failure_does_not_affect_the_create_response(
         )
 
     assert r.status_code == 201
-    assert len(spy.trigger_calls) == 1
+
+
+async def test_the_background_trigger_actually_creates_a_real_agent_run(
+    app_db_url: str, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Integración real de `_trigger_ai_draft_in_background` en sí misma (no vía HTTP): reconstruye
+    sus dependencias a mano (`get_chat_model_port`/`get_embeddings_port`/`get_retriever_port`
+    llamadas directas, ver docstring del módulo) — este test verifica que esa reconstrucción manual
+    de verdad funciona contra Postgres real, no solo que el router LA PROGRAMA (eso ya lo cubren los
+    tests de arriba, con un spy)."""
+    from app.agents.nodes.grade import Grade
+    from app.api.v1.routers import tickets as tickets_router
+    from app.domain.services.classification import Classification
+    from app.infra.db.repositories import SqlAlchemyAgentRunRepository
+
+    monkeypatch.setenv("DATABASE_URL", app_db_url)
+    get_settings.cache_clear()
+
+    import app.agents.checkpointer as checkpointer_module
+    import app.infra.db.session as session_module
+
+    checkpointer_module._pool = None  # mismo reset que test_router_agent.py::_checkpointer_pool
+    # `get_sessionmaker()`/`get_engine()` son singletons de proceso (perezosos, sin reset en
+    # conftest.py) — memoizan el engine de OTRO test, atado a un event loop que pytest-asyncio ya
+    # cerró (function-scoped): reusarlo revienta con "Event loop is closed" (reproducido). Igual
+    # que el checkpointer, se descartan aquí para que `_trigger_ai_draft_in_background` cree los
+    # suyos propios en ESTE event loop.
+    if session_module._engine is not None:
+        await session_module._engine.dispose()
+    session_module._engine = None
+    session_module._sessionmaker = None
+
+    class _FakeChatModel:
+        async def classify(self, text: str, schema: type) -> Classification:
+            return Classification(
+                categoria="incidencia",
+                dominio=None,
+                prioridad=TicketPriority.normal,
+                resoluble=True,
+            )
+
+        async def grade(self, prompt: str, schema: type) -> Grade:
+            return Grade(suficiente=False, motivo="sin contexto suficiente (test)")
+
+        async def generate(self, prompt: str) -> str:  # pragma: no cover - no se llega aquí
+            raise NotImplementedError
+
+    class _FakeRetriever:
+        async def retrieve(
+            self,
+            query: str,
+            *,
+            top_k: int,
+            domain: KbDomain | None = None,
+            package: Package | None = None,
+            estado: KbEstado | None = None,
+        ) -> list[RankedHit]:
+            return []
+
+    monkeypatch.setattr(tickets_router, "get_chat_model_port", lambda **kwargs: _FakeChatModel())
+    monkeypatch.setattr(tickets_router, "get_retriever_port", lambda **kwargs: _FakeRetriever())
+
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+
+    try:
+        await tickets_router._trigger_ai_draft_in_background(tenant.id, ticket.id)
+
+        run = await SqlAlchemyAgentRunRepository(db).get_active_for_ticket(ticket.id)
+        assert run is not None
+        assert run.ticket_id == ticket.id
+    finally:
+        if checkpointer_module._pool is not None:
+            await checkpointer_module._pool.close()
+        checkpointer_module._pool = None
+        if session_module._engine is not None:
+            await session_module._engine.dispose()
+        session_module._engine = None
+        session_module._sessionmaker = None
+
+
+async def test_creating_a_ticket_via_http_makes_it_visible_to_the_background_task(
+    app: FastAPI, db: AsyncSession, app_db_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regresión de un bug real reproducido en vivo: `_trigger_ai_draft_in_background` abre su PROPIA
+    conexión — si `create_ticket` no hace `commit()` explícito ANTES de programar la tarea, esa
+    conexión nueva no ve el ticket todavía (la transacción del request sigue abierta) y `agent_service
+    .trigger()` falla con `NotFound` (silenciado como best-effort, invisible sin este test). Server real
+    vía HTTP de punta a punta (no `_trigger_ai_draft_in_background` llamada a mano, que no ejercita el
+    `commit()` de `create_ticket`)."""
+    from app.agents.nodes.grade import Grade
+    from app.api.v1.routers import tickets as tickets_router
+    from app.domain.services.classification import Classification
+    from app.infra.db.repositories import SqlAlchemyAgentRunRepository
+
+    monkeypatch.setenv("DATABASE_URL", app_db_url)
+    get_settings.cache_clear()
+
+    import app.agents.checkpointer as checkpointer_module
+    import app.infra.db.session as session_module
+
+    checkpointer_module._pool = None
+    if session_module._engine is not None:
+        await session_module._engine.dispose()
+    session_module._engine = None
+    session_module._sessionmaker = None
+
+    class _FakeChatModel:
+        async def classify(self, text: str, schema: type) -> Classification:
+            return Classification(
+                categoria="incidencia",
+                dominio=None,
+                prioridad=TicketPriority.normal,
+                resoluble=True,
+            )
+
+        async def grade(self, prompt: str, schema: type) -> Grade:
+            return Grade(suficiente=False, motivo="sin contexto suficiente (test)")
+
+        async def generate(self, prompt: str) -> str:  # pragma: no cover - no se llega aquí
+            raise NotImplementedError
+
+    class _FakeRetriever:
+        async def retrieve(
+            self,
+            query: str,
+            *,
+            top_k: int,
+            domain: KbDomain | None = None,
+            package: Package | None = None,
+            estado: KbEstado | None = None,
+        ) -> list[RankedHit]:
+            return []
+
+    monkeypatch.setattr(tickets_router, "get_chat_model_port", lambda **kwargs: _FakeChatModel())
+    monkeypatch.setattr(tickets_router, "get_retriever_port", lambda **kwargs: _FakeRetriever())
+
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.create"]
+    )
+
+    try:
+        async with _client(app) as c:
+            r = await c.post(
+                "/api/v1/tickets",
+                json={"subject": "asunto", "body": "cuerpo"},
+                headers=_auth_header(token),
+            )
+        assert r.status_code == 201
+        ticket_id = uuid.UUID(r.json()["id"])
+
+        run = await SqlAlchemyAgentRunRepository(db).get_active_for_ticket(ticket_id)
+        assert run is not None, (
+            "el background task no vio el ticket recién creado — commit() explícito ausente/roto"
+        )
+    finally:
+        if checkpointer_module._pool is not None:
+            await checkpointer_module._pool.close()
+        checkpointer_module._pool = None
+        if session_module._engine is not None:
+            await session_module._engine.dispose()
+        session_module._engine = None
+        session_module._sessionmaker = None
