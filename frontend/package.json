@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "e2e:real": "playwright test --config=playwright.real.config.ts",
     "mutation": "stryker run",
     "gen:api": "openapi-typescript ../.claude/specs/general/api-contract.yaml -o src/types/api.ts && node scripts/contract-to-json.mjs && prettier --write src/types/api.ts src/mocks/contract/openapi.json",
     "gen:api:check": "pnpm gen:api && git diff --exit-code -- src/types/api.ts src/mocks/contract/openapi.json",
