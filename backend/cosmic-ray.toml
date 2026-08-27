@@ -1,9 +1,9 @@
 # cosmic-ray — config de mutation testing del backend.
 [cosmic-ray]
-module-path = "app/rag/citations.py"
+module-path = "app/infra/llm"
 timeout = 90.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_citations.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_openai_adapter.py"
 
 [cosmic-ray.distributor]
 name = "local"

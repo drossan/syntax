@@ -2,11 +2,11 @@
 id: backend-agent-graph-04
 package: backend
 plan: agent-graph
-status: pending
+status: done
 priority: 1
 depends_on: []
 estimate: 3h
-actual:
+actual: ~1.5h
 created: 2026-08-27
 updated: 2026-08-27
 ---
@@ -97,17 +97,17 @@ Feature: Adaptador OpenAI del puerto ChatModel
 - `OpenAIChatModel` + `get_chat_model()` — adaptador real inyectable en `app/core/deps.py` (tarea 10).
 
 ## Definition of Done
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break: 80`)
-- [ ] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer)
-- [ ] **SDD** — sin CU propio (adaptador/puerto interno); referencia agent-graph.md §4/§9 en docstrings
-- [ ] Documentación actualizada — tres capas:
-  - [ ] TSDoc en el código (`ChatModel.grade`/`generate`, `OpenAIChatModel`, `structured_output`)
-  - [ ] Doc técnica — actualizar el docstring de `openai_adapter.py` (ya no es "solo la mitad real")
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-04.md`
-- [ ] Docs de dev / usuario final — no aplica (sin superficie HTTP nueva)
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (35 passed en la tarea; suite completa `pytest -q` exit 0)
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break: 80`) — 0.00% survivors (2ª vuelta, tras reforzar el test de construcción del cliente)
+- [x] Gate `sdd-lint` superado — N/A (sin CU propio), agent-graph.md §4/§9 verificados
+- [x] Gate de `fact-checker` superado — 12/12 VERIFICADO, 0 INCORRECTO
+- [x] **SDD** — sin CU propio (adaptador/puerto interno); referencia agent-graph.md §4/§9 en docstrings
+- [x] Documentación actualizada — tres capas:
+  - [x] TSDoc en el código (`ChatModel.grade`/`generate`, `OpenAIChatModel`, `structured_output`)
+  - [x] Doc técnica — actualizado el docstring de `openai_adapter.py` (ya no es "solo la mitad real")
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-04.md`
+- [x] Docs de dev / usuario final — no aplica (sin superficie HTTP nueva)

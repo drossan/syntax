@@ -10,8 +10,14 @@ import pytest
 from app.core.config import Settings, get_settings
 from app.domain.errors import PortError
 from app.infra.db.models.kb import EMBEDDING_DIM_LITERAL
-from app.infra.llm.openai_adapter import OpenAIEmbeddingModel, get_embedding_model
-from langchain_openai import OpenAIEmbeddings
+from app.infra.llm.openai_adapter import (
+    OpenAIChatModel,
+    OpenAIEmbeddingModel,
+    get_chat_model,
+    get_embedding_model,
+)
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from pydantic import BaseModel
 
 
 def _settings(**overrides: object) -> Settings:
@@ -294,3 +300,218 @@ async def test_embed_query_without_api_key_fails_before_any_network_call() -> No
 
     with pytest.raises(PortError):
         await model.embed_query("consulta")
+
+
+# ── OpenAIChatModel (tarea backend-agent-graph-04) ───────────────────────────────
+
+
+class _Verdict(BaseModel):
+    ok: bool
+
+
+class _FakeStructuredRunnable:
+    """Doble de la `Runnable` que devuelve `ChatOpenAI.with_structured_output`."""
+
+    def __init__(self, *, result: BaseModel | None = None, exc: Exception | None = None) -> None:
+        self._result = result
+        self._exc = exc
+        self.captured_prompt: str | None = None
+
+    async def ainvoke(self, prompt: str) -> BaseModel:
+        self.captured_prompt = prompt
+        if self._exc is not None:
+            raise self._exc
+        assert self._result is not None
+        return self._result
+
+
+class _FakeChatResponse:
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+
+async def test_classify_delegates_to_structured_output_json_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CU-BE-05 §4: `classify` pide `with_structured_output(schema, method="json_schema")` y devuelve
+    la instancia validada, sin parsear texto libre."""
+    captured: dict[str, object] = {}
+    fake_result = _Verdict(ok=True)
+
+    def fake_with_structured_output(
+        self: ChatOpenAI, schema: type[BaseModel], *, method: str = "json_schema", **kwargs: object
+    ) -> _FakeStructuredRunnable:
+        captured["schema"] = schema
+        captured["method"] = method
+        return _FakeStructuredRunnable(result=fake_result)
+
+    monkeypatch.setattr(ChatOpenAI, "with_structured_output", fake_with_structured_output)
+
+    model = OpenAIChatModel(_settings())
+    result = await model.classify("texto del ticket", _Verdict)
+
+    assert captured["schema"] is _Verdict
+    assert captured["method"] == "json_schema"
+    assert result is fake_result
+
+
+async def test_grade_delegates_to_structured_output_json_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`grade` sigue el mismo patrón que `classify` — reutiliza el mismo helper `structured_output`."""
+    captured: dict[str, object] = {}
+    fake_result = _Verdict(ok=False)
+
+    def fake_with_structured_output(
+        self: ChatOpenAI, schema: type[BaseModel], *, method: str = "json_schema", **kwargs: object
+    ) -> _FakeStructuredRunnable:
+        captured["schema"] = schema
+        captured["method"] = method
+        return _FakeStructuredRunnable(result=fake_result)
+
+    monkeypatch.setattr(ChatOpenAI, "with_structured_output", fake_with_structured_output)
+
+    model = OpenAIChatModel(_settings())
+    result = await model.grade("¿basta el contexto?", _Verdict)
+
+    assert captured["schema"] is _Verdict
+    assert captured["method"] == "json_schema"
+    assert result is fake_result
+
+
+async def test_generate_returns_the_free_text_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`generate` devuelve `.content` de la respuesta del modelo, sin schema."""
+
+    async def fake_ainvoke(self: ChatOpenAI, prompt: str) -> _FakeChatResponse:
+        return _FakeChatResponse(content="draft de la respuesta")
+
+    monkeypatch.setattr(ChatOpenAI, "ainvoke", fake_ainvoke)
+
+    model = OpenAIChatModel(_settings())
+    result = await model.generate("redacta una respuesta")
+
+    assert result == "draft de la respuesta"
+
+
+async def test_client_is_built_with_the_configured_model_and_retry_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """El cliente `ChatOpenAI` se construye con `settings.chat_model` y los mismos `max_retries`/
+    `request_timeout` que `OpenAIEmbeddingModel` (consistencia entre adaptadores del mismo proveedor)."""
+    captured: dict[str, object] = {}
+
+    async def fake_ainvoke(self: ChatOpenAI, prompt: str) -> _FakeChatResponse:
+        captured["model_name"] = self.model_name
+        captured["max_retries"] = self.max_retries
+        captured["request_timeout"] = self.request_timeout
+        return _FakeChatResponse(content="ok")
+
+    monkeypatch.setattr(ChatOpenAI, "ainvoke", fake_ainvoke)
+
+    model = OpenAIChatModel(_settings(chat_model="gpt-4o-mini"))
+    await model.generate("prompt")
+
+    assert captured["model_name"] == "gpt-4o-mini"
+    assert captured["max_retries"] == 3
+    assert captured["request_timeout"] == 30.0
+
+
+@pytest.mark.parametrize("method_name", ["classify", "grade"])
+async def test_structured_methods_wrap_provider_failure_in_port_error(
+    monkeypatch: pytest.MonkeyPatch, method_name: str
+) -> None:
+    """Timeout/error de API del proveedor → `PortError`, nunca la excepción cruda del SDK."""
+
+    def fake_with_structured_output(
+        self: ChatOpenAI, schema: type[BaseModel], *, method: str = "json_schema", **kwargs: object
+    ) -> _FakeStructuredRunnable:
+        return _FakeStructuredRunnable(exc=TimeoutError("provider timed out"))
+
+    monkeypatch.setattr(ChatOpenAI, "with_structured_output", fake_with_structured_output)
+
+    model = OpenAIChatModel(_settings())
+    method = getattr(model, method_name)
+    with pytest.raises(PortError):
+        await method("prompt", _Verdict)
+
+
+async def test_generate_wraps_provider_failure_in_port_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_ainvoke(self: ChatOpenAI, prompt: str) -> _FakeChatResponse:
+        raise TimeoutError("provider timed out")
+
+    monkeypatch.setattr(ChatOpenAI, "ainvoke", fake_ainvoke)
+
+    model = OpenAIChatModel(_settings())
+    with pytest.raises(PortError):
+        await model.generate("prompt")
+
+
+@pytest.mark.parametrize("method_name", ["classify", "grade"])
+async def test_output_that_does_not_validate_against_schema_is_also_a_port_error(
+    monkeypatch: pytest.MonkeyPatch, method_name: str
+) -> None:
+    """Una salida que `with_structured_output` no puede mapear al schema también es `PortError`,
+    distinguible en el mensaje de un fallo de red (el texto de la excepción original se conserva)."""
+    from pydantic import ValidationError
+
+    validation_exc = ValidationError.from_exception_data("_Verdict", [])
+
+    def fake_with_structured_output(
+        self: ChatOpenAI, schema: type[BaseModel], *, method: str = "json_schema", **kwargs: object
+    ) -> _FakeStructuredRunnable:
+        return _FakeStructuredRunnable(exc=validation_exc)
+
+    monkeypatch.setattr(ChatOpenAI, "with_structured_output", fake_with_structured_output)
+
+    model = OpenAIChatModel(_settings())
+    method = getattr(model, method_name)
+    with pytest.raises(PortError, match="_Verdict"):
+        await method("prompt", _Verdict)
+
+
+async def test_chat_model_lazy_initialization_without_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sin `openai_api_key`, construir `OpenAIChatModel` no falla; el fallo llega solo al primer uso."""
+    settings = Settings(_env_file=None, jwt_secret="x", openai_api_key="")
+    model = OpenAIChatModel(settings)  # no lanza
+
+    with pytest.raises(PortError):
+        await model.generate("prompt")
+
+
+def test_importing_module_does_not_instantiate_any_chat_client() -> None:
+    import app.infra.llm.openai_adapter as adapter_module
+
+    clients = [v for v in vars(adapter_module).values() if isinstance(v, ChatOpenAI)]
+    assert clients == []
+
+
+async def test_get_chat_model_with_openai_returns_operative_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("JWT_SECRET", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    get_settings.cache_clear()
+
+    async def fake_ainvoke(self: ChatOpenAI, prompt: str) -> _FakeChatResponse:
+        return _FakeChatResponse(content="ok")
+
+    monkeypatch.setattr(ChatOpenAI, "ainvoke", fake_ainvoke)
+
+    try:
+        model = get_chat_model(get_settings())
+        result = await model.generate("prompt")
+    finally:
+        get_settings.cache_clear()
+
+    assert result == "ok"
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "zzz-unsupported"])
+def test_get_chat_model_with_unsupported_provider_fails_clear(provider: str) -> None:
+    with pytest.raises(PortError):
+        get_chat_model(_settings(llm_provider=provider))
