@@ -16,6 +16,12 @@ type Role = components["schemas"]["Role"];
  * (`PATCH /admin/users/{id}` con el conjunto de roles resultante, sin duplicar). Acotado por `role.manage`
  * (el guard de la página) y por tenant (server-side).
  *
+ * `GET /admin/users` devuelve `roles` como NOMBRES (`AdminUser.roles: list[str]`), pero
+ * `PATCH /admin/users/{id}` espera IDs (`UserUpdate.roles: list[uuid.UUID]`) — mandar los nombres
+ * actuales tal cual junto al id nuevo seleccionado los mezcla en un mismo array y el backend rechaza la
+ * petición entera con 422 (reproducido en vivo). `seedRoles` (mismo catálogo que ya tiene id+nombre) es
+ * lo que permite traducir los nombres actuales a sus ids antes de añadir el nuevo.
+ *
  * @param user Usuario a modificar.
  * @param seedRoles Catálogo de roles semilla asignables.
  */
@@ -25,10 +31,13 @@ export function RoleAssignment({ user, seedRoles }: { user: User; seedRoles: Rol
   const [selected, setSelected] = useState("");
 
   const current = user.roles ?? [];
+  const currentIds = seedRoles
+    .filter((role) => role.id !== undefined && current.includes(role.name ?? ""))
+    .map((role) => role.id as string);
 
   function assign() {
     if (selected === "" || !user.id) return;
-    updateUser.mutate({ id: user.id, roles: addRole(current, selected) });
+    updateUser.mutate({ id: user.id, roles: addRole(currentIds, selected) });
   }
 
   return (
