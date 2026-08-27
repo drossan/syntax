@@ -216,7 +216,7 @@ follow-up en el plan change log y en el session log de la tarea 11.
 - [x] `backend-agent-graph-07` (P1) — `app/agents/checkpointer.py` (`PostgresSaver` + migración Alembic
   de sus tablas + allowlist en `test_models_do_not_drift_from_schema` + nota de riesgo DDL vendido, pool
   singleton perezoso) · depends_on: backend-agent-graph-01
-- [ ] `backend-agent-graph-08` (P1) — `app/agents/runner.py::trigger/run` (compila grafo(06)+
+- [x] `backend-agent-graph-08` (P1) — `app/agents/runner.py::trigger/run` (compila grafo(06)+
   checkpointer(07), `ainvoke` hasta interrupt o respond; persiste `AgentRun`) ·
   depends_on: backend-agent-graph-06, backend-agent-graph-07
 - [ ] `backend-agent-graph-09` (P1) — `app/agents/hitl.py` + `runner.py::resume` (Command(resume=),
@@ -270,3 +270,16 @@ follow-up en el plan change log y en el session log de la tarea 11.
   10 (fallo de construcción de dependencias visible en arranque), 11 (continuidad de la traza
   LangSmith entre `trigger` y `resume`). Confirmado con el owner: incorporar todos, ninguno se
   descartó como sobre-ingeniería por el propio QA.
+- 2026-08-27: tarea 08 encontró y corrigió 2 bugs reales en la tarea 07 (ya cerrada), reproducidos
+  contra Postgres real: (1) `get_checkpointer_pool()`/`get_checkpointer()` nunca abrían el pool
+  (`AsyncConnectionPool(open=False)` sin `await pool.open()` posterior) — sus propios tests de la
+  tarea 07 no lo detectaron porque abrían un pool propio en paralelo, sin pasar por el singleton; ahora
+  son `async def` y abren el pool de verdad, lo que movió `.compile(checkpointer=...)` de `__init__`
+  (síncrono) a `trigger()` en `runner.py`. (2) Confirmado con un script mínimo contra el SDK instalado:
+  las mutaciones de `state` hechas ANTES de `interrupt()` dentro del mismo nodo NO se comprometen en el
+  resultado de la invocación que interrumpe (LangGraph solo aplica los cambios de un nodo cuando su
+  función retorna; `interrupt()` corta la función antes del `return` vía una excepción de control de
+  flujo) — `runner.py` deriva `escalated` de `"__interrupt__" in result`, no de leer
+  `result["requires_approval"]` directamente (que siempre sería `False` ahí). Ninguno de los dos
+  bugs afecta a `decide.py`/`graph.py` en sí — al RESUMIR (tarea 09) el nodo completa y retorna con
+  normalidad, así que `requires_approval` sí llega correcto en ese punto.

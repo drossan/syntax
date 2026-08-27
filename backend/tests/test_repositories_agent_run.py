@@ -7,13 +7,14 @@ Postgres real vía `superuser_engine` (RLS no aplica — se prueba el CONTRATO d
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
 from app.domain.entities.business import AgentRun, Ticket
 from app.domain.entities.enums import AgentRunStatus, TenantStatus, TicketPriority, TicketStatus
 from app.domain.entities.identity import Tenant
-from app.domain.errors import Conflict
+from app.domain.errors import Conflict, PortError
 from app.infra.db.repositories.agent_run import SqlAlchemyAgentRunRepository
 from app.infra.db.repositories.tenant import SqlAlchemyTenantRepository
 from app.infra.db.repositories.ticket import SqlAlchemyTicketRepository
@@ -319,3 +320,73 @@ async def test_get_active_for_ticket_filters_by_exact_ticket_id_not_range(
     await session.commit()
 
     assert await repo.get_active_for_ticket(mid.id) is None
+
+
+# ── update_result (tarea backend-agent-graph-08) ────────────────────────────────
+
+
+async def test_update_result_persists_status_and_all_result_fields(session: AsyncSession) -> None:
+    """`update_result` persiste TODOS los campos del resultado, no solo el status."""
+    tenant = await _make_tenant(session)
+    ticket = await _make_ticket(session, tenant.id)
+    await session.commit()
+    repo = SqlAlchemyAgentRunRepository(session)
+    run = await repo.add(_make_run(tenant_id=tenant.id, ticket_id=ticket.id))
+    await session.commit()
+    finished = datetime.now(UTC)
+
+    updated = await repo.update_result(
+        run.id,
+        status=AgentRunStatus.succeeded,
+        confidence=0.87,
+        sources=[
+            {"uc_id": "CU-BE-05", "title": "T", "section_type": "comportamiento", "score": 0.9}
+        ],
+        escalated=False,
+        finished_at=finished,
+        langsmith_trace_url="https://smith.langchain.com/x",
+    )
+    await session.commit()
+
+    assert updated.status is AgentRunStatus.succeeded
+    assert updated.confidence == 0.87
+    assert updated.sources == [
+        {"uc_id": "CU-BE-05", "title": "T", "section_type": "comportamiento", "score": 0.9}
+    ]
+    assert updated.escalated is False
+    assert updated.finished_at is not None
+    assert updated.langsmith_trace_url == "https://smith.langchain.com/x"
+
+    fetched = await repo.get(run.id)
+    assert fetched is not None
+    assert fetched.confidence == 0.87
+    assert fetched.sources is not None
+    assert fetched.langsmith_trace_url == "https://smith.langchain.com/x"
+
+
+async def test_update_result_persists_a_failure_with_its_error(session: AsyncSession) -> None:
+    tenant = await _make_tenant(session)
+    ticket = await _make_ticket(session, tenant.id)
+    await session.commit()
+    repo = SqlAlchemyAgentRunRepository(session)
+    run = await repo.add(_make_run(tenant_id=tenant.id, ticket_id=ticket.id))
+    await session.commit()
+
+    updated = await repo.update_result(
+        run.id, status=AgentRunStatus.failed, error="fallo al clasificar el ticket"
+    )
+    await session.commit()
+
+    assert updated.status is AgentRunStatus.failed
+    assert updated.error == "fallo al clasificar el ticket"
+    fetched = await repo.get(run.id)
+    assert fetched is not None
+    assert fetched.error == "fallo al clasificar el ticket"
+
+
+async def test_update_result_on_a_missing_run_fails_with_a_port_error(
+    session: AsyncSession,
+) -> None:
+    repo = SqlAlchemyAgentRunRepository(session)
+    with pytest.raises(PortError):
+        await repo.update_result(uuid.uuid4(), status=AgentRunStatus.failed, error="x")

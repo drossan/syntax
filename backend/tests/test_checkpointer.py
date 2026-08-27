@@ -33,8 +33,11 @@ def test_dsn_without_the_asyncpg_driver_is_left_unchanged() -> None:
     assert _checkpointer_dsn(dsn) == dsn
 
 
-def test_checkpointer_pool_is_a_singleton_per_process(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_checkpointer_pool_is_a_singleton_per_process(
+    app_db_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Dos llamadas sucesivas devuelven el MISMO objeto (no se abre una segunda conexión)."""
+    monkeypatch.setenv("DATABASE_URL", app_db_url)
     monkeypatch.setenv("JWT_SECRET", "test-secret")
     get_settings.cache_clear()
 
@@ -42,20 +45,24 @@ def test_checkpointer_pool_is_a_singleton_per_process(monkeypatch: pytest.Monkey
 
     checkpointer_module._pool = None
     try:
-        pool_a = get_checkpointer_pool()
-        pool_b = get_checkpointer_pool()
+        pool_a = await get_checkpointer_pool()
+        pool_b = await get_checkpointer_pool()
         assert pool_a is not None
         assert pool_a is pool_b
     finally:
+        if checkpointer_module._pool is not None:
+            await checkpointer_module._pool.close()
         checkpointer_module._pool = None
         get_settings.cache_clear()
 
 
-def test_checkpointer_pool_is_built_with_autocommit_and_dict_rows(
-    monkeypatch: pytest.MonkeyPatch,
+async def test_checkpointer_pool_is_open_and_built_with_autocommit_and_dict_rows(
+    app_db_url: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """El pool usa `autocommit=True`, `prepare_threshold=0` y `row_factory=dict_row` — mismos
-    parámetros que `AsyncPostgresSaver.from_conn_string` (verificado contra el SDK instalado)."""
+    """El pool queda ABIERTO (no `PoolClosed` en el primer uso real) y usa `autocommit=True`,
+    `prepare_threshold=0` y `row_factory=dict_row` — mismos parámetros que
+    `AsyncPostgresSaver.from_conn_string` (verificado contra el SDK instalado)."""
+    monkeypatch.setenv("DATABASE_URL", app_db_url)
     monkeypatch.setenv("JWT_SECRET", "test-secret")
     get_settings.cache_clear()
 
@@ -63,18 +70,52 @@ def test_checkpointer_pool_is_built_with_autocommit_and_dict_rows(
 
     checkpointer_module._pool = None
     try:
-        pool = get_checkpointer_pool()
+        pool = await get_checkpointer_pool()
         assert pool.kwargs["autocommit"] is True
         assert pool.kwargs["prepare_threshold"] == 0
         assert pool.kwargs["row_factory"] is dict_row
+        async with pool.connection() as conn:
+            cur = await conn.execute("SELECT 1")
+            assert await cur.fetchone() == {"?column?": 1}
     finally:
+        if checkpointer_module._pool is not None:
+            await checkpointer_module._pool.close()
+        checkpointer_module._pool = None
+        get_settings.cache_clear()
+
+
+async def test_checkpointer_pool_construction_never_triggers_the_deprecated_implicit_open(
+    app_db_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """El pool se construye con `open=False` y se abre explícitamente con `await pool.open()` — NO
+    con el `open=True`/implícito de `psycopg_pool`, que está deprecado (`RuntimeWarning`) y desaparece
+    en una versión futura. Sin este test, `open=False` → `open=True` es un mutante que sobrevive: el
+    pool funciona igual en ambos casos (abrir dos veces no falla), la única diferencia observable es
+    el aviso de deprecación."""
+    import warnings
+
+    monkeypatch.setenv("DATABASE_URL", app_db_url)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    get_settings.cache_clear()
+
+    import app.agents.checkpointer as checkpointer_module
+
+    checkpointer_module._pool = None
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            await get_checkpointer_pool()
+    finally:
+        if checkpointer_module._pool is not None:
+            await checkpointer_module._pool.close()
         checkpointer_module._pool = None
         get_settings.cache_clear()
 
 
 async def test_get_checkpointer_returns_an_async_postgres_saver_over_the_pool(
-    monkeypatch: pytest.MonkeyPatch,
+    app_db_url: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("DATABASE_URL", app_db_url)
     monkeypatch.setenv("JWT_SECRET", "test-secret")
     get_settings.cache_clear()
 
@@ -82,12 +123,14 @@ async def test_get_checkpointer_returns_an_async_postgres_saver_over_the_pool(
 
     checkpointer_module._pool = None
     try:
-        saver = get_checkpointer()
+        saver = await get_checkpointer()
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
         assert isinstance(saver, AsyncPostgresSaver)
-        assert saver.conn is get_checkpointer_pool()
+        assert saver.conn is await get_checkpointer_pool()
     finally:
+        if checkpointer_module._pool is not None:
+            await checkpointer_module._pool.close()
         checkpointer_module._pool = None
         get_settings.cache_clear()
 

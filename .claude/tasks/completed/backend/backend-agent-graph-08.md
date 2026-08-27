@@ -2,11 +2,11 @@
 id: backend-agent-graph-08
 package: backend
 plan: agent-graph
-status: pending
+status: done
 priority: 1
 depends_on: [backend-agent-graph-06, backend-agent-graph-07]
 estimate: 8h
-actual:
+actual: ~4h
 created: 2026-08-27
 updated: 2026-08-27
 ---
@@ -110,17 +110,17 @@ Feature: Disparo del run del agente (sin HITL / camino auto)
   para persistir el resultado del `resume()` y `langsmith_trace_url` respectivamente.
 
 ## Definition of Done
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break: 80`)
-- [ ] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer)
-- [ ] **SDD** — enlaza CU-BE-06 (sin copiar su Gherkin)
-- [ ] Documentación actualizada — tres capas:
-  - [ ] TSDoc en el código (`LangGraphAgentRunner`, `trigger`, manejo de fallo del LLM)
-  - [ ] Doc técnica — `app/agents/runner.py` deja de ser guión
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-08.md`
-- [ ] Docs de dev / usuario final — no aplica
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (6 runner + 10 checkpointer + 16 agent_run repo; suite completa exit 0)
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break: 80`) — runner.py 9.52%, agent_run.py 6.12%, checkpointer.py 0.00% (los 3 bajo el umbral 20%)
+- [x] Gate `sdd-lint` superado — N/A (enlaza CU sin copiar Gherkin), spot-check sin `[NECESITA ACLARACIÓN`
+- [x] Gate de `fact-checker` superado — 12/14 VERIFICADO exacto, 1 con matiz (contención de BD en la propia verificación), 1 INCORRECTO en una cifra de mutation (corregida y re-verificada, sigue bajo el umbral)
+- [x] **SDD** — enlaza CU-BE-06 (sin copiar su Gherkin)
+- [x] Documentación actualizada — tres capas:
+  - [x] TSDoc en el código (`LangGraphAgentRunner`, `trigger`, manejo de fallo del LLM)
+  - [x] Doc técnica — `app/agents/runner.py` deja de ser guión
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-08.md`
+- [x] Docs de dev / usuario final — no aplica

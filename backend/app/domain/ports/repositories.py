@@ -16,7 +16,7 @@ adaptador deje pasar una excepción de infra cruda (debe envolverla en `app.doma
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.domain.entities.business import (
     AgentRun,
@@ -28,6 +28,7 @@ from app.domain.entities.business import (
     Ticket,
 )
 from app.domain.entities.enums import (
+    AgentRunStatus,
     ApprovalStatus,
     KbDomain,
     MessageVisibility,
@@ -337,6 +338,29 @@ class AgentRunRepository(Protocol):
     async def get(self, agent_run_id: uuid.UUID) -> AgentRun | None: ...
     async def add(self, run: AgentRun) -> AgentRun: ...
     async def update_status(self, agent_run_id: uuid.UUID, status: str) -> AgentRun: ...
+
+    async def update_result(
+        self,
+        agent_run_id: uuid.UUID,
+        *,
+        status: AgentRunStatus,
+        confidence: float | None = None,
+        sources: list[dict[str, Any]] | None = None,
+        error: str | None = None,
+        escalated: bool | None = None,
+        finished_at: datetime | None = None,
+        langsmith_trace_url: str | None = None,
+    ) -> AgentRun:
+        """Persiste el resultado completo de un run (tarea `backend-agent-graph-08`): `status` +
+        cualquier combinación de los campos de resultado, no solo el status (a diferencia de
+        `update_status`). Cada argumento con default `None` SE ESCRIBE tal cual (no es un PATCH
+        parcial que ignore lo no-pasado) — el llamante (`runner.py`) siempre sabe exactamente qué
+        campos aplican al desenlace que está persistiendo (éxito/escalado/fallo).
+
+        :raises app.domain.errors.PortError: si `agent_run_id` no existe o falla la escritura.
+        """
+        ...
+
     async def next_run_seq(self, ticket_id: uuid.UUID) -> int: ...
 
     async def get_active_for_ticket(self, ticket_id: uuid.UUID) -> AgentRun | None:

@@ -8,6 +8,8 @@ best-effort de `agent_service`, sin garantía bajo carrera).
 """
 
 import uuid
+from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -93,6 +95,38 @@ class SqlAlchemyAgentRunRepository:
             await self._session.refresh(row)
         except Exception as exc:
             raise PortError("fallo al actualizar agent_run") from exc
+        return _to_domain(row)
+
+    async def update_result(
+        self,
+        agent_run_id: uuid.UUID,
+        *,
+        status: AgentRunStatus,
+        confidence: float | None = None,
+        sources: list[dict[str, Any]] | None = None,
+        error: str | None = None,
+        escalated: bool | None = None,
+        finished_at: datetime | None = None,
+        langsmith_trace_url: str | None = None,
+    ) -> AgentRun:
+        try:
+            row = await self._session.get(AgentRunModel, agent_run_id)
+        except Exception as exc:
+            raise PortError("fallo al leer agent_run") from exc
+        if row is None:
+            raise PortError(f"agent_run {agent_run_id} no existe")
+        row.status = to_orm(AgentRunStatusOrm, status)
+        row.confidence = confidence
+        row.sources = sources
+        row.error = error
+        row.escalated = bool(escalated)
+        row.finished_at = finished_at
+        row.langsmith_trace_url = langsmith_trace_url
+        try:
+            await self._session.flush()
+            await self._session.refresh(row)
+        except Exception as exc:
+            raise PortError("fallo al actualizar el resultado de agent_run") from exc
         return _to_domain(row)
 
     async def next_run_seq(self, ticket_id: uuid.UUID) -> int:
