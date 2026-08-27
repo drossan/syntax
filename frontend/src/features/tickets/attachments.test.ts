@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { attachmentDownloadHref, formatFileSize } from "./attachments";
+import { formatFileSize, triggerBrowserDownload } from "./attachments";
 
 /** Formato humano de tamaño y URL de descarga del adjunto. */
 describe("formatFileSize", () => {
@@ -25,14 +25,25 @@ describe("formatFileSize", () => {
   });
 });
 
-describe("attachmentDownloadHref", () => {
-  it("construye la ruta de descarga con el id del adjunto", () => {
-    expect(attachmentDownloadHref({ id: "att-1" }, "https://api.test")).toBe(
-      "https://api.test/api/v1/attachments/att-1",
-    );
+describe("triggerBrowserDownload", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it("usa ruta relativa si no se da base", () => {
-    expect(attachmentDownloadHref({ id: "att-2" })).toBe("/api/v1/attachments/att-2");
+  it("crea una URL de objeto, la clica con un <a> desechable, y la libera", () => {
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-url");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    const blob = new Blob(["contenido"], { type: "text/plain" });
+
+    triggerBrowserDownload(blob, "informe.pdf");
+
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(click).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:test-url");
+    // El <a> desechable no queda colgado en el DOM tras la descarga.
+    expect(document.querySelectorAll("a[download]")).toHaveLength(0);
   });
 });
