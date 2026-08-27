@@ -28,6 +28,31 @@ export function useTriggerDraft(ticketId: string) {
 }
 
 /**
+ * Descubre el `AgentRun` activo de un ticket (`GET /tickets/{id}/agent-runs/active`) — sin esto, un run
+ * disparado por el SERVIDOR (`tenant.ai_auto_draft`, no por este cliente) es invisible: el cliente nunca
+ * recibe su `id` en la respuesta de `POST /tickets`. `null` es un resultado válido (sin run activo), no
+ * un error. Solo se pide UNA vez al montar (`staleTime: Infinity`) — el ciclo de vida de un run YA
+ * conocido lo sondea `useAgentRun`, no este hook.
+ *
+ * @param ticketId Id del ticket.
+ */
+export function useActiveAgentRun(ticketId: string) {
+  const { client } = useAuth();
+
+  return useQuery({
+    queryKey: ["agent-run-active", ticketId],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await client.GET("/tickets/{id}/agent-runs/active", {
+        params: { path: { id: ticketId } },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+/**
  * Sondea un `AgentRun` (`GET /agent-runs/{id}`) hasta que sea terminal. El `refetchInterval` se detiene
  * (`false`) al alcanzar `succeeded`/`failed` (`draftPollInterval`). No se dispara sin `runId`.
  *

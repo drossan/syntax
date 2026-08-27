@@ -9,6 +9,7 @@
     "kb": "Base de conocimiento",
     "tenants": "Clientes",
     "users": "Usuarios",
+    "roles": "Roles",
     "dashboard": "Panel"
   },
   "header": {
@@ -73,7 +74,12 @@
     "loading": "Cargando clientes…",
     "error": "No se pudieron cargar los clientes.",
     "retry": "Reintentar",
-    "empty": "Aún no hay clientes."
+    "empty": "Aún no hay clientes.",
+    "settings": {
+      "autoApprove": "Auto-aprobar drafts IA",
+      "aiAutoDraft": "Auto-generar draft IA al crear un ticket",
+      "saveError": "No se pudo guardar el ajuste."
+    }
   },
   "offline": {
     "message": "Sin conexión. Reintentaremos las lecturas al recuperar la red."
@@ -174,6 +180,7 @@
   "aiDraft": {
     "region": "Borrador IA",
     "title": "Borrador IA",
+    "checking": "Comprobando si ya hay un borrador…",
     "generate": "Generar borrador",
     "retry": "Reintentar",
     "generating": "Generando el borrador…",

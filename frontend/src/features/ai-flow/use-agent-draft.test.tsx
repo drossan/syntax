@@ -9,10 +9,12 @@ import { agentRunFixture, meFixture, tokenFixture } from "@/mocks/fixtures";
 import { server } from "@/mocks/server";
 import { SESSION_BASE } from "@/test/render-with-session";
 
-import { useAgentRun } from "./use-agent-draft";
+import { useActiveAgentRun, useAgentRun } from "./use-agent-draft";
 
+const TICKET_ID = "11111111-1111-1111-1111-111111111111";
 const RUN_ID = "66666666-6666-6666-6666-666666666666";
 const RUN = `${SESSION_BASE}/api/v1/agent-runs/${RUN_ID}`;
+const ACTIVE_RUN = `${SESSION_BASE}/api/v1/tickets/${TICKET_ID}/agent-runs/active`;
 
 function makeWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -53,5 +55,28 @@ describe("useAgentRun (polling)", () => {
     const { result } = renderHook(() => useAgentRun(null, 10), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
     expect(result.current.data).toBeUndefined();
+  });
+});
+
+describe("useActiveAgentRun (descubrimiento)", () => {
+  it("devuelve null cuando no hay ningún run activo para el ticket", async () => {
+    server.use(http.get(ACTIVE_RUN, () => HttpResponse.json(null)));
+
+    const { result } = renderHook(() => useActiveAgentRun(TICKET_ID), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBeNull();
+  });
+
+  it("descubre un run que disparó el servidor (ai_auto_draft), no este cliente", async () => {
+    server.use(
+      http.get(ACTIVE_RUN, () =>
+        HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "running" })),
+      ),
+    );
+
+    const { result } = renderHook(() => useActiveAgentRun(TICKET_ID), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.data?.id).toBe(RUN_ID));
   });
 });

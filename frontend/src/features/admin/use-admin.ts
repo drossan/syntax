@@ -5,6 +5,7 @@ import type { components } from "@/types/api";
 
 type UserInvite = components["schemas"]["UserInvite"];
 type UserStatus = components["schemas"]["UserStatus"];
+type TenantSettings = components["schemas"]["TenantSettings"];
 
 /** Usuarios del tenant del sujeto (`GET /admin/users`; el servidor escopa por sujeto). */
 export function useUsers() {
@@ -44,6 +45,40 @@ export function useCreateTenant() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] });
+    },
+  });
+}
+
+/** Ajustes de un tenant (`GET /admin/settings?tenant_id=`) — `auto_approve`/`ai_auto_draft`. */
+export function useTenantSettings(tenantId: string) {
+  const { client } = useAuth();
+  return useQuery({
+    queryKey: ["admin", "settings", tenantId],
+    queryFn: async () => {
+      const { data, error } = await client.GET("/admin/settings", {
+        params: { query: { tenant_id: tenantId } },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+/** Actualiza los ajustes de un tenant (`PATCH /admin/settings?tenant_id=`); invalida esa query. */
+export function useUpdateTenantSettings(tenantId: string) {
+  const { client } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: TenantSettings) => {
+      const { data, error } = await client.PATCH("/admin/settings", {
+        params: { query: { tenant_id: tenantId } },
+        body,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "settings", tenantId] });
     },
   });
 }

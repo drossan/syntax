@@ -9,6 +9,7 @@ import { useTenants } from "@/features/tenant/use-tenants";
 import { problemToUi, type Problem } from "@/lib/api/problem";
 
 import { tenantCreateSchema, toTenantCreateBody, type TenantCreateValues } from "./admin-schemas";
+import { TenantSettingsToggles } from "./tenant-settings-toggles";
 import { useCreateTenant } from "./use-admin";
 
 function toProblem(error: unknown, fallbackTitle: string): Problem {
@@ -62,15 +63,27 @@ export function TenantsAdmin() {
         ) : null}
         <label className="flex flex-col gap-1 text-sm">
           {t("slug")}
-          <input aria-invalid={errors.slug ? true : undefined} className="rounded-md border px-2 py-1" {...register("slug")} />
+          <input
+            aria-invalid={errors.slug ? true : undefined}
+            className="rounded-md border px-2 py-1"
+            {...register("slug")}
+          />
           {errors.slug ? <span className="text-destructive">{errors.slug.message}</span> : null}
         </label>
         <label className="flex flex-col gap-1 text-sm">
           {t("name")}
-          <input aria-invalid={errors.name ? true : undefined} className="rounded-md border px-2 py-1" {...register("name")} />
+          <input
+            aria-invalid={errors.name ? true : undefined}
+            className="rounded-md border px-2 py-1"
+            {...register("name")}
+          />
           {errors.name ? <span className="text-destructive">{errors.name.message}</span> : null}
         </label>
-        <button type="submit" disabled={isSubmitting} className="rounded-md border px-3 py-1.5 text-sm">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="rounded-md border px-3 py-1.5 text-sm"
+        >
           {t("create")}
         </button>
       </form>
@@ -82,7 +95,11 @@ export function TenantsAdmin() {
       ) : tenants.isError ? (
         <div role="alert" className="flex items-center gap-3">
           <p className="text-destructive">{t("error")}</p>
-          <button type="button" onClick={() => tenants.refetch()} className="rounded-md border px-3 py-1.5 text-sm">
+          <button
+            type="button"
+            onClick={() => tenants.refetch()}
+            className="rounded-md border px-3 py-1.5 text-sm"
+          >
             {t("retry")}
           </button>
         </div>
@@ -93,9 +110,12 @@ export function TenantsAdmin() {
       ) : (
         <ul className="flex flex-col gap-1 text-sm">
           {tenants.data?.map((tenant) => (
-            <li key={tenant.id} className="flex gap-3 rounded-md border p-2">
-              <span className="font-medium">{tenant.name}</span>
-              <span className="text-muted-foreground">{tenant.slug}</span>
+            <li key={tenant.id} className="flex flex-col gap-2 rounded-md border p-2">
+              <div className="flex gap-3">
+                <span className="font-medium">{tenant.name}</span>
+                <span className="text-muted-foreground">{tenant.slug}</span>
+              </div>
+              {tenant.id ? <TenantSettingsToggles tenantId={tenant.id} /> : null}
             </li>
           ))}
         </ul>

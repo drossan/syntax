@@ -16,6 +16,7 @@ const TICKET_ID = "t-1";
 const RUN_ID = "run-1";
 const DRAFT = `${SESSION_BASE}/api/v1/tickets/${TICKET_ID}/ai-draft`;
 const RUN = `${SESSION_BASE}/api/v1/agent-runs/${RUN_ID}`;
+const ACTIVE_RUN = `${SESSION_BASE}/api/v1/tickets/${TICKET_ID}/agent-runs/active`;
 
 const me = meFixture({ capabilities: [{ capability: "agent.trigger", scope: "tenant" }] });
 
@@ -43,7 +44,15 @@ describe("AiDraftPanel", () => {
             id: RUN_ID,
             status: "succeeded",
             confidence: 0.9,
-            sources: [{ uc_id: "UC-API-081", title: "Publicar el sitio", section_type: "howto", source_url: "u", score: 0.8 }],
+            sources: [
+              {
+                uc_id: "UC-API-081",
+                title: "Publicar el sitio",
+                section_type: "howto",
+                source_url: "u",
+                score: 0.8,
+              },
+            ],
           }),
         ),
       ),
@@ -60,7 +69,9 @@ describe("AiDraftPanel", () => {
     serveTrigger();
     server.use(
       http.get(RUN, () =>
-        HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "failed", error: "El grafo falló" })),
+        HttpResponse.json(
+          agentRunFixture({ id: RUN_ID, status: "failed", error: "El grafo falló" }),
+        ),
       ),
     );
 
@@ -75,13 +86,31 @@ describe("AiDraftPanel", () => {
 
   it("running: muestra 'generando' (live region) y no ofrece re-disparar (idempotencia)", async () => {
     serveTrigger();
-    server.use(http.get(RUN, () => HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "running" }))));
+    server.use(
+      http.get(RUN, () => HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "running" }))),
+    );
 
     renderWithSession(<AiDraftPanel ticketId={TICKET_ID} pollMs={10} />, { me });
     await userEvent.click(await screen.findByRole("button", { name: /generar borrador/i }));
 
     expect(await screen.findByText(/generando/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /generar borrador|reintentar/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /generar borrador|reintentar/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ai_auto_draft: descubre un run ya disparado por el servidor SIN que el usuario haga clic", async () => {
+    server.use(
+      http.get(ACTIVE_RUN, () =>
+        HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "running" })),
+      ),
+      http.get(RUN, () => HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "running" }))),
+    );
+
+    renderWithSession(<AiDraftPanel ticketId={TICKET_ID} pollMs={10} />, { me });
+
+    expect(await screen.findByText(/generando/i)).toBeInTheDocument();
+    expect(posts).toBe(0); // nunca disparó — solo descubrió el run del servidor
   });
 
   it("sin capacidad agent.trigger no ofrece generar", async () => {

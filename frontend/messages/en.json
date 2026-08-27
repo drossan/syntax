@@ -9,6 +9,7 @@
     "kb": "Knowledge base",
     "tenants": "Clients",
     "users": "Users",
+    "roles": "Roles",
     "dashboard": "Dashboard"
   },
   "header": {
@@ -73,7 +74,12 @@
     "loading": "Loading clients…",
     "error": "Could not load clients.",
     "retry": "Retry",
-    "empty": "No clients yet."
+    "empty": "No clients yet.",
+    "settings": {
+      "autoApprove": "Auto-approve AI drafts",
+      "aiAutoDraft": "Auto-generate AI draft on ticket creation",
+      "saveError": "Could not save the setting."
+    }
   },
   "offline": {
     "message": "You are offline. We'll retry reads when the connection is back."
@@ -174,6 +180,7 @@
   "aiDraft": {
     "region": "AI draft",
     "title": "AI draft",
+    "checking": "Checking for an existing draft…",
     "generate": "Generate draft",
     "retry": "Retry",
     "generating": "Generating the draft…",

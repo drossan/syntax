@@ -35,4 +35,25 @@ describe("AppNav", () => {
 
     expect(await screen.findByRole("link", { name: "Clientes" })).toBeInTheDocument();
   });
+
+  it("muestra Roles con `role.manage`, no sin ella (ruta antes huérfana, sin link)", async () => {
+    renderWithSession(<AppNav />, {
+      me: meFixture({
+        capabilities: [{ capability: "ticket.read", scope: "tenant" }],
+        user: userFixture(),
+      }),
+    });
+    expect(screen.queryByRole("link", { name: "Roles" })).not.toBeInTheDocument();
+
+    renderWithSession(<AppNav />, {
+      me: meFixture({
+        capabilities: [
+          { capability: "ticket.read", scope: "global" },
+          { capability: "role.manage", scope: "global" },
+        ],
+        user: userFixture(),
+      }),
+    });
+    expect(await screen.findByRole("link", { name: "Roles" })).toBeInTheDocument();
+  });
 });
