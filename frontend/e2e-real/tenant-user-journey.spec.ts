@@ -19,6 +19,12 @@ import { errorAlert, login } from "./helpers";
  * había NINGÚN componente del front que llamara a ese endpoint pese a que `ticket.reply` ya está en el
  * catálogo RBAC (`backend/app/infra/db/seed.py`) desde antes: sin el reply publicado y visible en el
  * hilo tras recargar, esa desconexión front↔back seguiría sin probarse.
+ *
+ * Y el ciclo completo de adjuntos: subir con la respuesta, verlo listado tras recargar (antes
+ * imposible — el contrato no exponía forma de listar lo ya subido, ampliado esta misma tarea) y
+ * descargarlo de verdad. La descarga real es la parte que un test con MSW no puede atrapar: el botón
+ * pide el binario con el cliente autenticado (no un `<a href>`, que contra el backend real daba 401 sin
+ * el Bearer — bug real, verificado con curl antes de arreglarlo).
  */
 test("client-agent: nav acotada por RBAC + alta de ticket real", async ({ page }) => {
   await login(page, E2E_USERS.clientAgent);
@@ -47,14 +53,29 @@ test("client-agent: nav acotada por RBAC + alta de ticket real", async ({ page }
   await expect(actions.getByRole("button", { name: "Asignarme" })).not.toBeVisible();
 
   // `ticket.reply` (sin `note.internal.write`): responde de verdad, sin selector de visibilidad — el
-  // mensaje real queda publicado en el hilo tras recargar (no cacheado en memoria del cliente).
+  // mensaje real queda publicado en el hilo tras recargar (no cacheado en memoria del cliente). Con un
+  // adjunto real: sube al mensaje recién creado y queda DESCUBRIBLE tras recargar (antes imposible).
   const replyBody = `[e2e-real] respuesta real ${Date.now()}`;
   await expect(page.getByLabel(/visibilidad/i)).not.toBeVisible();
   await page.getByLabel(/responder/i).fill(replyBody);
+  await page.getByLabel(/adjuntar/i).setInputFiles({
+    name: "informe.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("contenido real del adjunto"),
+  });
   await page.getByRole("button", { name: "Enviar" }).click();
   await expect(page.getByText(replyBody)).toBeVisible();
+  await expect(page.getByText("informe.txt")).toBeVisible();
   await page.reload();
   await expect(page.getByText(replyBody)).toBeVisible();
+  await expect(page.getByText("informe.txt")).toBeVisible();
+
+  // Descarga real: el botón pide el binario con el Bearer de la sesión (no un `<a href>` plano, que
+  // contra el backend real daba 401 — bug real, arreglado en la misma tarea que esta aserción cierra).
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: /descargar informe/i }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("informe.txt");
 
   // La bandeja (propia del tenant) lista el ticket recién creado.
   await nav.getByRole("link", { name: "Bandeja" }).click();
