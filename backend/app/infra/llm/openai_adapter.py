@@ -118,6 +118,7 @@ class OpenAIChatModel:
             self._client = ChatOpenAI(
                 model=self._settings.chat_model,
                 openai_api_key=self._settings.openai_api_key,
+                temperature=self._settings.llm_temperature,
                 max_retries=3,
                 request_timeout=30.0,
             )

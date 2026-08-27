@@ -404,16 +404,37 @@ async def test_client_is_built_with_the_configured_model_and_retry_params(
         captured["model_name"] = self.model_name
         captured["max_retries"] = self.max_retries
         captured["request_timeout"] = self.request_timeout
+        captured["temperature"] = self.temperature
         return _FakeChatResponse(content="ok")
 
     monkeypatch.setattr(ChatOpenAI, "ainvoke", fake_ainvoke)
 
-    model = OpenAIChatModel(_settings(chat_model="gpt-4o-mini"))
+    model = OpenAIChatModel(_settings(chat_model="gpt-4o-mini", llm_temperature=0.0))
     await model.generate("prompt")
 
     assert captured["model_name"] == "gpt-4o-mini"
     assert captured["max_retries"] == 3
     assert captured["request_timeout"] == 30.0
+    assert captured["temperature"] == 0.0
+
+
+async def test_client_is_built_with_the_configured_temperature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`settings.llm_temperature` (no un `0.0` fijo en el código) llega al cliente — verificado con un
+    valor DISTINTO del default para no coincidir por casualidad con el propio default de `Settings`."""
+    captured: dict[str, object] = {}
+
+    async def fake_ainvoke(self: ChatOpenAI, prompt: str) -> _FakeChatResponse:
+        captured["temperature"] = self.temperature
+        return _FakeChatResponse(content="ok")
+
+    monkeypatch.setattr(ChatOpenAI, "ainvoke", fake_ainvoke)
+
+    model = OpenAIChatModel(_settings(llm_temperature=0.7))
+    await model.generate("prompt")
+
+    assert captured["temperature"] == 0.7
 
 
 @pytest.mark.parametrize("method_name", ["classify", "grade"])
