@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { useAuth } from "@/features/auth/auth-context";
 
@@ -49,17 +50,26 @@ const DEFAULT_DISCOVERY_RETRY_MS = 1500;
  * `AgentRunRepository` — sin hacerlo (comprometería mucho código ya cerrado y testeado, sin margen en
  * esta pasada) — follow-up explícito, no un descuido.
  *
+ * `stillSearching` en el resultado: `true` mientras no haya encontrado nada Y no se hayan agotado los
+ * reintentos — usar `isLoading`/`isFetching` para esto (como hacía `ai-draft-panel.tsx` antes de este
+ * fix) **parpadea**: esos campos solo son `true` MIENTRAS hay una petición en vuelo, no durante los
+ * ~`retryMs` de espera ENTRE reintentos — así que un consumidor basado en ellos mostraba "Generar
+ * borrador" a ráfagas durante casi toda la ventana de 30s (reproducido en vivo, e2e real, no
+ * hipotético: intermitente porque depende de en qué hueco caiga la comprobación). `stillSearching`
+ * usa el mismo contador (`dataUpdateCount`, vía `dataUpdatedAt` — no expuesto directo por `useQuery`)
+ * que ya gobierna cuándo `refetchInterval` se rinde, así que ambos coinciden siempre.
+ *
  * @param ticketId Id del ticket.
  * @param retryMs Intervalo entre reintentos (default 1500 ms).
  */
 export function useActiveAgentRun(ticketId: string, retryMs: number = DEFAULT_DISCOVERY_RETRY_MS) {
   const { client } = useAuth();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["agent-run-active", ticketId],
-    refetchInterval: (query) => {
-      if (query.state.data != null) return false; // ya lo encontró
-      if (query.state.dataUpdateCount >= DISCOVERY_RETRY_ATTEMPTS) return false; // se rinde
+    refetchInterval: (q) => {
+      if (q.state.data != null) return false; // ya lo encontró
+      if (q.state.dataUpdateCount >= DISCOVERY_RETRY_ATTEMPTS) return false; // se rinde
       return retryMs;
     },
     queryFn: async () => {
@@ -70,6 +80,20 @@ export function useActiveAgentRun(ticketId: string, retryMs: number = DEFAULT_DI
       return data;
     },
   });
+
+  // Cuenta asentamientos (`dataUpdatedAt` cambia una vez por fetch resuelto, con datos o `null`) SIN
+  // efecto: comparar-y-ajustar durante el propio render (patrón "adjusting state when a prop changes"
+  // de React) evita el cascading-render de `setState` dentro de un `useEffect`
+  // (react-hooks/set-state-in-effect) — mismo motivo que ya obligó a evitar un efecto en
+  // `ai-draft-panel.tsx`.
+  const [seenAt, setSeenAt] = useState(query.dataUpdatedAt);
+  const [attempts, setAttempts] = useState(0);
+  if (query.dataUpdatedAt !== seenAt) {
+    setSeenAt(query.dataUpdatedAt);
+    setAttempts((count) => count + 1);
+  }
+
+  return { ...query, stillSearching: query.data == null && attempts < DISCOVERY_RETRY_ATTEMPTS };
 }
 
 /**

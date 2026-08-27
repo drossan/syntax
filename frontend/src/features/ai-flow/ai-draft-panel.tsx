@@ -49,12 +49,12 @@ export function AiDraftPanel({
   const awaitingApproval = runId !== null && isAwaitingApproval(status, run.data?.escalated);
   const active = runId !== null && !isTerminal(status) && !awaitingApproval;
   // Mientras `useActiveAgentRun` sigue reintentando (todavía sin encontrar nada, ver su docstring —
-  // el run del auto-disparo puede tardar unas decenas de ms en existir) no decidimos qué pintar aún:
-  // evita mostrar "Generar borrador" solo para que desaparezca un segundo después.
-  const discovering =
-    triggeredRunId === null &&
-    activeRun.data == null &&
-    (activeRun.isLoading || activeRun.isFetching);
+  // el run del auto-disparo puede tardar hasta ~30s en ser descubrible) no decidimos qué pintar aún:
+  // evita mostrar "Generar borrador" solo para que desaparezca un segundo después. `stillSearching`
+  // (no `isLoading`/`isFetching`) es la señal correcta — esos dos parpadean entre reintentos
+  // (bug real, reproducido en vivo: "Generar borrador" aparecía a ráfagas durante casi toda la
+  // ventana de descubrimiento), `stillSearching` no.
+  const discovering = triggeredRunId === null && activeRun.stillSearching;
 
   function generate() {
     trigger.mutate(undefined, { onSuccess: (agentRun) => setTriggeredRunId(agentRun.id ?? null) });

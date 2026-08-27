@@ -121,4 +121,48 @@ describe("useActiveAgentRun (descubrimiento)", () => {
     expect(calls).toBe(20);
     expect(result.current.data).toBeNull();
   });
+
+  it("stillSearching se mantiene true en los huecos ENTRE reintentos (no parpadea como isFetching)", async () => {
+    // Bug real reproducido en vivo: `ai-draft-panel.tsx` usaba `isLoading || isFetching` para decidir
+    // si seguía "descubriendo" — ambos son `false` durante el hueco de espera entre reintentos (no
+    // solo mientras hay una petición en vuelo), así que el panel mostraba "Generar borrador" a ráfagas
+    // durante casi toda la ventana de 30s. `stillSearching` debe seguir `true` en ese hueco.
+    server.use(http.get(ACTIVE_RUN, () => HttpResponse.json(null)));
+
+    const { result } = renderHook(() => useActiveAgentRun(TICKET_ID, 30), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.stillSearching).toBe(true);
+    // A mitad del intervalo de reintento: `isFetching` ya volvió a `false` (confirma que estamos en el
+    // hueco, no en medio de una petición), pero `stillSearching` debe seguir `true`.
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    expect(result.current.isFetching).toBe(false);
+    expect(result.current.stillSearching).toBe(true);
+  });
+
+  it("stillSearching pasa a false en cuanto encuentra el run", async () => {
+    server.use(
+      http.get(ACTIVE_RUN, () =>
+        HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "running" })),
+      ),
+    );
+
+    const { result } = renderHook(() => useActiveAgentRun(TICKET_ID), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.data?.id).toBe(RUN_ID));
+    expect(result.current.stillSearching).toBe(false);
+  });
+
+  it("stillSearching pasa a false tras agotar los reintentos si de verdad no hay ningún run", async () => {
+    server.use(http.get(ACTIVE_RUN, () => HttpResponse.json(null)));
+
+    const { result } = renderHook(() => useActiveAgentRun(TICKET_ID, 10), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.stillSearching).toBe(false), { timeout: 2000 });
+    expect(result.current.data).toBeNull();
+  });
 });
