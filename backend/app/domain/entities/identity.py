@@ -27,6 +27,7 @@ class Tenant(BaseModel):
     name: str
     status: TenantStatus
     auto_approve: bool = False
+    ai_auto_draft: bool = True
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

@@ -101,7 +101,7 @@ async def get_settings(
     tenant = await SqlAlchemyTenantRepository(session).get(target_tenant_id)
     if tenant is None:
         raise NotFound(f"tenant {target_tenant_id} no existe", code="tenant.not_found")
-    return TenantSettings(auto_approve=tenant.auto_approve)
+    return TenantSettings(auto_approve=tenant.auto_approve, ai_auto_draft=tenant.ai_auto_draft)
 
 
 @router.patch("/settings")
@@ -119,6 +119,7 @@ async def update_settings(
     if tenant is None:
         raise NotFound(f"tenant {target_tenant_id} no existe", code="tenant.not_found")
     tenant.auto_approve = payload.auto_approve
+    tenant.ai_auto_draft = payload.ai_auto_draft
     updated = await tenant_repo.update(tenant)
     await SqlAlchemyAuditLogRepository(session).add(
         AuditLogEntry(
@@ -127,7 +128,7 @@ async def update_settings(
             action="tenant.settings_updated",
             entity_type="tenant",
             entity_id=str(updated.id),
-            payload={"auto_approve": updated.auto_approve},
+            payload={"auto_approve": updated.auto_approve, "ai_auto_draft": updated.ai_auto_draft},
         )
     )
-    return TenantSettings(auto_approve=updated.auto_approve)
+    return TenantSettings(auto_approve=updated.auto_approve, ai_auto_draft=updated.ai_auto_draft)

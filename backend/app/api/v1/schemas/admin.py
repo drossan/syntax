@@ -24,6 +24,7 @@ class TenantCreate(BaseModel):
 
 class TenantSettings(BaseModel):
     auto_approve: bool = False
+    ai_auto_draft: bool = True
 
 
 class AdminUser(BaseModel):

@@ -13,10 +13,11 @@ from datetime import UTC, datetime
 import httpx
 import pytest_asyncio
 from app.core.config import Settings, get_settings
-from app.core.deps import get_db_session, get_notification_service
+from app.core.deps import get_agent_service, get_db_session, get_notification_service
 from app.core.security import JWT_ALGORITHM, create_access_token, hash_password
-from app.domain.entities.business import Ticket
+from app.domain.entities.business import AgentRun, Ticket
 from app.domain.entities.enums import (
+    AgentRunStatus,
     NotificationType,
     RoleKind,
     TenantStatus,
@@ -25,7 +26,7 @@ from app.domain.entities.enums import (
     UserStatus,
 )
 from app.domain.entities.identity import Role, Tenant, User, UserTenantMembership
-from app.domain.errors import PortError
+from app.domain.errors import PortError, RateLimited
 from app.domain.services.notification_service import NotificationService
 from app.infra.clock import SystemClock
 from app.infra.db.repositories import (
@@ -96,9 +97,13 @@ def _client(app: FastAPI) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=transport, base_url="http://test")
 
 
-def _make_tenant() -> Tenant:
+def _make_tenant(*, ai_auto_draft: bool = True) -> Tenant:
     return Tenant(
-        id=uuid.uuid4(), slug=f"t-{uuid.uuid4()}", name="Tenant", status=TenantStatus.active
+        id=uuid.uuid4(),
+        slug=f"t-{uuid.uuid4()}",
+        name="Tenant",
+        status=TenantStatus.active,
+        ai_auto_draft=ai_auto_draft,
     )
 
 
@@ -761,3 +766,99 @@ async def test_a_notification_failure_does_not_affect_the_assign_response(
 
     assert r.status_code == 200
     assert r.json()["assignee_id"] == str(assignee.id)
+
+
+# ── auto-disparo del draft IA al crear un ticket (`tenant.ai_auto_draft`) ───────
+
+
+class _SpyAgentService:
+    """Sustituye `get_agent_service` — no ejercita el grafo real (ya cubierto por
+    `test_router_agent.py`/`test_runner.py`); solo verifica QUE el router de tickets llama (o no)
+    a `trigger()` según `tenant.ai_auto_draft`, sin tumbar la creación si falla."""
+
+    def __init__(self, *, should_fail: bool = False) -> None:
+        self.trigger_calls: list[tuple[uuid.UUID, uuid.UUID]] = []
+        self._should_fail = should_fail
+
+    async def trigger(self, tenant_id: uuid.UUID, ticket_id: uuid.UUID) -> AgentRun:
+        self.trigger_calls.append((tenant_id, ticket_id))
+        if self._should_fail:
+            raise RateLimited("límite de ai-draft excedido")
+        return AgentRun(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            ticket_id=ticket_id,
+            langgraph_thread_id=f"ticket_{ticket_id}_run_1",
+            run_seq=1,
+            status=AgentRunStatus.queued,
+        )
+
+    async def get(self, agent_run_id: uuid.UUID) -> AgentRun:  # pragma: no cover - no usado
+        raise NotImplementedError
+
+
+async def test_creating_a_ticket_auto_triggers_the_ai_draft_by_default(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())  # ai_auto_draft=True default
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.create"]
+    )
+    spy = _SpyAgentService()
+    app.dependency_overrides[get_agent_service] = lambda: spy
+
+    async with _client(app) as c:
+        r = await c.post(
+            "/api/v1/tickets",
+            json={"subject": "no puedo subir un vídeo", "body": "el botón no responde"},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 201
+    ticket_id = uuid.UUID(r.json()["id"])
+    assert spy.trigger_calls == [(tenant.id, ticket_id)]
+
+
+async def test_creating_a_ticket_does_not_trigger_the_ai_draft_when_disabled(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant(ai_auto_draft=False))
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.create"]
+    )
+    spy = _SpyAgentService()
+    app.dependency_overrides[get_agent_service] = lambda: spy
+
+    async with _client(app) as c:
+        r = await c.post(
+            "/api/v1/tickets",
+            json={"subject": "asunto", "body": "cuerpo"},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 201
+    assert spy.trigger_calls == []
+
+
+async def test_an_ai_auto_draft_failure_does_not_affect_the_create_response(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.create"]
+    )
+    spy = _SpyAgentService(should_fail=True)
+    app.dependency_overrides[get_agent_service] = lambda: spy
+
+    async with _client(app) as c:
+        r = await c.post(
+            "/api/v1/tickets",
+            json={"subject": "asunto", "body": "cuerpo"},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 201
+    assert len(spy.trigger_calls) == 1

@@ -32,6 +32,15 @@
   el disparo HTTP que arranca el run que, más adelante, puede llegar a `decide.requires_approval=true`.
   Con el grafo real aún sin existir (15/16), el `AgentRun` creado por este disparo queda `queued` sin
   progresar — limitación conocida y documentada en el plan `routers-flujo-ia`.
+- **Ampliado (`tenant.ai_auto_draft`, default `true`)**: `POST /tickets` dispara `agent.trigger`
+  automáticamente justo tras crear el ticket (mismo `agent_service.trigger()`, sin puerto nuevo) — si
+  el admin del tenant lo desactiva (`PATCH /tenants/settings`), el disparo vuelve a ser manual
+  (`POST /tickets/{id}/ai-draft`). Best-effort: un fallo del disparo automático (rate-limit del
+  tenant, proveedor caído) se loguea y NUNCA tumba la creación del ticket ya confirmada — el agente de
+  soporte siempre puede disparar el draft a mano después. El ticket recién creado está en `new`, no
+  `open` (nadie lo ha "tomado" todavía) — `decide()` en `approval_service.py` encadena `new/reopened
+  →open→pending` en vez de saltar directo a `pending` (que no es una arista válida de CU-BE-04),
+  preservando la máquina de estados sin necesitar que un humano abra el ticket a mano primero.
 
 ## Escenario principal (éxito)
 

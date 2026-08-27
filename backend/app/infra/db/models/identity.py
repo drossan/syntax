@@ -37,6 +37,7 @@ class Tenant(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String)
     status: Mapped[TenantStatus] = mapped_column(pg_enum(TenantStatus, "tenant_status"))
     auto_approve: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_auto_draft: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class User(TimestampMixin, Base):

@@ -27,6 +27,7 @@ def _to_domain(row: TenantModel) -> Tenant:
         name=row.name,
         status=to_domain(TenantStatus, row.status),
         auto_approve=row.auto_approve,
+        ai_auto_draft=row.ai_auto_draft,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -52,6 +53,7 @@ class SqlAlchemyTenantRepository:
             name=tenant.name,
             status=to_orm(TenantStatusOrm, tenant.status),
             auto_approve=tenant.auto_approve,
+            ai_auto_draft=tenant.ai_auto_draft,
         )
         self._session.add(row)
         try:
@@ -71,6 +73,7 @@ class SqlAlchemyTenantRepository:
         row.name = tenant.name
         row.status = to_orm(TenantStatusOrm, tenant.status)
         row.auto_approve = tenant.auto_approve
+        row.ai_auto_draft = tenant.ai_auto_draft
         try:
             await self._session.flush()
             await self._session.refresh(row)

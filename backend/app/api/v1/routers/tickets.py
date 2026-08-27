@@ -30,15 +30,24 @@ from app.api.v1.schemas.tickets import (
     TicketTransitionRequest,
     TicketUpdate,
 )
-from app.core.deps import get_notification_service, get_ticket_service, require_capability
+from app.core.deps import (
+    get_agent_service,
+    get_notification_service,
+    get_ticket_service,
+    require_capability,
+)
 from app.domain.entities.business import Ticket as TicketEntity
 from app.domain.entities.enums import KbDomain, NotificationType, TicketPriority, TicketStatus
 from app.domain.entities.identity import Subject
-from app.domain.errors import PortError, Validation
+from app.domain.errors import DomainError, PortError, Validation
 from app.domain.ports.repositories import TICKET_SORT_FIELDS
+from app.domain.services.agent_service import AgentService
 from app.domain.services.notification_service import NotificationService
 from app.domain.services.ticket_service import TicketService
-from app.infra.db.repositories import SqlAlchemyUserTenantMembershipRepository
+from app.infra.db.repositories import (
+    SqlAlchemyTenantRepository,
+    SqlAlchemyUserTenantMembershipRepository,
+)
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -136,8 +145,9 @@ async def create_ticket(
     payload: TicketCreate,
     subject_session: tuple[Subject, AsyncSession] = Depends(require_capability("ticket.create")),
     ticket_service: TicketService = Depends(get_ticket_service),
+    agent_service: AgentService = Depends(get_agent_service),
 ) -> Ticket:
-    subject, _session = subject_session
+    subject, session = subject_session
     priority = _parse_priority(payload.priority)
     ticket = await ticket_service.create(
         tenant_id=subject.tenant_id,
@@ -146,6 +156,17 @@ async def create_ticket(
         body=payload.body,
         priority=priority,
     )
+
+    tenant = await SqlAlchemyTenantRepository(session).get(subject.tenant_id)
+    if tenant is not None and tenant.ai_auto_draft:
+        # Best-effort (mismo criterio que la notificación de `assign_ticket`): un fallo del disparo IA
+        # (rate-limit del tenant, proveedor caído) nunca debe tumbar la creación del ticket ya
+        # confirmada — el agente de soporte siempre puede disparar el draft a mano después.
+        try:
+            await agent_service.trigger(subject.tenant_id, ticket.id)
+        except DomainError:
+            _logger.warning("ai_auto_draft_trigger_failed", ticket_id=str(ticket.id))
+
     return _to_schema(ticket)
 
 
