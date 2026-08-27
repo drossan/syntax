@@ -145,6 +145,27 @@ def _is_check_constraint_diff(entry: object) -> bool:
     )
 
 
+def _is_checkpoint_table_diff(entry: object) -> bool:
+    """True si el diff es sobre una tabla/índice `checkpoint*` (tarea `backend-agent-graph-07`).
+
+    Las 4 tablas de `langgraph-checkpoint-postgres` (`checkpoint_migrations`, `checkpoints`,
+    `checkpoint_blobs`, `checkpoint_writes`, migración `0005`) no tienen modelo ORM a propósito: las
+    gestiona esa librería (DDL interno no-público, ver el docstring de la migración), no este proyecto
+    — un `Table()` sin ORM paralelo duplicaría ese DDL en un segundo sitio a mantener sincronizado a
+    mano. Sin este filtro, `compare_metadata` las reporta como `remove_table`/`remove_index` (existen
+    en la BD pero no en `Base.metadata`) y el gate de drift se rompe con cada bump de esa dependencia.
+    """
+    if not isinstance(entry, tuple) or len(entry) != 2:
+        return False
+    kind, obj = entry
+    if kind == "remove_table":
+        return bool(getattr(obj, "name", "").startswith("checkpoint"))
+    if kind == "remove_index":
+        table = getattr(obj, "table", None)
+        return bool(table is not None and getattr(table, "name", "").startswith("checkpoint"))
+    return False
+
+
 def _diff_against(sync_conn: object, metadata: MetaData) -> list[object]:
     context = MigrationContext.configure(sync_conn, opts={"compare_type": True})
     return _flatten(compare_metadata(context, metadata))
@@ -153,13 +174,19 @@ def _diff_against(sync_conn: object, metadata: MetaData) -> list[object]:
 async def test_models_do_not_drift_from_schema(superuser_engine: AsyncEngine) -> None:
     """Los modelos no divergen del schema migrado (compare_metadata → diff vacío).
 
-    Los CHECK de rango se excluyen: viven solo en la migración (decisión owner), no tienen
-    representación en los modelos, así que no pueden 'divergir'. El gate cubre tablas,
-    columnas, tipos (incl. dim de vector), índices, unicidades y FKs.
+    Los CHECK de rango y las tablas `checkpoint*` se excluyen: los primeros viven solo en la
+    migración (decisión owner), las segundas las gestiona `langgraph-checkpoint-postgres` (migración
+    `0005`) — ninguno de los dos tiene representación en `Base.metadata`, así que no pueden
+    'divergir'. El gate cubre el resto: tablas, columnas, tipos (incl. dim de vector), índices,
+    unicidades y FKs del ORM propio del proyecto.
     """
     async with superuser_engine.connect() as conn:
         diff = await conn.run_sync(lambda c: _diff_against(c, Base.metadata))
-    structural = [entry for entry in diff if not _is_check_constraint_diff(entry)]
+    structural = [
+        entry
+        for entry in diff
+        if not _is_check_constraint_diff(entry) and not _is_checkpoint_table_diff(entry)
+    ]
     assert structural == [], f"drift inesperado: {structural}"
 
 

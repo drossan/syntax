@@ -213,7 +213,7 @@ follow-up en el plan change log y en el session log de la tarea 11.
 - [x] `backend-agent-graph-06` (P1) — `app/agents/graph.py` (`build_graph()`, grafo COMPLETO incl.
   `respond`/`interrupt()`, plano, edges tipados; NO compila con checkpointer todavía) ·
   depends_on: backend-agent-graph-05
-- [ ] `backend-agent-graph-07` (P1) — `app/agents/checkpointer.py` (`PostgresSaver` + migración Alembic
+- [x] `backend-agent-graph-07` (P1) — `app/agents/checkpointer.py` (`PostgresSaver` + migración Alembic
   de sus tablas + allowlist en `test_models_do_not_drift_from_schema` + nota de riesgo DDL vendido, pool
   singleton perezoso) · depends_on: backend-agent-graph-01
 - [ ] `backend-agent-graph-08` (P1) — `app/agents/runner.py::trigger/run` (compila grafo(06)+

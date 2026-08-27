@@ -228,6 +228,24 @@ def _is_check_constraint_diff(entry: object) -> bool:
     )
 
 
+def _is_checkpoint_table_diff(entry: object) -> bool:
+    """True si el diff es sobre una tabla/índice `checkpoint*` (tarea `backend-agent-graph-07`).
+
+    Mismo filtro que `test_migration.py::_is_checkpoint_table_diff` — este fichero mantiene su PROPIA
+    copia del gate de drift (histórico, `database-foundation-06`), así que necesita el mismo allowlist:
+    las 4 tablas de `langgraph-checkpoint-postgres` (migración `0005`) no tienen modelo ORM a propósito.
+    """
+    if not isinstance(entry, tuple) or len(entry) != 2:
+        return False
+    kind, obj = entry
+    if kind == "remove_table":
+        return bool(getattr(obj, "name", "").startswith("checkpoint"))
+    if kind == "remove_index":
+        table = getattr(obj, "table", None)
+        return bool(table is not None and getattr(table, "name", "").startswith("checkpoint"))
+    return False
+
+
 def _diff_against(sync_conn: object, metadata: MetaData) -> list[object]:
     context = MigrationContext.configure(sync_conn, opts={"compare_type": True})
     return _flatten(compare_metadata(context, metadata))
@@ -240,5 +258,9 @@ async def test_models_do_not_drift_from_schema_after_identity_migration(
     migrado tras 0002 (mismo gate de drift que database-foundation 06)."""
     async with superuser_engine.connect() as conn:
         diff = await conn.run_sync(lambda c: _diff_against(c, Base.metadata))
-    structural = [entry for entry in diff if not _is_check_constraint_diff(entry)]
+    structural = [
+        entry
+        for entry in diff
+        if not _is_check_constraint_diff(entry) and not _is_checkpoint_table_diff(entry)
+    ]
     assert structural == [], f"drift inesperado: {structural}"

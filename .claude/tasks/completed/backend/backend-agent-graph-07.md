@@ -2,11 +2,11 @@
 id: backend-agent-graph-07
 package: backend
 plan: agent-graph
-status: pending
+status: done
 priority: 1
 depends_on: [backend-agent-graph-01]
 estimate: 4h
-actual:
+actual: ~3h
 created: 2026-08-27
 updated: 2026-08-27
 ---
@@ -102,18 +102,18 @@ Feature: Checkpointer Postgres del grafo
   `alembic upgrade head`.
 
 ## Definition of Done
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break: 80`)
-- [ ] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer)
-- [ ] **SDD** — enlaza ADR-0007 (checkpointer); sin CU propio (infra pura)
-- [ ] Documentación actualizada — tres capas:
-  - [ ] TSDoc en el código (`get_checkpointer_pool`, `get_checkpointer`, `_checkpointer_dsn`, docstring
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (9 passed checkpointer + 19 passed migration + 11 passed identity-migration; suite completa `pytest -q` exit 0 real, tras arreglar un segundo gate de drift duplicado)
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break: 80`) — 0.00% survivors (2ª vuelta, tras reforzar tests del singleton/pool)
+- [x] Gate `sdd-lint` superado — N/A (sin CU propio), spot-check sin `[NECESITA ACLARACIÓN` en el ADR
+- [x] Gate de `fact-checker` superado — 1ª pasada 12/13 VERIFICADO + 1 INCORRECTO (suite completa rota por un 2º gate de drift duplicado sin filtro); arreglado; 2ª pasada 5/5 VERIFICADO
+- [x] **SDD** — enlaza ADR-0007 (checkpointer); sin CU propio (infra pura)
+- [x] Documentación actualizada — tres capas:
+  - [x] TSDoc en el código (`get_checkpointer_pool`, `get_checkpointer`, `_checkpointer_dsn`, docstring
     de la migración con la nota de riesgo del DDL vendido)
-  - [ ] Doc técnica — ADR-0007 gana una nota de "Consecuencias" sobre el riesgo del DDL no-público
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-07.md`
-- [ ] Docs de dev / usuario final — no aplica
+  - [x] Doc técnica — ADR-0007 gana una nota de "Consecuencias" sobre el riesgo del DDL no-público
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-07.md`
+- [x] Docs de dev / usuario final — no aplica

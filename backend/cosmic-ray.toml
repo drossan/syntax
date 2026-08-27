@@ -1,9 +1,9 @@
 # cosmic-ray — config de mutation testing del backend.
 [cosmic-ray]
-module-path = "app/agents/graph.py"
+module-path = "app/agents/checkpointer.py"
 timeout = 90.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_graph.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_checkpointer.py"
 
 [cosmic-ray.distributor]
 name = "local"

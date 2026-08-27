@@ -46,6 +46,14 @@ decisión). Verificación real (integración HITL + reinicio) = tarea al impleme
 - **Buenas**: aprobación durable y asíncrona; sobrevive reinicios; idempotente ante carreras.
 - **Malas / coste**: acopla el flujo al checkpointer Postgres; el surface exacto de LangGraph
   (`interrupt()`/`Command`) debe **pinarse y verificarse** al compilar el lockfile (deps no instaladas aún).
+- **Riesgo confirmado al implementar** (tarea `backend-agent-graph-07`, `design-review` ajuste 10): las
+  4 tablas de `checkpoints`/`checkpoint_blobs`/`checkpoint_writes`/`checkpoint_migrations` no tienen API
+  pública — su DDL (migración Alembic `0005_agent_checkpoint_tables`) se copió del array `MIGRATIONS`
+  interno de `langgraph-checkpoint-postgres` (no-público, strings Python crudos; la librería solo
+  documenta `AsyncPostgresSaver.setup()` como el punto de entrada soportado). **En cualquier bump de
+  esa dependencia hay que re-verificar a mano** que `MIGRATIONS` no cambió antes de asumir que la
+  migración vendida sigue siendo correcta; `syntax_app` (sin `CREATE`) no puede auto-repararse en
+  runtime si diverge.
 
 ## Pros y contras de las opciones
 
