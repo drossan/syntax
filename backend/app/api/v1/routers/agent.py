@@ -3,8 +3,9 @@
 Primer router que expone una capacidad **compuesta** (`require_any_capability`, `app.core.deps`):
 `GET /agent-runs/{id}` se protege con `agent.trigger` OR `ticket.read` — un `support_viewer`/
 `client_viewer` (sin `agent.trigger`) puede consultar el estado de un draft de un ticket que ya puede
-leer, sin poder dispararlo. El grafo real (15/16) no existe todavía: `agent_service.trigger()` compone
-`StubAgentRunner` (crea el `AgentRun`, no ejecuta ningún nodo) — ver `agent_service.py`/`stub.py`.
+leer, sin poder dispararlo. `agent_service.trigger()` compone `LangGraphAgentRunner` (tareas 08/09/10,
+`app.core.deps._get_agent_runner`) — el grafo real, no un stub: la respuesta `202` puede llegar con el
+run ya `running` (pendiente de aprobación) o `succeeded` (auto-aprobado), no solo `queued`.
 """
 
 import uuid

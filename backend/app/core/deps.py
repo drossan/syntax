@@ -25,13 +25,16 @@ from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.runner import LangGraphAgentRunner
 from app.api.errors import AuthorizationDenied
 from app.core.config import Settings, get_settings
 from app.core.security import JWT_ALGORITHM, decode_access_token
 from app.domain.entities.enums import TenantStatus
 from app.domain.entities.identity import Subject
+from app.domain.ports.agent_runner import AgentRunner
 from app.domain.ports.analytics import AnalyticsRepository
 from app.domain.ports.embeddings import EmbeddingModel
+from app.domain.ports.llm import ChatModel
 from app.domain.ports.rate_limiter import RateLimiter
 from app.domain.ports.storage import Storage
 from app.domain.ports.vectorstore import VectorStore
@@ -41,7 +44,6 @@ from app.domain.services.auth_service import AuthService
 from app.domain.services.notification_service import NotificationService
 from app.domain.services.rbac_service import Deny, DenyReason
 from app.domain.services.ticket_service import TicketService
-from app.infra.agent_runner.stub import StubAgentRunner
 from app.infra.clock import SystemClock
 from app.infra.db.repositories import (
     SqlAlchemyAgentRunRepository,
@@ -60,11 +62,13 @@ from app.infra.db.repositories import (
 )
 from app.infra.db.session import get_session, global_scope, tenant_scope
 from app.infra.email import StubEmailPort
-from app.infra.llm.openai_adapter import get_embedding_model
+from app.infra.llm.openai_adapter import get_chat_model, get_embedding_model
 from app.infra.rate_limit.in_memory import InMemoryRateLimiter
 from app.infra.sla import StubSlaPolicy
 from app.infra.storage.local import LocalFilesystemStorage
+from app.infra.vector import SqlAlchemyKBIndexWriter
 from app.infra.vectorstore.pgvector import PgVectorStore
+from app.rag.retriever import Retriever
 
 _ACCESS_TOKEN_PURPOSE = "access"  # noqa: S105 — claim `purpose`, no un secreto
 
@@ -162,6 +166,40 @@ def get_vector_store(
     return PgVectorStore(session, embeddings=embeddings, settings=settings)
 
 
+def get_chat_model_port(settings: Settings = Depends(get_settings)) -> ChatModel:
+    """`ChatModel` real (`get_chat_model`, tarea `backend-agent-graph-04`) — dependencia propia (no
+    inline en `get_agent_service`) para que los tests puedan sobrescribirla con un doble, mismo
+    criterio que `get_embeddings_port`. `settings.llm_provider` no soportado falla aquí, en la
+    resolución de dependencias de FastAPI (ANTES del handler del endpoint) — visible en el primer
+    request, no enterrado dentro de la ejecución del grafo."""
+    return get_chat_model(settings)
+
+
+def get_retriever_port(
+    session: AsyncSession = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    embeddings: EmbeddingModel = Depends(get_embeddings_port),
+) -> Retriever:
+    """`Retriever` (`app.rag.retriever`) para el nodo `retrieve` del grafo del agente — mismo patrón de
+    construcción que `PgVectorStore.search()` (`SqlAlchemyKBIndexWriter` + `rag_estado_weight`), pero
+    expuesto como dependencia propia para poder sobrescribirlo en tests sin tocar `/kb`."""
+    return Retriever(
+        embeddings=embeddings,
+        index=SqlAlchemyKBIndexWriter(session, embedding_model=settings.embedding_model),
+        estado_weight=settings.rag_estado_weight,
+    )
+
+
+AGENT_TOP_K = 8
+"""Nº de chunks que `retrieve` (grafo del agente) pide al `Retriever` — default de arranque sin
+calibrar contra datos reales (mismo criterio que `agent_confidence_threshold`); no es un `Settings`
+porque, a diferencia de `rag_search_window` (contrato HTTP), no hay una superficie externa que lo fije."""
+
+AGENT_TRIM_MAX_TOKENS = 40
+"""Tope de mensajes que `trim` conserva del hilo del ticket antes de invocar el LLM — cuenta MENSAJES,
+no tokens reales (ver `app.agents.nodes.trim`); default de arranque sin calibrar."""
+
+
 @lru_cache
 def _rate_limiter_singleton(limit: int) -> RateLimiter:
     """Instancia ÚNICA de `InMemoryRateLimiter` por valor de `limit` (proceso) — `lru_cache` evita
@@ -170,29 +208,61 @@ def _rate_limiter_singleton(limit: int) -> RateLimiter:
     return InMemoryRateLimiter(limit=limit)
 
 
+def _get_agent_runner(
+    session: AsyncSession,
+    settings: Settings,
+    chat_model: ChatModel,
+    retriever: Retriever,
+) -> AgentRunner:
+    """`LangGraphAgentRunner` (tareas 08/09) — sustituye a `StubAgentRunner` (tarea
+    `backend-agent-graph-10`): mismo puerto `AgentRunner`, ahora con el grafo real. NO es un singleton
+    de proceso (decisión #4 del plan): construye el grafo con la `AsyncSession`/puertos DE ESTE
+    request, evita capturar un `MessageRepository` con sesión de un request en un objeto más longevo.
+    """
+    return LangGraphAgentRunner(
+        chat_model=chat_model,
+        retriever=retriever,
+        messages_repo=SqlAlchemyMessageRepository(session),
+        tenants=SqlAlchemyTenantRepository(session),
+        agent_runs=SqlAlchemyAgentRunRepository(session),
+        approvals=SqlAlchemyApprovalRepository(session),
+        clock=SystemClock(),
+        top_k=AGENT_TOP_K,
+        confidence_threshold=settings.agent_confidence_threshold,
+        trim_max_tokens=AGENT_TRIM_MAX_TOKENS,
+    )
+
+
 def get_agent_service(
     session: AsyncSession = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
+    chat_model: ChatModel = Depends(get_chat_model_port),
+    retriever: Retriever = Depends(get_retriever_port),
 ) -> AgentService:
-    """Ensambla `AgentService` (tarea 12) con `StubAgentRunner` (sin grafo real hasta 15/16 — persiste
-    el `AgentRun` vía el MISMO `AgentRunRepository`, sin duplicar instancias sobre la misma sesión) y el
+    """Ensambla `AgentService` (tarea 12) con el `LangGraphAgentRunner` real (tareas 08/09/10) y el
     `RateLimiter` singleton de proceso (`ai_draft_rate_limit_per_minute`)."""
     agent_runs = SqlAlchemyAgentRunRepository(session)
     return AgentService(
         tickets=SqlAlchemyTicketRepository(session),
         agent_runs=agent_runs,
-        agent_runner=StubAgentRunner(agent_runs),
+        agent_runner=_get_agent_runner(session, settings, chat_model, retriever),
         rate_limiter=_rate_limiter_singleton(settings.ai_draft_rate_limit_per_minute),
     )
 
 
-def get_approval_service(session: AsyncSession = Depends(get_db_session)) -> ApprovalService:
-    """Ensambla `ApprovalService` (tarea 12) con `TicketService`/`StubAgentRunner` reales — `decide()`
-    ya estaba cerrado en `domain-services`, esta tarea solo le da adaptadores de verdad."""
+def get_approval_service(
+    session: AsyncSession = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    chat_model: ChatModel = Depends(get_chat_model_port),
+    retriever: Retriever = Depends(get_retriever_port),
+) -> ApprovalService:
+    """Ensambla `ApprovalService` (tarea 12) con `TicketService`/`LangGraphAgentRunner` reales —
+    `decide()` ya estaba cerrado en `domain-services`; el `agent_runner` real (10) es el que de verdad
+    reanuda el grafo (`resume()`, tarea 09) tras la decisión humana."""
     return ApprovalService(
         approvals=SqlAlchemyApprovalRepository(session),
         ticket_service=get_ticket_service(session),
-        agent_runner=StubAgentRunner(SqlAlchemyAgentRunRepository(session)),
+        agent_runner=_get_agent_runner(session, settings, chat_model, retriever),
     )
 
 

@@ -221,7 +221,7 @@ follow-up en el plan change log y en el session log de la tarea 11.
   depends_on: backend-agent-graph-06, backend-agent-graph-07
 - [x] `backend-agent-graph-09` (P1) — `app/agents/hitl.py` + `runner.py::resume` (Command(resume=),
   reinicio a mitad de run, fallo LLM consistente) · depends_on: backend-agent-graph-08
-- [ ] `backend-agent-graph-10` (P1) — Wiring: sustituir `StubAgentRunner` por el adaptador real en
+- [x] `backend-agent-graph-10` (P1) — Wiring: sustituir `StubAgentRunner` por el adaptador real en
   `app/core/deps.py`; smoke e2e vía HTTP · depends_on: backend-agent-graph-09
 - [ ] `backend-agent-graph-11` (P2) — LangSmith tracing mínimo (env config + `langsmith_trace_url`) ·
   depends_on: backend-agent-graph-09

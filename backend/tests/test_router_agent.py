@@ -10,13 +10,18 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 import pytest_asyncio
+from app.agents.nodes.grade import Grade
 from app.core.config import Settings, get_settings
-from app.core.deps import get_db_session
+from app.core.deps import AGENT_TOP_K, get_chat_model_port, get_db_session, get_retriever_port
 from app.core.security import JWT_ALGORITHM, create_access_token, hash_password
 from app.domain.entities.business import AgentRun, Ticket
 from app.domain.entities.enums import (
     AgentRunStatus,
+    KbDomain,
+    KbEstado,
+    Package,
     RoleKind,
     TenantStatus,
     TicketPriority,
@@ -24,8 +29,11 @@ from app.domain.entities.enums import (
     UserStatus,
 )
 from app.domain.entities.identity import Role, Tenant, User, UserTenantMembership
+from app.domain.ports.vector import Hit
+from app.domain.services.classification import Classification
 from app.infra.db.repositories import (
     SqlAlchemyAgentRunRepository,
+    SqlAlchemyMessageRepository,
     SqlAlchemyRoleRepository,
     SqlAlchemyTenantRepository,
     SqlAlchemyTicketRepository,
@@ -33,6 +41,7 @@ from app.infra.db.repositories import (
     SqlAlchemyUserTenantMembershipRepository,
 )
 from app.main import create_app
+from app.rag.reranker import RankedHit
 from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -87,7 +96,95 @@ def _make_app(app_engine: AsyncEngine, *, rate_limit: int = 10) -> FastAPI:
 
     test_app.dependency_overrides[get_db_session] = _override_session
     test_app.dependency_overrides[get_settings] = lambda: _settings(rate_limit=rate_limit)
+    test_app.dependency_overrides[get_chat_model_port] = lambda: _FakeChatModel()
+    test_app.dependency_overrides[get_retriever_port] = lambda: _FakeRetriever()
     return test_app
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _checkpointer_pool(
+    app_db_url: str, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[None]:
+    """`app.agents.checkpointer.get_checkpointer()` lee `get_settings()` GLOBAL (no vía FastAPI DI,
+    así que `test_app.dependency_overrides[get_settings]` no lo alcanza) — mismo reset que
+    `test_runner.py`/`test_checkpointer.py`, necesario porque `LangGraphAgentRunner` ahora compila el
+    grafo con el checkpointer real en cada `trigger`/`resume`."""
+    monkeypatch.setenv("DATABASE_URL", app_db_url)
+    get_settings.cache_clear()
+
+    import app.agents.checkpointer as checkpointer_module
+
+    checkpointer_module._pool = None
+    yield
+    if checkpointer_module._pool is not None:
+        await checkpointer_module._pool.close()
+    checkpointer_module._pool = None
+    get_settings.cache_clear()
+
+
+class _FakeChatModel:
+    """`ChatModel` de prueba: clasifica siempre resoluble + dominio conocido, contexto suficiente,
+    devuelve un draft fijo — reproducible sin red, sin `OPENAI_API_KEY`."""
+
+    async def classify(self, text: str, schema: type) -> Classification:
+        return Classification(
+            categoria="incidencia",
+            dominio=KbDomain.media_and_dam,
+            prioridad=TicketPriority.normal,
+            resoluble=True,
+        )
+
+    async def grade(self, prompt: str, schema: type) -> Grade:
+        return Grade(suficiente=True, motivo="contexto suficiente para responder")
+
+    async def generate(self, prompt: str) -> str:
+        return "aquí tienes la respuesta al ticket"
+
+
+class _FakeRetriever:
+    async def retrieve(
+        self,
+        query: str,
+        *,
+        top_k: int,
+        domain: KbDomain | None = None,
+        package: Package | None = None,
+        estado: KbEstado | None = None,
+    ) -> list[RankedHit]:
+        hit = Hit(
+            uc_id="CU-BE-05",
+            chunk_id=uuid.uuid4(),
+            section_type="comportamiento",
+            title="Título",
+            source_url="packages/x/docs/aiup/use-cases/CU-BE-05.md",
+            domain=KbDomain.media_and_dam,
+            estado=KbEstado.draft,
+            score=0.9,
+            content="contenido de referencia",
+        )
+        return [RankedHit(hit=hit, weighted_score=0.9)]
+
+
+class _SpyRetriever(_FakeRetriever):
+    """Además de devolver hits fijos, guarda el `top_k` con el que `trigger()` de verdad la llama —
+    para verificar que `deps.AGENT_TOP_K` llega intacto a través de `_get_agent_runner`/`build_graph`."""
+
+    def __init__(self) -> None:
+        self.captured_top_k: int | None = None
+
+    async def retrieve(
+        self,
+        query: str,
+        *,
+        top_k: int,
+        domain: KbDomain | None = None,
+        package: Package | None = None,
+        estado: KbEstado | None = None,
+    ) -> list[RankedHit]:
+        self.captured_top_k = top_k
+        return await super().retrieve(
+            query, top_k=top_k, domain=domain, package=package, estado=estado
+        )
 
 
 @pytest_asyncio.fixture
@@ -152,6 +249,37 @@ async def _grant_capability(
     await db.commit()
 
 
+async def _grant_global_capability(
+    db: AsyncSession, *, user_id: uuid.UUID, capability: str
+) -> None:
+    """Asignación GLOBAL de verdad (`RoleKind.system`, `tenant_id=None`) — para `approval.decide`
+    (`rbac.md` §3: capacidad exclusivamente `global`, mismo patrón que `test_router_approvals.py`)."""
+    role_repo = SqlAlchemyRoleRepository(db)
+    role = await role_repo.add(
+        Role(id=uuid.uuid4(), name=f"role-{uuid.uuid4()}", kind=RoleKind.system, tenant_id=None)
+    )
+    existing_capability_id = (
+        await db.execute(
+            text("SELECT id FROM capability WHERE name = :name AND scope = 'global'"),
+            {"name": capability},
+        )
+    ).scalar_one_or_none()
+    if existing_capability_id is None:
+        capability_id = uuid.uuid4()
+        await db.execute(
+            text("INSERT INTO capability (id, name, scope) VALUES (:id, :name, 'global')"),
+            {"id": capability_id, "name": capability},
+        )
+    else:
+        capability_id = existing_capability_id
+    await db.execute(
+        text("INSERT INTO role_capability (role_id, capability_id) VALUES (:r, :c)"),
+        {"r": role.id, "c": capability_id},
+    )
+    await role_repo.assign(user_id, role.id, None)
+    await db.commit()
+
+
 def _access_token(user_id: uuid.UUID, tenant_id: uuid.UUID) -> str:
     return create_access_token(
         str(user_id),
@@ -204,9 +332,12 @@ def _make_agent_run_entity(
 # ── POST /tickets/{id}/ai-draft: camino feliz ──
 
 
-async def test_triggering_a_draft_creates_a_queued_agent_run(
+async def test_triggering_a_draft_creates_a_pending_agent_run(
     app: FastAPI, db: AsyncSession
 ) -> None:
+    """El tenant por defecto tiene `auto_approve=false` (`_make_tenant`) y el `_FakeChatModel`
+    produce un contexto suficiente/resoluble → el run real llega a `interrupt()` y queda `running`
+    (pendiente de aprobación), NUNCA `queued` (el grafo real no deja el run parado ahí)."""
     tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
     await db.commit()
     ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
@@ -220,11 +351,12 @@ async def test_triggering_a_draft_creates_a_queued_agent_run(
 
     assert r.status_code == 202
     body = r.json()
-    assert body["status"] == "queued"
+    assert body["status"] == "running"
     assert body["ticket_id"] == str(ticket.id)
     persisted = await SqlAlchemyAgentRunRepository(db).get(uuid.UUID(body["id"]))
     assert persisted is not None
     assert persisted.langgraph_thread_id == f"ticket_{ticket.id}_run_1"
+    assert persisted.escalated is True
 
 
 # ── POST /tickets/{id}/ai-draft: 409 run activo ──
@@ -541,3 +673,113 @@ async def test_reading_a_nonexistent_run_returns_404(app: FastAPI, db: AsyncSess
         r = await c.get(f"/api/v1/agent-runs/{uuid.uuid4()}", headers=_auth_header(token))
 
     assert r.status_code == 404
+
+
+# ── e2e: trigger → approve produce un Message(public) real (tarea backend-agent-graph-10) ──
+
+
+async def test_trigger_then_approve_publishes_a_real_public_message(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """Contrato HTTP completo contra el `LangGraphAgentRunner` real (no `StubAgentRunner`): disparar
+    y aprobar produce un `Message(public)` real, y `GET /agent-runs/{id}` refleja `succeeded`."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    # `open`, no `new`: `approval_service.decide()` transiciona el ticket a `pending` al aprobar, y
+    # `new → pending` no es una transición válida (solo `open → pending`, `ticket_service.py`).
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        _make_ticket_entity(tenant.id, status=TicketStatus.open)
+    )
+    await db.commit()
+    agent, token = await _agent_with_capabilities(db, tenant=tenant, capabilities=["agent.trigger"])
+    await _grant_global_capability(db, user_id=agent.id, capability="approval.decide")
+
+    async with _client(app) as c:
+        triggered = await c.post(
+            f"/api/v1/tickets/{ticket.id}/ai-draft", headers=_auth_header(token)
+        )
+        assert triggered.status_code == 202
+        run_id = triggered.json()["id"]
+
+        approvals_page = await c.get("/api/v1/approvals", headers=_auth_header(token))
+        assert approvals_page.status_code == 200
+        [task] = [t for t in approvals_page.json()["items"] if t["agent_run_id"] == run_id]
+
+        approved = await c.post(
+            f"/api/v1/approvals/{task['id']}/approve", headers=_auth_header(token)
+        )
+        assert approved.status_code == 200
+        assert approved.json()["status"] == "approved"
+
+        run_after = await c.get(f"/api/v1/agent-runs/{run_id}", headers=_auth_header(token))
+
+    assert run_after.status_code == 200
+    assert run_after.json()["status"] == "succeeded"
+    messages = await SqlAlchemyMessageRepository(db).list_by_ticket(ticket.id)
+    published = [m for m in messages.items if m.is_ai_draft]
+    assert len(published) == 1
+    assert "aquí tienes la respuesta" in published[0].body
+
+
+async def test_a_misconfigured_llm_provider_fails_controlled_not_a_hang(
+    app_engine: AsyncEngine, db: AsyncSession
+) -> None:
+    """Un `settings.llm_provider` no soportado se detecta al resolver la dependencia (ANTES del
+    handler), no enterrado en la ejecución del grafo — `PortError` explícito, no un 500 opaco."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["agent.trigger"]
+    )
+    broken_app = create_app(_settings())
+
+    async def _override_session() -> AsyncIterator[AsyncSession]:
+        async with async_sessionmaker(app_engine, expire_on_commit=False)() as s:
+            try:
+                yield s
+                await s.commit()
+            except Exception:
+                await s.rollback()
+                raise
+
+    broken_app.dependency_overrides[get_db_session] = _override_session
+    broken_app.dependency_overrides[get_settings] = lambda: Settings(
+        _env_file=None,
+        jwt_secret=_JWT_SECRET,
+        app_env="production",
+        cors_origins=[],
+        llm_provider="unsupported-provider",
+    )
+
+    async with _client(broken_app) as c:
+        r = await c.post(f"/api/v1/tickets/{ticket.id}/ai-draft", headers=_auth_header(token))
+
+    assert r.status_code >= 500
+    broken_app.dependency_overrides.clear()
+
+
+async def test_trigger_uses_the_configured_agent_top_k(
+    app_engine: AsyncEngine, db: AsyncSession
+) -> None:
+    """`deps.AGENT_TOP_K` llega intacto al `Retriever` real a través de `_get_agent_runner` — sin
+    esto, un cambio silencioso en el wiring podría desalinear `top_k` sin que nada lo note."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["agent.trigger"]
+    )
+    spy_app = _make_app(app_engine)
+    spy_retriever = _SpyRetriever()
+    spy_app.dependency_overrides[get_retriever_port] = lambda: spy_retriever
+
+    async with _client(spy_app) as c:
+        r = await c.post(f"/api/v1/tickets/{ticket.id}/ai-draft", headers=_auth_header(token))
+
+    assert r.status_code == 202
+    assert AGENT_TOP_K == 8, "actualiza este literal si cambia deps.AGENT_TOP_K"
+    assert spy_retriever.captured_top_k == 8
+    spy_app.dependency_overrides.clear()
