@@ -17,7 +17,8 @@
     "toggleTheme": "Toggle theme",
     "language": "Language",
     "notifications": "Notifications",
-    "openMenu": "Open menu"
+    "openMenu": "Open menu",
+    "account": "Account"
   },
   "tickets": {
     "title": "Ticket inbox",
@@ -272,5 +273,14 @@
       "high": "High",
       "urgent": "Urgent"
     }
+  },
+  "account": {
+    "title": "Account",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmNewPassword": "Repeat the new password",
+    "submit": "Change password",
+    "success": "Password updated.",
+    "genericError": "The password could not be changed."
   }
 }

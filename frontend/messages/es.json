@@ -17,7 +17,8 @@
     "toggleTheme": "Cambiar tema",
     "language": "Idioma",
     "notifications": "Notificaciones",
-    "openMenu": "Abrir menú"
+    "openMenu": "Abrir menú",
+    "account": "Cuenta"
   },
   "tickets": {
     "title": "Bandeja de tickets",
@@ -272,5 +273,14 @@
       "high": "Alta",
       "urgent": "Urgente"
     }
+  },
+  "account": {
+    "title": "Cuenta",
+    "currentPassword": "Contraseña actual",
+    "newPassword": "Nueva contraseña",
+    "confirmNewPassword": "Repite la nueva contraseña",
+    "submit": "Cambiar contraseña",
+    "success": "Contraseña actualizada.",
+    "genericError": "No se pudo cambiar la contraseña."
   }
 }
