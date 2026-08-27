@@ -1,9 +1,9 @@
 # cosmic-ray — config de mutation testing del backend.
 [cosmic-ray]
-module-path = "app/agents"
+module-path = "app/agents/graph.py"
 timeout = 90.0
-excluded-modules = ["app/agents/graph.py", "app/agents/checkpointer.py", "app/agents/runner.py", "app/agents/hitl.py", "app/agents/tools.py"]
-test-command = ".venv/bin/python -m pytest -x -q tests/test_node_classify.py tests/test_node_retrieve.py tests/test_node_grade.py tests/test_node_generate.py tests/test_node_decide.py tests/test_node_trim.py tests/test_node_respond.py"
+excluded-modules = []
+test-command = ".venv/bin/python -m pytest -x -q tests/test_graph.py"
 
 [cosmic-ray.distributor]
 name = "local"

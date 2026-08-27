@@ -17,11 +17,18 @@ Anti-patrón: mezclar lógica de varios nodos; que ``classify``/``generate`` con
 embebidas en el ticket (prompt-injection — RN-3 de CU-BE-06).
 """
 
-from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from app.agents.state import HelpdeskState
 
-NodeFn = Callable[["HelpdeskState"], Awaitable["HelpdeskState"]]
-"""Firma común de todo nodo del grafo: recibe el estado completo, devuelve el estado actualizado."""
+
+class NodeFn(Protocol):
+    """Firma común de todo nodo del grafo: recibe el estado completo, devuelve el estado actualizado.
+
+    `Protocol` con `__call__`, no un alias `Callable[[...], Awaitable[...]]`: `StateGraph.add_node()`
+    (LangGraph) infiere su `NodeInputT` genérico contra un objeto real con `__call__` — un alias
+    `Callable` puro no resuelve el overload correcto (verificado: `mypy --strict` sobre un repro mínimo).
+    """
+
+    async def __call__(self, state: "HelpdeskState") -> "HelpdeskState": ...

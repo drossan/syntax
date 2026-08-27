@@ -210,7 +210,7 @@ follow-up en el plan change log y en el session log de la tarea 11.
   `OpenAIChatModel` completo · depends_on: —
 - [x] `backend-agent-graph-05` (P1) — `app/agents/state.py` + nodos (`classify/retrieve/grade/generate/
   decide/trim/respond`) · depends_on: backend-agent-graph-02, backend-agent-graph-03, backend-agent-graph-04
-- [ ] `backend-agent-graph-06` (P1) — `app/agents/graph.py` (`build_graph()`, grafo COMPLETO incl.
+- [x] `backend-agent-graph-06` (P1) — `app/agents/graph.py` (`build_graph()`, grafo COMPLETO incl.
   `respond`/`interrupt()`, plano, edges tipados; NO compila con checkpointer todavía) ·
   depends_on: backend-agent-graph-05
 - [ ] `backend-agent-graph-07` (P1) — `app/agents/checkpointer.py` (`PostgresSaver` + migración Alembic

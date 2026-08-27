@@ -2,11 +2,11 @@
 id: backend-agent-graph-06
 package: backend
 plan: agent-graph
-status: pending
+status: done
 priority: 1
 depends_on: [backend-agent-graph-05]
 estimate: 3h
-actual:
+actual: ~1.5h
 created: 2026-08-27
 updated: 2026-08-27
 ---
@@ -101,17 +101,17 @@ Feature: Propagación de errores y trim a nivel de grafo
   (tarea 07) e invoca.
 
 ## Definition of Done
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break: 80`)
-- [ ] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer)
-- [ ] **SDD** — enlaza CU-BE-05 (sin copiar su Gherkin); sin cambios de spec/CU nuevos
-- [ ] Documentación actualizada — tres capas:
-  - [ ] TSDoc en el código (`build_graph`, cada edge condicional documenta qué campo tipado lee)
-  - [ ] Doc técnica — `app/agents/__init__.py` (el diagrama de módulo, hoy guión, refleja el grafo real)
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-06.md`
-- [ ] Docs de dev / usuario final — no aplica
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (8 passed en la tarea; suite completa `pytest -q` exit 0, 1 flake transitorio no relacionado ya descartado)
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break: 80`) — 6.67% survivors (1 mutante equivalente en marcador keyword-only)
+- [x] Gate `sdd-lint` superado — N/A (enlaza CU sin copiar Gherkin), spot-check sin `[NECESITA ACLARACIÓN`
+- [x] Gate de `fact-checker` superado — 11/12 VERIFICADO, 1 INCORRECTO (afirmación imprecisa mía, corregida en el log; sin cambio de código)
+- [x] **SDD** — enlaza CU-BE-05 (sin copiar su Gherkin); sin cambios de spec/CU nuevos
+- [x] Documentación actualizada — tres capas:
+  - [x] TSDoc en el código (`build_graph`, cada edge condicional documenta qué campo tipado lee)
+  - [x] Doc técnica — `app/agents/__init__.py` reescrito (refleja el grafo real; conserva GUIÓN solo para 07-09)
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-06.md`
+- [x] Docs de dev / usuario final — no aplica
