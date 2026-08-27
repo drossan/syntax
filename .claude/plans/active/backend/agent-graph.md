@@ -205,7 +205,7 @@ follow-up en el plan change log y en el session log de la tarea 11.
 - [x] `backend-agent-graph-01` (P1) — Fix precondición: `psycopg[binary]`, settings nuevas
   (`agent_confidence_threshold`), smoke-test de superficie LangGraph/LangChain instalada · depends_on: —
 - [x] `backend-agent-graph-02` (P1) — `app/rag/confidence.py` (confianza híbrida) · depends_on: —
-- [ ] `backend-agent-graph-03` (P1) — `app/rag/citations.py` (construcción de citas) · depends_on: —
+- [x] `backend-agent-graph-03` (P1) — `app/rag/citations.py` (construcción de citas) · depends_on: —
 - [ ] `backend-agent-graph-04` (P1) — Extender `ChatModel` (`generate`/`grade`) + `structured.py` +
   `OpenAIChatModel` completo · depends_on: —
 - [ ] `backend-agent-graph-05` (P1) — `app/agents/state.py` + nodos (`classify/retrieve/grade/generate/

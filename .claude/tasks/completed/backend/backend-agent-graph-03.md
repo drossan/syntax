@@ -2,11 +2,11 @@
 id: backend-agent-graph-03
 package: backend
 plan: agent-graph
-status: pending
+status: done
 priority: 1
 depends_on: []
 estimate: 2h
-actual:
+actual: ~1h
 created: 2026-08-27
 updated: 2026-08-27
 ---
@@ -81,17 +81,17 @@ Feature: Construcción de citas del agente
   citas del draft, y el runner (tarea 08) para persistir `agent_run.sources`.
 
 ## Definition of Done
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break: 80`)
-- [ ] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer)
-- [ ] **SDD** — sin CU propio (función pura interna); referencia CU-BE-05 escenario 5 en el docstring
-- [ ] Documentación actualizada — tres capas:
-  - [ ] TSDoc en el código (docstring de `build_citations`, por qué no reutiliza `dedup_by_uc_id`)
-  - [ ] Doc técnica — sin cambios adicionales
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-03.md`
-- [ ] Docs de dev / usuario final — no aplica
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (7 passed en la tarea; suite completa `pytest -q` exit 0)
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break: 80`) — 0.00% survivors (2ª vuelta, tras reforzar el test de dedup en medio de la lista)
+- [x] Gate `sdd-lint` superado — N/A (sin CU propio), CU-BE-05 escenario 5 verificado por conteo real
+- [x] Gate de `fact-checker` superado — 10/10 VERIFICADO, 0 INCORRECTO
+- [x] **SDD** — sin CU propio (función pura interna); referencia CU-BE-05 escenario 5 en el docstring
+- [x] Documentación actualizada — tres capas:
+  - [x] TSDoc en el código (docstring de `build_citations`, por qué no reutiliza `dedup_by_uc_id`)
+  - [x] Doc técnica — sin cambios adicionales
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-03.md`
+- [x] Docs de dev / usuario final — no aplica

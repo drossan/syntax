@@ -1,9 +1,9 @@
 # cosmic-ray — config de mutation testing del backend.
 [cosmic-ray]
-module-path = "app/rag/confidence.py"
+module-path = "app/rag/citations.py"
 timeout = 90.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_confidence.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_citations.py"
 
 [cosmic-ray.distributor]
 name = "local"
