@@ -247,6 +247,15 @@
       "system": "System"
     }
   },
+  "ticketReply": {
+    "region": "Post message",
+    "replyLabel": "Reply",
+    "visibilityLabel": "Visibility",
+    "visibilityPublic": "Public",
+    "visibilityInternal": "Internal note",
+    "submit": "Send",
+    "genericError": "The message could not be posted."
+  },
   "ticketCreate": {
     "title": "New ticket",
     "subject": "Subject",

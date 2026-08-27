@@ -247,6 +247,15 @@
       "system": "Sistema"
     }
   },
+  "ticketReply": {
+    "region": "Publicar mensaje",
+    "replyLabel": "Responder",
+    "visibilityLabel": "Visibilidad",
+    "visibilityPublic": "Público",
+    "visibilityInternal": "Nota interna",
+    "submit": "Enviar",
+    "genericError": "No se pudo publicar el mensaje."
+  },
   "ticketCreate": {
     "title": "Nuevo ticket",
     "subject": "Asunto",

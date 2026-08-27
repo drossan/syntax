@@ -10,15 +10,16 @@ import { useCan } from "@/features/rbac/use-can";
 import { TicketActions } from "./ticket-actions";
 import { TicketAttachments } from "./ticket-attachments";
 import { TicketHeader } from "./ticket-header";
+import { TicketReplyForm } from "./ticket-reply-form";
 import { TicketSla } from "./ticket-sla";
 import { TicketThread } from "./ticket-thread";
 import { TicketTimeline } from "./ticket-timeline";
 import { useTicket, useTicketMessages } from "./use-ticket";
 
 /**
- * Detalle de ticket (parte de **lectura**): cabecera read-only + hilo con filtro de visibilidad
- * (`note.internal.read`). Un ticket inaccesible (403/404) muestra no-encontrado/sin-acceso sin filtrar
- * datos (no renderiza cabecera ni hilo). Mutaciones/adjuntos/SLA llegan en 10-12.
+ * Detalle de ticket: cabecera read-only + hilo con filtro de visibilidad (`note.internal.read`) +
+ * respuesta (`TicketReplyForm`, gateada por `ticket.reply`/`note.internal.write`). Un ticket inaccesible
+ * (403/404) muestra no-encontrado/sin-acceso sin filtrar datos (no renderiza cabecera ni hilo).
  *
  * @param ticketId Id del ticket.
  */
@@ -71,9 +72,15 @@ export function TicketDetail({ ticketId }: { ticketId: string }) {
       {ticketQuery.data ? <TicketSla slaDue={ticketQuery.data.sla_due} /> : null}
       {ticketQuery.data ? <TicketActions ticket={ticketQuery.data} /> : null}
       {ticketQuery.data?.id ? (
-        <AiDraftPanel ticketId={ticketQuery.data.id} resourceTenantId={ticketQuery.data.tenant_id} />
+        <AiDraftPanel
+          ticketId={ticketQuery.data.id}
+          resourceTenantId={ticketQuery.data.tenant_id}
+        />
       ) : null}
       <TicketThread messages={messagesQuery.data ?? []} canSeeInternal={canSeeInternal} />
+      {ticketQuery.data ? (
+        <TicketReplyForm ticketId={ticketId} resourceTenantId={ticketQuery.data.tenant_id} />
+      ) : null}
       <TicketTimeline messages={messagesQuery.data ?? []} canSeeInternal={canSeeInternal} />
       {/* View-only. El contrato v0.1.0 no expone GET de adjuntos → lista vacía hasta que el backend
           los sirva (ver session log 11). La subida está diferida (design-review M2). */}
