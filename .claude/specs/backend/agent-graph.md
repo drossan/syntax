@@ -169,6 +169,18 @@ persistido, sin `ApprovalTask` si no se llegó a `interrupt`); el usuario recibe
 
 - **Tracing** de todo el grafo con LangSmith; la URL de la traza se guarda en
   **`agent_run.langsmith_trace_url`** (03 §4.2) para depurar cada run.
+- **Implementado en versión mínima y explícitamente parcial** (`backend-agent-graph-11`):
+  `LangGraphAgentRunner` envuelve cada `ainvoke()` (`trigger`/`resume`) en `tracing_v2_enabled`
+  (`langchain_core.tracers.context`) cuando `settings.langsmith_tracing` y `langsmith_api_key` están
+  configurados, y puebla `agent_run.langsmith_trace_url` con `tracer.get_run_url()`. Un fallo del
+  cliente LangSmith (red, cuota) nunca tumba el run — best-effort. **Follow-up explícito pendiente**:
+  `trigger()` y `resume()` son dos invocaciones `ainvoke()` separadas (procesos distintos, posible
+  reinicio entre medias) — cada una genera su propio run raíz de LangSmith SIN enlace de `trace_id`
+  verificado entre ambas contra el SDK instalado (`langsmith==0.11.0`); `resume()` por eso **preserva**
+  la URL de `trigger()` en vez de sobrescribirla (más completa: cubre todo el trabajo hasta el
+  interrupt), pero esa URL **no** enlaza automáticamente a lo ejecutado en `resume()` — dashboards,
+  alerting e instrumentación fina por nodo, y una posible reconciliación real del `trace_id` entre
+  `trigger`/`resume`, quedan fuera de esta iteración.
 - **Idioma de respuesta** (refuerzo): responder en el **idioma del ticket** (detección del texto o locale
   de tenant/usuario). La **KB está en español**: el retrieval opera en español y la generación traduce al
   idioma del ticket si difiere.

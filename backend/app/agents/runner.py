@@ -16,9 +16,12 @@ en `__init__`; `.compile(checkpointer=...)` se hace en `trigger()`/`resume()` po
 """
 
 import uuid
+from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tracers.context import tracing_v2_enabled
+from langsmith import Client
 
 from app.agents.checkpointer import get_checkpointer
 from app.agents.graph import build_graph
@@ -56,6 +59,9 @@ class LangGraphAgentRunner:
         top_k: int,
         confidence_threshold: float,
         trim_max_tokens: int,
+        langsmith_tracing: bool = False,
+        langsmith_api_key: str = "",
+        langsmith_project: str = "syntax",
     ) -> None:
         self._messages_repo = messages_repo
         self._tenants = tenants
@@ -70,6 +76,32 @@ class LangGraphAgentRunner:
             confidence_threshold=confidence_threshold,
             trim_max_tokens=trim_max_tokens,
         )
+        # `langsmith_tracing=True` sin `langsmith_api_key` es tracing desactivado (spec de la tarea
+        # 11), no un error — mismo criterio permisivo que `agent_confidence_threshold` sin calibrar.
+        self._tracing_enabled = langsmith_tracing and bool(langsmith_api_key)
+        self._langsmith_api_key = langsmith_api_key
+        self._langsmith_project = langsmith_project
+
+    async def _invoke_traced(
+        self, compiled: Any, input_: Any, config: RunnableConfig
+    ) -> tuple[HelpdeskState, str | None]:
+        """`compiled.ainvoke(...)` bajo `tracing_v2_enabled` si el tracing está activo; devuelve
+        `(result, langsmith_trace_url)`.
+
+        Un fallo de LangSmith (red, cuota) nunca tumba el run: `LangChainTracer` tiene
+        `raise_error=False` por defecto (verificado contra el paquete instalado, `langsmith==0.11.0`)
+        — sus propios fallos de logging se tragan y solo se loguean, nunca rompen el chain. Solo
+        `tracer.get_run_url()` puede lanzar (`ValueError`, tras reintentos) si LangSmith no responde;
+        aquí se trata como "sin URL", no como fallo del run (Scenario 3)."""
+        if not self._tracing_enabled:
+            return await compiled.ainvoke(input_, config=config), None
+        client = Client(api_key=self._langsmith_api_key)
+        with tracing_v2_enabled(project_name=self._langsmith_project, client=client) as tracer:
+            result = await compiled.ainvoke(input_, config=config)
+        try:
+            return result, tracer.get_run_url()
+        except Exception:
+            return result, None
 
     async def trigger(
         self, tenant_id: uuid.UUID, ticket_id: uuid.UUID, run_seq: int, thread_id: str
@@ -129,7 +161,7 @@ class LangGraphAgentRunner:
         compiled = self._graph.compile(checkpointer=await get_checkpointer())
 
         try:
-            result = await compiled.ainvoke(initial_state, config=config)
+            result, trace_url = await self._invoke_traced(compiled, initial_state, config)
         except PortError as exc:
             return await self._agent_runs.update_result(
                 run.id, status=AgentRunStatus.failed, error=str(exc), finished_at=self._clock.now()
@@ -165,6 +197,7 @@ class LangGraphAgentRunner:
                 confidence=result["confidence"],
                 sources=sources,
                 escalated=escalated,
+                langsmith_trace_url=trace_url,
             )
 
         return await self._agent_runs.update_result(
@@ -174,6 +207,7 @@ class LangGraphAgentRunner:
             sources=sources,
             escalated=escalated,
             finished_at=self._clock.now(),
+            langsmith_trace_url=trace_url,
         )
 
     async def resume(self, agent_run_id: uuid.UUID, outcome: ApprovalOutcome) -> None:
@@ -206,13 +240,26 @@ class LangGraphAgentRunner:
         compiled = self._graph.compile(checkpointer=await get_checkpointer())
 
         try:
-            result = await compiled.ainvoke(to_resume_command(outcome), config=config)
+            result, resume_trace_url = await self._invoke_traced(
+                compiled, to_resume_command(outcome), config
+            )
         except PortError as exc:
             await self._agent_runs.update_result(
-                run.id, status=AgentRunStatus.failed, error=str(exc), finished_at=self._clock.now()
+                run.id,
+                status=AgentRunStatus.failed,
+                error=str(exc),
+                finished_at=self._clock.now(),
+                langsmith_trace_url=run.langsmith_trace_url,
             )
             return
 
+        # Preserva la URL de `trigger()` si ya existe (Scenario 4: "no se sobrescribe con una traza
+        # desconectada") en vez de reemplazarla por la de este `ainvoke` — dos invocaciones separadas
+        # de `ainvoke` producen dos runs raíz de LangSmith distintos (no hay enlace de trace_id entre
+        # ellos verificado contra el SDK instalado), así que la URL de `trigger()` sigue siendo la más
+        # completa (cubre TODO el trabajo hasta el interrupt); si `trigger()` no trazó nada (tracing
+        # desactivado entonces, activado ahora), cae a la de este `resume()`.
+        trace_url = run.langsmith_trace_url or resume_trace_url
         sources = build_citations(result["retrieved"])
         await self._agent_runs.update_result(
             run.id,
@@ -221,4 +268,5 @@ class LangGraphAgentRunner:
             sources=sources,
             escalated=True,
             finished_at=self._clock.now(),
+            langsmith_trace_url=trace_url,
         )

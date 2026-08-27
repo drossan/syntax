@@ -2,11 +2,11 @@
 id: backend-agent-graph-11
 package: backend
 plan: agent-graph
-status: pending
+status: done
 priority: 2
 depends_on: [backend-agent-graph-09]
 estimate: 3h
-actual:
+actual: ~2h
 created: 2026-08-27
 updated: 2026-08-27
 ---
@@ -73,17 +73,17 @@ Feature: Tracing LangSmith mínimo del run del agente
   `agent-graph.md` §9 en su versión mínima acordada.
 
 ## Definition of Done
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break: 80`)
-- [ ] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer)
-- [ ] **SDD** — sin CU propio (observabilidad transversal); referencia agent-graph.md §9
-- [ ] Documentación actualizada — tres capas:
-  - [ ] TSDoc en el código (settings nuevas, punto donde se envuelve el tracing)
-  - [ ] Doc técnica — nota explícita de "versión mínima, follow-up pendiente" en `agent-graph.md` §9
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-11.md`
-- [ ] Docs de dev / usuario final — `.env.example` con las 3 variables nuevas de LangSmith
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break: 80`) — 6.00%
+- [x] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce) — limpio
+- [x] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer) — 13/13 VERIFICADO
+- [x] **SDD** — sin CU propio (observabilidad transversal); referencia agent-graph.md §9
+- [x] Documentación actualizada — tres capas:
+  - [x] TSDoc en el código (settings nuevas, punto donde se envuelve el tracing)
+  - [x] Doc técnica — nota explícita de "versión mínima, follow-up pendiente" en `agent-graph.md` §9
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-11.md`
+- [x] Docs de dev / usuario final — `.env.example` con las 3 variables nuevas de LangSmith

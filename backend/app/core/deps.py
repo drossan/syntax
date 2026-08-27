@@ -230,6 +230,9 @@ def _get_agent_runner(
         top_k=AGENT_TOP_K,
         confidence_threshold=settings.agent_confidence_threshold,
         trim_max_tokens=AGENT_TRIM_MAX_TOKENS,
+        langsmith_tracing=settings.langsmith_tracing,
+        langsmith_api_key=settings.langsmith_api_key,
+        langsmith_project=settings.langsmith_project,
     )
 
 

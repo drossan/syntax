@@ -223,7 +223,7 @@ follow-up en el plan change log y en el session log de la tarea 11.
   reinicio a mitad de run, fallo LLM consistente) · depends_on: backend-agent-graph-08
 - [x] `backend-agent-graph-10` (P1) — Wiring: sustituir `StubAgentRunner` por el adaptador real en
   `app/core/deps.py`; smoke e2e vía HTTP · depends_on: backend-agent-graph-09
-- [ ] `backend-agent-graph-11` (P2) — LangSmith tracing mínimo (env config + `langsmith_trace_url`) ·
+- [x] `backend-agent-graph-11` (P2) — LangSmith tracing mínimo (env config + `langsmith_trace_url`) ·
   depends_on: backend-agent-graph-09
 
 ## Registro de cambios del plan
@@ -283,3 +283,20 @@ follow-up en el plan change log y en el session log de la tarea 11.
   `result["requires_approval"]` directamente (que siempre sería `False` ahí). Ninguno de los dos
   bugs afecta a `decide.py`/`graph.py` en sí — al RESUMIR (tarea 09) el nodo completa y retorna con
   normalidad, así que `requires_approval` sí llega correcto en ese punto.
+- 2026-08-27: tarea 11 (LangSmith tracing mínimo) cerrada. Verificado contra el SDK instalado
+  (`langsmith==0.11.0`, no asumido): `LangChainTracer.raise_error=False` por defecto — un fallo de
+  LangSmith (red, cuota) se loguea y se traga, nunca rompe el `ainvoke()` (Scenario 3 verificado sin
+  necesitar mockear una excepción cruda). `Client.get_run_url()` está **deprecado** (aviso del propio
+  SDK: se retira después de 2027-01-31, sugiere `client.runs.get_url()`) — aceptado como riesgo
+  documentado en vez de migrar a la API nueva, que exige una llamada de red extra
+  (`_check_backend_version`) solo para acceder a `client.runs`, desproporcionado para una tarea
+  explícitamente mínima. **Confirmado el hallazgo de `scenario-coverage`** (continuidad de la traza
+  entre `trigger`/`resume`, arriba): no existe un mecanismo verificado en el SDK instalado para enlazar
+  el `trace_id` de dos invocaciones `ainvoke()` separadas sin una llamada de red real que esta sesión
+  no podía verificar (sin credenciales de LangSmith) — implementado en su lugar el comportamiento
+  defendible y testeable sin red: `resume()` **preserva** `agent_run.langsmith_trace_url` de
+  `trigger()` en vez de sobrescribirlo (de paso corrigiendo un bug latente real: `update_result()`
+  sobrescribe el campo incondicionalmente, así que TODA llamada a `resume()` sin pasar el parámetro
+  explícito ya borraba la URL de `trigger()`, aunque el tracing en sí no estuviera implementado
+  todavía). Reconciliar el `trace_id` real entre `trigger`/`resume` queda como follow-up explícito
+  (agent-graph.md §9).
