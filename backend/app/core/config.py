@@ -128,6 +128,30 @@ class Settings(BaseSettings):
     max_upload_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
     """Tamaño máximo de un adjunto (10 MiB por defecto) — por encima, `POST .../attachments` → 413."""
 
+    agent_confidence_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
+    """Umbral de confianza híbrida (`app/rag/confidence.py`) bajo el que el nodo `decide` escala a
+    HITL en vez de auto-responder (ADR-0009).
+
+    `0.6` es un **default de arranque, no calibrado**: no hay corpus de runs reales todavía para
+    fijarlo con datos (mismo criterio que documenta `rag_estado_weight`) — se revisa cuando exista
+    telemetría de aciertos/escalados reales. `[0.0, 1.0]` porque es un umbral sobre `confidence.py`,
+    que devuelve un score en ese mismo rango."""
+
+    langsmith_tracing: bool = False
+    """Activa el tracing de LangSmith en `LangGraphAgentRunner` (`app/agents/runner.py`, tarea
+    `backend-agent-graph-11`) — versión **mínima**: solo puebla `agent_run.langsmith_trace_url`, sin
+    dashboards/alerting (agent-graph.md §9, follow-up explícito). `False` por defecto: sin esto, un
+    despliegue sin LangSmith configurado no intenta trazar nada."""
+
+    langsmith_api_key: str = ""
+    """API key de LangSmith. `""` (vacía) desactiva el tracing aunque `langsmith_tracing=True` —
+    nunca se lee de las variables de entorno `LANGCHAIN_API_KEY`/`LANGSMITH_API_KEY` que la SDK
+    respeta por defecto: se inyecta explícita en el `Client` del runner, mismo criterio de DI que el
+    resto de `Settings` (evita el footgun de `get_checkpointer()`, tarea 07, que sí depende de env)."""
+
+    langsmith_project: str = "syntax"
+    """Proyecto de LangSmith al que se envían las trazas cuando `langsmith_tracing=True`."""
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors_origins(cls, value: object) -> object:
