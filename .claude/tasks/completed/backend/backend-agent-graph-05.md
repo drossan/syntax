@@ -2,11 +2,11 @@
 id: backend-agent-graph-05
 package: backend
 plan: agent-graph
-status: pending
+status: done
 priority: 1
 depends_on: [backend-agent-graph-02, backend-agent-graph-03, backend-agent-graph-04]
 estimate: 6h
-actual:
+actual: ~3h
 created: 2026-08-27
 updated: 2026-08-27
 ---
@@ -150,17 +150,17 @@ Feature: Nodo trim — recorte de hilos largos
 - 7 factories de nodos (`make_*_node`) — las ensambla `build_graph()` (tarea 06).
 
 ## Definition of Done
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
-- [ ] Lint / format / typecheck OK
-- [ ] Gate de mutation testing superado (`cosmic-ray`, `break: 80`)
-- [ ] Gate `sdd-lint` superado (ERROR bloquea, AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado (INCORRECTO bloquea; NO VERIFICABLE = aviso a reconocer)
-- [ ] **SDD** — enlaza CU-BE-05/CU-BE-06 (sin copiar su Gherkin); sin cambios de spec/CU nuevos
-- [ ] Documentación actualizada — tres capas:
-  - [ ] TSDoc en el código (cada `make_*_node` documenta puerto, contrato y anti-patrón evitado)
-  - [ ] Doc técnica — corregir `app/agents/nodes/__init__.py` (listaba 6 nodos, ahora son 7)
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-05.md`
-- [ ] Docs de dev / usuario final — no aplica
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor (excepto `grade.py`, ver nota de desviación en el session log)
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (40 passed en la tarea; suite completa `pytest -q` exit 0)
+- [x] Spec cumplida; lo declarado en `Provides` queda realmente disponible para las tareas dependientes
+- [x] Lint / format / typecheck OK
+- [x] Gate de mutation testing superado (`cosmic-ray`, `break: 80`) — 2.13% survivors (3 mutantes equivalentes `is`→`==` sobre enum)
+- [x] Gate `sdd-lint` superado — N/A (enlaza CU sin copiar Gherkin), spot-check sin `[NECESITA ACLARACIÓN`
+- [x] Gate de `fact-checker` superado — 14/14 VERIFICADO, 0 INCORRECTO
+- [x] **SDD** — enlaza CU-BE-05/CU-BE-06 (sin copiar su Gherkin); sin cambios de spec/CU nuevos
+- [x] Documentación actualizada — tres capas:
+  - [x] TSDoc en el código (cada `make_*_node` documenta puerto, contrato y anti-patrón evitado)
+  - [x] Doc técnica — corregido `app/agents/nodes/__init__.py` (7 nodos, incl. `respond`)
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-agent-graph-05.md`
+- [x] Docs de dev / usuario final — no aplica
