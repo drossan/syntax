@@ -1,7 +1,7 @@
 ---
 id: backend-agent-graph
 package: backend
-status: active
+status: completed
 branch: plan/backend/agent-graph
 created: 2026-08-27
 updated: 2026-08-27
@@ -300,3 +300,37 @@ follow-up en el plan change log y en el session log de la tarea 11.
   explícito ya borraba la URL de `trigger()`, aunque el tracing en sí no estuviera implementado
   todavía). Reconciliar el `trace_id` real entre `trigger`/`resume` queda como follow-up explícito
   (agent-graph.md §9).
+
+## Retro (cierre del plan)
+
+- **Estimación vs. real**: 11/11 tareas cerradas el mismo día (2026-08-27) que se creó el plan.
+  `actual` por tarea quedó documentado en cada frontmatter (`~2-3h`/tarea); sin desviación grave sobre
+  `estimate` en ninguna.
+- **Sorpresas** (bugs reales en trabajo ya cerrado, encontrados construyendo la siguiente tarea, no
+  hipotéticos — cada uno reproducido antes de tratarse como hecho):
+  - Tarea 07→08: `get_checkpointer_pool()`/`get_checkpointer()` nunca abrían el pool
+    (`AsyncConnectionPool(open=False)` sin `await pool.open()`) — los propios tests de 07 no lo
+    detectaron por abrir un pool paralelo fuera del singleton.
+  - Tarea 08: mutaciones de `state` hechas ANTES de `interrupt()` no se comprometen en el resultado de
+    la invocación que interrumpe (LangGraph solo aplica los cambios de un nodo al `return`) —
+    `escalated` debía derivarse de `"__interrupt__" in result`, no de `result["requires_approval"]`.
+  - Tarea 08: `test_migration_identity_multi_tenant.py` tenía una copia duplicada del test de
+    drift-gate (deuda de una tarea anterior, `database-foundation-06`) sin el filtro nuevo de tablas
+    del checkpointer.
+  - Tarea 11→hallazgo en 08: `AgentRunRepository.update_result()` sobrescribe
+    `langsmith_trace_url` incondicionalmente — `resume()` (tarea 09) ya borraba silenciosamente
+    cualquier valor puesto por `trigger()` desde que existe el campo, aunque el tracing real no se
+    implementó hasta la 11.
+  - Tarea 11: `.env.example` ya tenía un bloque `LANGSMITH_*` (de la fase de `grilling`, antes de
+    implementar) en una ubicación mejor que la que usé al principio — duplicado detectado y resuelto
+    en el propio cierre de la tarea.
+- **Dependencias no vistas**: ninguna nueva fuera de lo ya cableado por `grilling`/`design-review`/
+  `scenario-coverage` en la fase de plan — el reshape de tareas 06-09 y los 2 hallazgos críticos de
+  `scenario-coverage` (ApprovalTask no se creaba al interrumpir; `AgentRunRepository` sin
+  `update_result`) absorbieron la mayor parte de lo que normalmente aparecería como sorpresa a mitad
+  de implementación.
+- **Follow-ups explícitos que quedan fuera de este plan** (documentados en su sitio, no se
+  implementaron): observabilidad LangSmith completa (dashboards, alerting, instrumentación por nodo) y
+  reconciliación real del `trace_id` entre `trigger`/`resume` (agent-graph.md §9); streaming `astream`
+  del draft (agent-graph.md §9); calibración con datos reales de `agent_confidence_threshold`,
+  `AGENT_TOP_K`, `AGENT_TRIM_MAX_TOKENS` (todos defaults de arranque sin corpus de runs reales).
