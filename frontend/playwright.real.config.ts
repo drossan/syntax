@@ -17,7 +17,13 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e-real",
-  fullyParallel: false, // comparten el mismo tenant/DB seed — evita colisiones de rate-limit/estado
+  fullyParallel: false,
+  // `fullyParallel: false` por sí solo NO basta: solo serializa los tests DENTRO de un fichero — Playwright
+  // sigue repartiendo ficheros distintos entre varios workers por defecto (reproducido: 4 workers en una
+  // corrida real). Los specs comparten el mismo tenant/DB seed (p.ej. `superadmin-journey` apaga y
+  // reenciende `ai_auto_draft` de `demo`) — sin `workers: 1`, ese toggle puede solaparse con la creación
+  // de un ticket de otro spec en otro worker y dejar el test intermitente.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0, // un reintento repetiría una llamada real a OpenAI — mejor ver el fallo real
   timeout: 60_000, // el ciclo classify→retrieve→grade→generate real puede tardar >10s

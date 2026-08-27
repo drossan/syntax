@@ -14,6 +14,11 @@ import { errorAlert, login } from "./helpers";
  * cubre [[ticket-ai-auto-draft.spec.ts]] con dos contextos de navegador; aquí el foco es el gating por
  * rol y que el alta de ticket funciona de extremo a extremo, no repetir esa aserción con coste real de
  * OpenAI otra vez.
+ *
+ * También cubre `POST /tickets/{id}/messages` (responder) de extremo a extremo — hasta esta sesión no
+ * había NINGÚN componente del front que llamara a ese endpoint pese a que `ticket.reply` ya está en el
+ * catálogo RBAC (`backend/app/infra/db/seed.py`) desde antes: sin el reply publicado y visible en el
+ * hilo tras recargar, esa desconexión front↔back seguiría sin probarse.
  */
 test("client-agent: nav acotada por RBAC + alta de ticket real", async ({ page }) => {
   await login(page, E2E_USERS.clientAgent);
@@ -40,6 +45,16 @@ test("client-agent: nav acotada por RBAC + alta de ticket real", async ({ page }
   const actions = page.getByRole("region", { name: "Acciones del ticket" });
   await expect(actions.getByText("Cambiar estado")).not.toBeVisible();
   await expect(actions.getByRole("button", { name: "Asignarme" })).not.toBeVisible();
+
+  // `ticket.reply` (sin `note.internal.write`): responde de verdad, sin selector de visibilidad — el
+  // mensaje real queda publicado en el hilo tras recargar (no cacheado en memoria del cliente).
+  const replyBody = `[e2e-real] respuesta real ${Date.now()}`;
+  await expect(page.getByLabel(/visibilidad/i)).not.toBeVisible();
+  await page.getByLabel(/responder/i).fill(replyBody);
+  await page.getByRole("button", { name: "Enviar" }).click();
+  await expect(page.getByText(replyBody)).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(replyBody)).toBeVisible();
 
   // La bandeja (propia del tenant) lista el ticket recién creado.
   await nav.getByRole("link", { name: "Bandeja" }).click();
