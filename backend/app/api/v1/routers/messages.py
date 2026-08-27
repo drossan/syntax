@@ -12,6 +12,9 @@ fichero de 0 bytes se ACEPTA (adjunto vacío válido, decisión explícita — n
 justificar). El límite de tamaño (`settings.max_upload_bytes`) se aplica leyendo el `UploadFile` antes
 de tocar `Storage.save` — por encima, 413 vía `fastapi.HTTPException` directa (no hay ninguna
 `DomainError` para "payload demasiado grande", y el proyecto ya soporta ese patrón en `app.core.deps`).
+`Message.attachments` (contrato ampliado esta tarea) es lo que hace DESCUBRIBLE lo ya subido: antes
+solo se podía subir y descargar-si-ya-sabes-el-id, sin ninguna forma de listar — `list_messages` los
+trae en UNA consulta por página (`list_by_messages`, evita N+1) en vez de uno por mensaje.
 
 `create_message` cierra FR-038 (tarea 12) para mensajes `public`: notifica a `{ticket.requester_id,
 ticket.assignee_id} - {subject.id, None}` (resta de conjuntos, sin `if` ad-hoc — cubre autor=assignee,
@@ -60,7 +63,9 @@ _INTERNAL_READ_CAPABILITY = "note.internal.read"
 _logger = structlog.get_logger()
 
 
-def _to_message_schema(message: MessageEntity) -> MessageSchema:
+def _to_message_schema(
+    message: MessageEntity, attachments: list[AttachmentEntity] | None = None
+) -> MessageSchema:
     return MessageSchema(
         id=message.id,
         ticket_id=message.ticket_id,
@@ -69,6 +74,7 @@ def _to_message_schema(message: MessageEntity) -> MessageSchema:
         is_ai_draft=message.is_ai_draft,
         body=message.body,
         created_at=message.created_at,
+        attachments=[_to_attachment_schema(a) for a in (attachments or [])],
     )
 
 
@@ -122,11 +128,15 @@ async def list_messages(
     visibilities = (
         None if _has_capability(subject, _INTERNAL_READ_CAPABILITY) else [MessageVisibility.public]
     )
-    result = await SqlAlchemyMessageRepository(session).list_by_ticket(
+    message_repo = SqlAlchemyMessageRepository(session)
+    result = await message_repo.list_by_ticket(
         id, page=page, page_size=page_size, visibilities=visibilities
     )
+    attachments_by_message = await message_repo.list_by_messages([m.id for m in result.items])
     return Page(
-        items=[_to_message_schema(m) for m in result.items],
+        items=[
+            _to_message_schema(m, attachments_by_message.get(m.id, [])) for m in result.items
+        ],
         page=page,
         page_size=page_size,
         total=result.total,

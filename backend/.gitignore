@@ -18,3 +18,7 @@ session.sqlite
 
 # Lockfiles/artefactos generados localmente por el builder
 requirements.lock
+
+# Storage local de adjuntos (`settings.storage_root`, puerto `Storage` filesystem) — binario real subido
+# en dev/e2e-real, nunca artefacto de repo.
+var/

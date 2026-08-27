@@ -1273,6 +1273,9 @@ components:
         is_ai_draft: { type: boolean }
         body: { type: string }
         created_at: { type: string, format: date-time }
+        attachments:
+          type: array
+          items: { $ref: '#/components/schemas/Attachment' }
     MessageCreate:
       type: object
       required: [body, visibility]
