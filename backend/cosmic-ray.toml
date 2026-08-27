@@ -1,9 +1,9 @@
 # cosmic-ray — config de mutation testing del backend.
 [cosmic-ray]
-module-path = "app/domain/services/auth_service.py"
+module-path = "app/core/config.py"
 timeout = 90.0
 excluded-modules = []
-test-command = ".venv/bin/python -m pytest -x -q tests/test_router_auth.py tests/test_auth_service.py"
+test-command = ".venv/bin/python -m pytest -x -q tests/test_config.py tests/test_agent_stack_surface.py"
 
 [cosmic-ray.distributor]
 name = "local"

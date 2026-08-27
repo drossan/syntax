@@ -370,3 +370,30 @@ def test_max_upload_bytes_rejects_non_positive_values(monkeypatch, value) -> Non
     monkeypatch.setenv("MAX_UPLOAD_BYTES", value)
     with pytest.raises(ValidationError):
         get_settings()
+
+
+# ── Settings del grafo del agente (tarea backend-agent-graph-01) ────────────────
+
+
+def test_agent_confidence_threshold_has_a_calibratable_default() -> None:
+    """`agent_confidence_threshold` construye sin `.env` con un float en [0.0, 1.0] — el default de
+    arranque se calibra con datos reales (ADR-0009), sin corpus todavía (mismo criterio que
+    `rag_estado_weight`)."""
+    threshold = Settings(_env_file=None, jwt_secret="x").agent_confidence_threshold
+    assert isinstance(threshold, float)
+    assert 0.0 <= threshold <= 1.0
+
+
+@pytest.mark.parametrize("value", ["0.0", "1.0"])
+def test_agent_confidence_threshold_accepts_its_bounds(monkeypatch, value) -> None:
+    """Frontera: 0.0 y 1.0 son valores legítimos (todo se escala / nada se escala)."""
+    monkeypatch.setenv("AGENT_CONFIDENCE_THRESHOLD", value)
+    assert get_settings().agent_confidence_threshold == float(value)
+
+
+@pytest.mark.parametrize("value", ["1.1", "-0.1"])
+def test_agent_confidence_threshold_rejects_values_outside_bounds(monkeypatch, value) -> None:
+    """Fuera de `[0.0, 1.0]` no es una confianza válida: se rechaza al construir, no al comparar."""
+    monkeypatch.setenv("AGENT_CONFIDENCE_THRESHOLD", value)
+    with pytest.raises(ValidationError):
+        get_settings()

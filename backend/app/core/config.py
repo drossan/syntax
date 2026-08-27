@@ -128,6 +128,15 @@ class Settings(BaseSettings):
     max_upload_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
     """Tamaño máximo de un adjunto (10 MiB por defecto) — por encima, `POST .../attachments` → 413."""
 
+    agent_confidence_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
+    """Umbral de confianza híbrida (`app/rag/confidence.py`) bajo el que el nodo `decide` escala a
+    HITL en vez de auto-responder (ADR-0009).
+
+    `0.6` es un **default de arranque, no calibrado**: no hay corpus de runs reales todavía para
+    fijarlo con datos (mismo criterio que documenta `rag_estado_weight`) — se revisa cuando exista
+    telemetría de aciertos/escalados reales. `[0.0, 1.0]` porque es un umbral sobre `confidence.py`,
+    que devuelve un score en ese mismo rango."""
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors_origins(cls, value: object) -> object:
