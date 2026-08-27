@@ -157,6 +157,7 @@ async def logout(
 async def me(
     subject: Subject = Depends(get_current_subject),
     session: AsyncSession = Depends(get_db_session),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> Me:
     user = await SqlAlchemyUserRepository(session).get(subject.id)
     membership = await SqlAlchemyUserTenantMembershipRepository(session).get(
@@ -165,10 +166,15 @@ async def me(
     if user is None or membership is None:
         # Race rara: el user/membership se borró entre emitir el token y esta request.
         raise NotFound("el sujeto autenticado ya no existe", code="auth.subject_not_found")
+    available = await auth_service.eligible_tenants(subject.id)
     return Me(
         user=MeUser(id=user.id, email=user.email, status=membership.status.value, roles=[]),
+        active_tenant_id=subject.tenant_id,
         capabilities=[
             {"capability": capability, "scope": scope} for capability, scope in subject.capabilities
+        ],
+        available_tenants=[
+            TenantChoice(id=t.tenant_id, slug=t.slug, name=t.name) for t in available
         ],
     )
 

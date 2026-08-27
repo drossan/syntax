@@ -298,6 +298,15 @@ class AuthService:
                 await self._memberships.update(membership)
         await self._auth_tokens.mark_used(auth_token.id, self._clock.now())
 
+    async def eligible_tenants(self, user_id: uuid.UUID) -> list[TenantChoice]:
+        """Tenants con membership `active` en un tenant no-`disabled` — mismo criterio que el paso 2
+        del login (`_eligible_memberships`), reusado por `GET /auth/me` para `available_tenants`."""
+        eligible = await self._eligible_memberships(user_id)
+        return [
+            TenantChoice(tenant_id=tenant.id, slug=tenant.slug, name=tenant.name)
+            for _, tenant in eligible
+        ]
+
     async def _eligible_memberships(
         self, user_id: uuid.UUID
     ) -> list[tuple[UserTenantMembership, Tenant]]:
