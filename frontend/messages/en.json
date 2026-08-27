@@ -220,7 +220,8 @@
     "title": "Attachments",
     "empty": "This ticket has no attachments.",
     "download": "Download",
-    "downloadLabel": "Download {name}"
+    "downloadLabel": "Download {name}",
+    "downloadError": "The attachment could not be downloaded."
   },
   "ticketActions": {
     "region": "Ticket actions",
@@ -254,7 +255,9 @@
     "visibilityPublic": "Public",
     "visibilityInternal": "Internal note",
     "submit": "Send",
-    "genericError": "The message could not be posted."
+    "genericError": "The message could not be posted.",
+    "attachLabel": "Attach a file (optional)",
+    "attachmentError": "The message was posted, but the attachment could not be uploaded."
   },
   "ticketCreate": {
     "title": "New ticket",

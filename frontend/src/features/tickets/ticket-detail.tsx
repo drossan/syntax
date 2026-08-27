@@ -7,6 +7,7 @@ import { AiDraftPanel } from "@/features/ai-flow/ai-draft-panel";
 import { useTicketReads } from "@/features/cross-cutting/use-ticket-reads";
 import { useCan } from "@/features/rbac/use-can";
 
+import { filterByVisibility } from "./message-visibility";
 import { TicketActions } from "./ticket-actions";
 import { TicketAttachments } from "./ticket-attachments";
 import { TicketHeader } from "./ticket-header";
@@ -82,9 +83,14 @@ export function TicketDetail({ ticketId }: { ticketId: string }) {
         <TicketReplyForm ticketId={ticketId} resourceTenantId={ticketQuery.data.tenant_id} />
       ) : null}
       <TicketTimeline messages={messagesQuery.data ?? []} canSeeInternal={canSeeInternal} />
-      {/* View-only. El contrato v0.1.0 no expone GET de adjuntos → lista vacía hasta que el backend
-          los sirva (ver session log 11). La subida está diferida (design-review M2). */}
-      <TicketAttachments attachments={[]} />
+      {/* Adjuntos de los mensajes VISIBLES para este sujeto — el mismo filtro que `TicketThread`
+          (defensa en profundidad): un adjunto de una nota interna no debe listarse para quien no
+          puede leer esa nota, aunque el adjunto en sí no lleve su propio `visibility`. */}
+      <TicketAttachments
+        attachments={filterByVisibility(messagesQuery.data ?? [], canSeeInternal).flatMap(
+          (message) => message.attachments ?? [],
+        )}
+      />
     </section>
   );
 }

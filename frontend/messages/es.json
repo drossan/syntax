@@ -220,7 +220,8 @@
     "title": "Adjuntos",
     "empty": "No hay adjuntos en este ticket.",
     "download": "Descargar",
-    "downloadLabel": "Descargar {name}"
+    "downloadLabel": "Descargar {name}",
+    "downloadError": "No se pudo descargar el adjunto."
   },
   "ticketActions": {
     "region": "Acciones del ticket",
@@ -254,7 +255,9 @@
     "visibilityPublic": "Público",
     "visibilityInternal": "Nota interna",
     "submit": "Enviar",
-    "genericError": "No se pudo publicar el mensaje."
+    "genericError": "No se pudo publicar el mensaje.",
+    "attachLabel": "Adjuntar archivo (opcional)",
+    "attachmentError": "El mensaje se publicó, pero el adjunto no se pudo subir."
   },
   "ticketCreate": {
     "title": "Nuevo ticket",

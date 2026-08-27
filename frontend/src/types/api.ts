@@ -2027,6 +2027,7 @@ export interface components {
       body?: string;
       /** Format: date-time */
       created_at?: string;
+      attachments?: components["schemas"]["Attachment"][];
     };
     MessageCreate: {
       body: string;

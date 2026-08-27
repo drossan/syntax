@@ -13,7 +13,7 @@ import {
   toMessageCreateBody,
   type TicketReplyValues,
 } from "./ticket-reply-schema";
-import { useReplyTicket } from "./use-ticket-reply";
+import { useReplyTicket, useUploadAttachment } from "./use-ticket-reply";
 
 /** Coerción defensiva de un error de mutación (desconocido) al envelope `problem+json`. */
 function toProblem(error: unknown, fallbackTitle: string): Problem {
@@ -26,6 +26,11 @@ function toProblem(error: unknown, fallbackTitle: string): Problem {
  * `note.internal.write` no renderiza nada (no hay nada que este sujeto pueda publicar). Con solo
  * `ticket.reply` el mensaje siempre es público (sin selector); con `note.internal.write` también puede
  * elegir nota interna. Limpia el campo tras publicar; un error de servidor lo conserva para reintentar.
+ *
+ * Adjunto opcional: `POST /messages/{id}/attachments` solo acepta un `message_id` ya existente (no hay
+ * "crear mensaje + adjunto" en una sola llamada), así que la subida corre DESPUÉS de crear el mensaje,
+ * referenciando su id. Si el mensaje se publica pero la subida falla, no se deshace ni se trata como un
+ * fallo del envío entero — el mensaje ya es real; solo el adjunto se avisa aparte (`attachmentError`).
  *
  * @param ticketId Id del ticket.
  * @param resourceTenantId Tenant del ticket (ámbito de las capacidades).
@@ -41,7 +46,13 @@ export function TicketReplyForm({
   const canReplyPublic = useCan("ticket.reply", { resourceTenantId });
   const canWriteInternal = useCan("note.internal.write", { resourceTenantId });
   const reply = useReplyTicket(ticketId);
+  const uploadAttachment = useUploadAttachment(ticketId);
   const [formError, setFormError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  // Un `<input type="file">` es no-controlado (el navegador no deja fijar `.value` por seguridad) —
+  // cambiar esta `key` fuerza a React a montar un input NUEVO tras publicar, que nace vacío. Evita
+  // tocar un ref dentro del callback de `handleSubmit` (el linter lo trata como acceso en render).
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const {
     register,
@@ -70,13 +81,26 @@ export function TicketReplyForm({
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
+    let message;
     try {
-      await reply.mutateAsync(toMessageCreateBody(values));
-      reset({ body: "", visibility: values.visibility });
+      message = await reply.mutateAsync(toMessageCreateBody(values));
     } catch (error) {
       const ui = problemToUi(toProblem(error, t("genericError")), (k) => t(k));
       setFormError(ui.toast.title);
+      return;
     }
+    // El mensaje YA se publicó en este punto — un fallo de aquí en adelante es del adjunto, no del
+    // mensaje: no lo deshace ni lo trata como si el envío entero hubiera fallado.
+    if (file) {
+      try {
+        await uploadAttachment.mutateAsync({ messageId: message.id ?? "", file });
+      } catch {
+        setFormError(t("attachmentError"));
+      }
+    }
+    setFile(null);
+    setFileInputKey((key) => key + 1);
+    reset({ body: "", visibility: values.visibility });
   });
 
   return (
@@ -102,6 +126,17 @@ export function TicketReplyForm({
           {...register("body")}
         />
         {errors.body ? <p className="text-sm text-destructive">{errors.body.message}</p> : null}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="ticket-reply-attachment">{t("attachLabel")}</label>
+        <input
+          key={fileInputKey}
+          id="ticket-reply-attachment"
+          type="file"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          className="text-sm"
+        />
       </div>
 
       {canWriteInternal ? (
