@@ -2,11 +2,11 @@
 id: frontend-markdown-rendering-03
 package: frontend
 plan: markdown-rendering
-status: pending
+status: done
 priority: 2
 depends_on: [frontend-markdown-rendering-01]
 estimate: 1.5h
-actual:
+actual: 1.5h
 issue:
 created: 2026-08-31
 updated: 2026-08-31
@@ -59,18 +59,22 @@ Criterios de aceptación (Gherkin) en el caso de uso:
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida
-- [ ] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
-- [ ] Gate de mutation testing superado (Stryker, `pnpm exec stryker run --mutate
-      "src/features/tickets/ticket-thread.tsx"`, `break: 80`)
-- [ ] Gate `sdd-lint` superado — artefactos SDD sin ERROR de formato/completitud (AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
-- [ ] Verificación manual contra el backend real: tras aprobar/auto-resolver un draft real, el
-      mensaje se ve formateado en el hilo del ticket.
-- [ ] Documentación actualizada:
-  - [ ] Histórico de la tarea — session log en
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores) — fichero de test
+      nuevo (`ticket-thread.test.tsx` no existía antes de esta tarea), 14 tests
+- [x] Todos los tests en verde (14 en `ticket-thread.test.tsx`, 416 en la suite completa)
+- [x] Spec cumplida
+- [x] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
+- [x] Gate de mutation testing superado (Stryker, 96.30% — primera pasada 70.37%, corregida con tests
+      de la etiqueta "Interna" visible, la fecha formateada, y el fallback vacío de `body` ausente; 1
+      survivor preexistente en `authorLabel`, sin tocar por esta tarea)
+- [x] Gate `sdd-lint` superado — mecánico limpio
+- [x] Gate de `fact-checker` superado — 8/9 VERIFICADO (el 1 restante señalaba, correctamente, que aún
+      no se había commiteado en el momento de la verificación — no una afirmación factual incorrecta)
+- [x] Verificación manual contra el backend real: aprobado un draft real (tema embeddings) desde la
+      cola, confirmado por `innerHTML` del `<li>` del hilo que el mensaje se ve formateado
+      (`<ol>`/`<li>`/`<strong>`/`<p>` reales) con la etiqueta "Asistente IA" + "Borrador IA" correctas.
+- [x] Documentación actualizada:
+  - [x] Histórico de la tarea — session log en
         `.claude/context/frontend/frontend-markdown-rendering-03.md`
-- [ ] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
+- [x] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
