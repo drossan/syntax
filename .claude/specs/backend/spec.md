@@ -64,7 +64,7 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-020** — El sistema DEBERÁ registrar toda mutación de negocio en `audit_log` (append-only).
 - **FR-021** — Cuando un listado se solicita sin orden explícito, el sistema DEBERÁ aplicar el **orden determinista por defecto** (tickets `-updated_at`; `/approvals` `sla_due,confidence`; `/notifications` `-created_at`).
 
-### Draft IA y aprobación HITL — [[../adr/0007-hitl-asincrono-postgressaver-checkpointer]] · [[../adr/0008-grafo-langgraph-plano-edges-tipados]] · [[../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]]
+### Draft IA y aprobación HITL — [[../adr/0007-hitl-asincrono-postgressaver-checkpointer]] · [[../adr/0008-grafo-langgraph-plano-edges-tipados]] · [[../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]] · [[../adr/0019-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]
 
 - **FR-022** — Cuando un sujeto con `agent.trigger` dispara un draft, el sistema DEBERÁ crear un `agent_run` (`thread_id=ticket_{id}_run_{n}`) y ejecutar el grafo `classify→retrieve→grade→generate→decide`.
 - **FR-023** — El nodo `classify` DEBERÁ producir `{categoria, dominio(1-de-17), prioridad, resoluble}` con **structured output**, y el dominio DEBERÁ **filtrar el retrieval**.
@@ -77,6 +77,8 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-030** — Cuando se reabre un ticket, el sistema DEBERÁ lanzar un **run nuevo** (`run_seq=n+1`, thread nuevo), dejando el anterior superado.
 - **FR-031** — El sistema DEBERÁ tratar el contenido del ticket como **input no confiable** (aislado del system-prompt; sin ejecutar instrucciones embebidas) y persistir la traza en `agent_run.langsmith_trace_url`.
 - **FR-040** — Si ya hay un `agent_run` no-terminal (`queued`/`running`) para el ticket, o el tenant excede el límite de tasa de `ai-draft` en la ventana actual, entonces el sistema DEBERÁ rechazar el disparo (**409**/**429** respectivamente) sin crear un `agent_run` nuevo.
+- **FR-057** — Cuando `respond` publica en el camino **auto** (`decide.requires_approval=false`), el sistema DEBERÁ encadenar la transición del ticket hasta `resolved` (recorriendo `_VALID_TRANSITIONS` desde el estado actual, nunca saltando aristas) **antes** de publicar el `message`; si el ticket ya está en `resolved`/`closed`, DEBERÁ publicar sin intentar ninguna transición.
+- **FR-058** — El sistema DEBERÁ exponer una capacidad `ticket.reopen`, distinta y más estrecha que `ticket.transition`, que habilite **únicamente** `{resolved,closed}→reopened` — nunca ningún otro destino.
 
 ### KB: ingestión y retrieval — [[../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]] · [[../adr/0018-retrieval-http-de-la-kb-ventana-dedup-y-peso-de-estado]]
 
