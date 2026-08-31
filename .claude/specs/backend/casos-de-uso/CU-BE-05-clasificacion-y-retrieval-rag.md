@@ -2,8 +2,9 @@
 
 > **SDD** (Cockburn + Gherkin). CÓMO para FR-023…FR-025, FR-035 de [`../spec.md`](../spec.md). Decisiones:
 > [[../../adr/0008-grafo-langgraph-plano-edges-tipados]], [[../../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]],
-> [[../../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]]. Detalle: [`../rag-ingestion.md`](../rag-ingestion.md) §6,
-> [`../agent-graph.md`](../agent-graph.md) §4-§5.
+> [[../../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]],
+> [[../../adr/0019-fallback-de-dominio-por-relevancia-baja-en-retrieval]] (extensión 1c). Detalle:
+> [`../rag-ingestion.md`](../rag-ingestion.md) §6, [`../agent-graph.md`](../agent-graph.md) §4-§5.
 >
 > **Alcance de este CU frente al plan `kb-retriever`** (nota añadida 2026-08-25). Este CU cubre el
 > retrieval del **agente LangGraph**: chunks con `chunk_id`, **sin deduplicar**, con el `score` **crudo**
@@ -51,13 +52,14 @@
 ## Extensiones (flujos alternativos y de error)
 
 - **1a.** Ticket **no clasificable** con confianza: `retrieve` opera **sin filtro de dominio** (fallback) y se marca baja confianza.
-- **1c.** (plan `rag-domain-fallback`, 2026-08-31) Ticket **clasificable** con dominio asignado, pero el
-  dominio es el equivocado (frontera de taxonomía ambigua — el mismo concepto vive en varios de los 17
-  dominios): `retrieve` reintenta **siempre** sin filtro de dominio (no solo cuando el score filtrado
-  parece bajo — un caso real observado con score 0.611, ya por encima del umbral de confianza, seguía
-  siendo el dominio equivocado) y usa ese resultado si mejora significativamente sobre el filtrado
-  (margen configurable, `Settings.rag_domain_fallback_margin`). No se mezclan ambas listas de hits. No
-  se corrige `ticket.domain`/`ticket.priority` persistidos — solo cambia qué se recupera para responder.
+- **1c.** ([ADR-0019](../../adr/0019-fallback-de-dominio-por-relevancia-baja-en-retrieval.md), plan
+  `rag-domain-fallback`, 2026-08-31) Ticket **clasificable** con dominio asignado, pero el dominio es el
+  equivocado (frontera de taxonomía ambigua — el mismo concepto vive en varios de los 17 dominios):
+  `retrieve` reintenta **siempre** sin filtro de dominio (no solo cuando el score filtrado parece bajo —
+  un caso real observado con score 0.611, ya por encima del umbral de confianza, seguía siendo el
+  dominio equivocado) y usa ese resultado si mejora significativamente sobre el filtrado (margen
+  configurable, `Settings.rag_domain_fallback_margin`). No se mezclan ambas listas de hits. No se
+  corrige `ticket.domain`/`ticket.priority` persistidos — solo cambia qué se recupera para responder.
 - **1b.** `resoluble=false`: se escala directo a humano sin `generate`.
 - **3a.** Confianza `< umbral` o `grade.suficiente=false`: se **escala** con `human_note` (contexto insuficiente).
 - **2a.** El corpus es 81% `draft`: el peso de `estado` es re-ranking, **no** filtro duro (no vacía el retrieval).
@@ -125,22 +127,15 @@ Feature: Clasificación y retrieval RAG
     Given un ticket clasificado con un dominio asignado cuya búsqueda filtrada no devuelve ningún hit
     When el agente recupera contexto
     Then la comparación usa 0.0 como score máximo filtrado, sin lanzar error
-    And si el resultado sin filtro mejora sobre el margen, se usa ese resultado
 
   Scenario: Ni el retrieval filtrado ni el sin filtro encuentran nada
     Given un ticket clasificado con dominio asignado sin ningún hit en la KB, con o sin filtro
     When el agente recupera contexto
     Then se mantiene el resultado filtrado (vacío) y no se lanza ningún error
 
-  Scenario: Una mejora exactamente igual al margen no dispara el fallback
-    Given un ticket clasificado con dominio asignado cuya mejora sin filtro es exactamente igual a
-      rag_domain_fallback_margin
-    When el agente recupera contexto
-    Then se mantiene el resultado filtrado (el margen es estrictamente mayor, no mayor o igual)
-
-  Scenario Outline: El margen configurado, no un valor fijo, decide si el fallback se usa
-    Given un ticket clasificado con dominio asignado, una mejora sin filtro de <delta>, y
-      rag_domain_fallback_margin configurado a <margen>
+  Scenario Outline: El margen de mejora configurado, no un valor fijo, decide si el fallback se usa
+    Given un ticket clasificado con dominio asignado y una mejora sin filtro de <delta>, con el margen
+      de mejora configurado a <margen>
     When el agente recupera contexto
     Then el resultado usado es <resultado>
 
@@ -148,6 +143,7 @@ Feature: Clasificación y retrieval RAG
       | delta | margen | resultado  |
       | 0.10  | 0.05   | sin filtro |
       | 0.10  | 0.20   | filtrado   |
+      | 0.125 | 0.125  | filtrado   |
 
   Scenario: Un fallo en la segunda búsqueda (sin filtro) no se enmascara con el resultado filtrado
     Given un ticket clasificado con dominio asignado cuya búsqueda filtrada tiene éxito

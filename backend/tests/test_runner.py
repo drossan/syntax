@@ -121,9 +121,17 @@ class _FakeRetriever:
         self._hits = hits if hits is not None else []
         self.calls = 0
 
-    async def retrieve(self, query: str, *, top_k: int, domain=None, **kwargs) -> list[RankedHit]:
+    async def embed_query(self, query: str) -> list[float]:
+        return [0.1]
+
+    async def search(self, vector, *, top_k: int, domain=None, **kwargs) -> list[RankedHit]:
         self.calls += 1
         return self._hits
+
+    async def retrieve(self, query: str, *, top_k: int, domain=None, **kwargs) -> list[RankedHit]:
+        return await self.search(
+            await self.embed_query(query), top_k=top_k, domain=domain, **kwargs
+        )
 
 
 def _hit(uc_id: str = "CU-BE-05", score: float = 0.9) -> RankedHit:
@@ -231,6 +239,7 @@ def _make_runner(
         top_k=5,
         confidence_threshold=confidence_threshold,
         trim_max_tokens=50,
+        domain_fallback_margin=0.05,
         langsmith_tracing=langsmith_tracing,
         langsmith_api_key=langsmith_api_key,
     )
@@ -970,6 +979,7 @@ async def test_tracing_defaults_to_disabled_when_the_runner_is_constructed_direc
         top_k=5,
         confidence_threshold=0.5,
         trim_max_tokens=50,
+        domain_fallback_margin=0.05,
         langsmith_api_key="a-real-looking-key",
     )
 

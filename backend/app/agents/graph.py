@@ -33,12 +33,13 @@ def build_graph(
     top_k: int,
     confidence_threshold: float,
     trim_max_tokens: int,
+    domain_fallback_margin: float,
 ) -> StateGraph[HelpdeskState]:
     """Registra los 7 nodos y sus edges; devuelve el `StateGraph[HelpdeskState]` SIN compilar."""
     graph: StateGraph[HelpdeskState] = StateGraph(HelpdeskState)
     graph.add_node("trim", make_trim_node(trim_max_tokens))
     graph.add_node("classify", make_classify_node(chat_model))
-    graph.add_node("retrieve", make_retrieve_node(retriever, top_k))
+    graph.add_node("retrieve", make_retrieve_node(retriever, top_k, domain_fallback_margin))
     graph.add_node("grade", make_grade_node(chat_model))
     graph.add_node("generate", make_generate_node(chat_model))
     graph.add_node("decide", make_decide_node(confidence_threshold))

@@ -1,7 +1,7 @@
 ---
 id: backend-rag-domain-fallback
 package: backend
-status: active
+status: completed
 branch: plan/backend/rag-domain-fallback
 issue:
 created: 2026-08-31
@@ -157,7 +157,7 @@ fue negativa).
 
 ## Tasks
 
-- [ ] `backend-rag-domain-fallback-01` (P1) — Fallback de retrieval por baja relevancia con dominio asignado  · depends_on: —
+- [x] `backend-rag-domain-fallback-01` (P1) — Fallback de retrieval por baja relevancia con dominio asignado  · depends_on: —
 
 ## Registro de cambios del plan
 
@@ -198,3 +198,26 @@ fue negativa).
   (concurrencia) N/A — el nodo no tiene estado compartido mutable entre runs en este alcance. (B)
   ninguno — todos los hallazgos fuera de alcance ya estaban correctamente declarados y el subagente los
   confirmó contra los bullets existentes sin aportar ninguno nuevo.
+- 2026-08-31: **plan cerrado** — 1/1 tarea completada.
+
+## Retro de cierre
+
+- **Estimación vs. real**: 0.5-1 sesión estimada; se completó en una sesión continua (incluyendo
+  `/plan-task` completo con `grilling` + `design-review` + `scenario-coverage`).
+- Verificado en vivo contra el backend real (no solo tests): los 3 casos rotos documentados en el
+  contexto ahora generan draft; los 5 casos que ya funcionaban lo siguen haciendo, con
+  `used_fallback=False` en los 5 — sin ninguna regresión detectada.
+- `sdd-lint` semántico encontró un ERROR real de trazabilidad (ADR-0019 no referenciado de vuelta desde
+  CU-BE-05/agent-graph.md) que habría dejado la documentación inconsistente si no se hubiera corregido
+  antes de cerrar — confirma el valor de correr el gate incluso en una tarea de una sola sesión.
+- `fact-checker` encontró un `INCORRECTO` real (formato no aplicado a un test añadido después del
+  `ruff format` inicial) — recordatorio de que el orden de las herramientas importa: formatear DESPUÉS
+  de la última edición, no solo una vez a mitad de la tarea.
+- Mutation testing (`cosmic-ray`) reveló un patrón de mutantes equivalentes específico de este repo/
+  herramienta: el marcador `*,` (keyword-only) en firmas de métodos se mutaba a `/,`/`|,` sin efecto
+  observable (todas las llamadas usan argumentos con nombre) — documentado para no perseguirlo en
+  futuras tareas que toquen `app/rag/retriever.py` o firmas similares.
+- Deuda deliberadamente fuera de alcance (documentada en ADR-0019, no repetida aquí): los 6 huecos de
+  contenido real de la KB detectados en la investigación previa a este plan; la divergencia
+  `ticket.domain` vs. dominio real de las citas cuando el fallback gana; el riesgo agravado del umbral
+  de 50.000 chunks de ADR-0018.

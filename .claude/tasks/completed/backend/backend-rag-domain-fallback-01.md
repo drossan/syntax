@@ -2,11 +2,11 @@
 id: backend-rag-domain-fallback-01
 package: backend
 plan: rag-domain-fallback
-status: active
+status: done
 priority: 1
 depends_on: []
 estimate: 4h
-actual:
+actual: 5h
 issue:
 created: 2026-08-31
 updated: 2026-08-31
@@ -95,22 +95,28 @@ Criterios de aceptación (Gherkin) en el caso de uso:
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida
-- [ ] Lint / format / typecheck OK (`ruff check`, `ruff format --check`, `mypy app` strict)
-- [ ] Gate de mutation testing superado con `cosmic-ray` (referencia no verificada, banner de la skill
-      `mutation`, `break: 80`)
-- [ ] Gate `sdd-lint` superado — CU-BE-05/agent-graph.md/ADR-0019 sin ERROR de formato/completitud
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
-- [ ] Verificación manual contra el backend real (no solo tests):
-  - [ ] Los 3 casos reales documentados en el plan generan draft tras el fix (re-triggerar el agente)
-  - [ ] Control de regresión (`design-review` #2): los 5 tickets de la muestra que ya generaban draft
-        correcto siguen generándolo, con citas que no empeoran
-- [ ] Documentación actualizada:
-  - [ ] TSDoc/docstrings en `retrieve.py`, `retriever.py`, `graph.py`, `runner.py`, `deps.py`,
-        `config.py` donde cambie la firma o se añada el nuevo `Settings`
-  - [ ] Histórico de la tarea — session log en
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (1388 passed)
+- [x] Spec cumplida
+- [x] Lint / format / typecheck OK (`ruff check`, `ruff format --check`, `mypy app` strict)
+- [x] Gate de mutation testing superado con `cosmic-ray` (referencia no verificada, banner de la skill
+      `mutation`, `break: 80`) — `retrieve.py` 100% (0 survivors), `retriever.py` 95.96% (4 survivors,
+      documentados como mutantes equivalentes: marcador `*,` keyword-only mutado a `/,`/`|,`, artefacto
+      de parso/cosmic-ray sin efecto observable — todas las llamadas ya usan argumentos con nombre)
+- [x] Gate `sdd-lint` superado — 1 ERROR (trazabilidad ADR-0019 no referenciada de vuelta desde
+      CU-BE-05/agent-graph.md) y 2 AVISOS de disciplina Gherkin, corregidos
+- [x] Gate de `fact-checker` superado — 9/10 VERIFICADO, 1 INCORRECTO (formato de
+      `test_node_retrieve.py` no aplicado tras un test añadido después del `ruff format` inicial),
+      corregido y reverificado
+- [x] Verificación manual contra el backend real (no solo tests):
+  - [x] Los 3 casos reales documentados en el plan generan draft tras el fix (re-triggerado el agente
+        completo, `classify`→`retrieve`→`grade`→`generate`, contra OpenAI + Postgres/pgvector reales)
+  - [x] Control de regresión (`design-review` #2): los 5 tickets de la muestra que ya generaban draft
+        correcto siguen generándolo, con `used_fallback=False` en los 5 (sin degradación)
+- [x] Documentación actualizada:
+  - [x] TSDoc/docstrings en `retrieve.py`, `retriever.py`, `graph.py`, `runner.py`, `deps.py`,
+        `config.py` donde cambia la firma o se añade el nuevo `Settings`
+  - [x] Histórico de la tarea — session log en
         `.claude/context/backend/backend-rag-domain-fallback-01.md`
-- [ ] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — backend no usa changesets)
+- [x] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — backend no usa changesets)

@@ -59,6 +59,7 @@ class LangGraphAgentRunner:
         top_k: int,
         confidence_threshold: float,
         trim_max_tokens: int,
+        domain_fallback_margin: float,
         langsmith_tracing: bool = False,
         langsmith_api_key: str = "",
         langsmith_project: str = "syntax",
@@ -75,6 +76,7 @@ class LangGraphAgentRunner:
             top_k=top_k,
             confidence_threshold=confidence_threshold,
             trim_max_tokens=trim_max_tokens,
+            domain_fallback_margin=domain_fallback_margin,
         )
         # `langsmith_tracing=True` sin `langsmith_api_key` es tracing desactivado (spec de la tarea
         # 11), no un error — mismo criterio permisivo que `agent_confidence_threshold` sin calibrar.
