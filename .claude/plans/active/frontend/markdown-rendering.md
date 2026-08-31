@@ -169,7 +169,7 @@ ya pedía — no una interpretación nueva.
 
 ## Tasks
 
-- [ ] `frontend-markdown-rendering-01` (P1) — Componente compartido `MarkdownText` con allow-list y garantía anti-XSS  · depends_on: —
+- [x] `frontend-markdown-rendering-01` (P1) — Componente compartido `MarkdownText` con allow-list y garantía anti-XSS  · depends_on: —
 - [ ] `frontend-markdown-rendering-02` (P2) — Renderizar el draft con `MarkdownText` en `ApprovalDecision`  · depends_on: frontend-markdown-rendering-01
 - [ ] `frontend-markdown-rendering-03` (P2) — Renderizar el body del mensaje con `MarkdownText` en `TicketThread`  · depends_on: frontend-markdown-rendering-01
 - [ ] `frontend-markdown-rendering-04` (P3) — Corregir la exclusión de `.tsx`/`src/components/**` en `stryker.config.json`  · depends_on: —

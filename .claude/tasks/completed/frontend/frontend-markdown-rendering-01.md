@@ -2,11 +2,11 @@
 id: frontend-markdown-rendering-01
 package: frontend
 plan: markdown-rendering
-status: active
+status: done
 priority: 1
 depends_on: []
 estimate: 3h
-actual:
+actual: 2h
 issue:
 created: 2026-08-31
 updated: 2026-08-31
@@ -85,23 +85,23 @@ superficies, per `cross-cutting.md` §1 "test mínimo por superficie").
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores) — incl. negrita,
-      lista ordenada Y no ordenada, tabla, encabezado, tachado, código inline/bloque, cita, `hr`,
-      autolink, casilla de tarea GFM (se desenvuelve a texto plano), imagen (con
-      `referrerPolicy`/`loading`/`alt` preservado), enlace (`target`/`rel`), enlace/imagen con
-      `javascript:` neutralizado, el caso adversario del script/HTML embebido, Markdown truncado a
-      mitad de sintaxis, `children` vacío/solo-espacios, y el formato exacto de `_finalize_draft`
-      ("Fuentes:\n- [UC-ID] título (tipo)") end-to-end
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda disponible para las tareas `02`/`03`
-- [ ] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
-- [ ] Gate de mutation testing superado (Stryker, `pnpm exec stryker run --mutate
-      "src/components/markdown-text.tsx"`, `break: 80`)
-- [ ] Gate `sdd-lint` superado — artefactos SDD sin ERROR de formato/completitud (AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
-- [ ] Documentación actualizada:
-  - [ ] TSDoc en `MarkdownText` y su allow-list
-  - [ ] Histórico de la tarea — session log en
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores) — incl. negrita,
+      lista ordenada Y no ordenada, tabla (con estructura thead/tbody/tr/th), encabezado h1-h6,
+      tachado, código inline/bloque, cita, `hr`, párrafo, cursiva, `br`, autolink, casilla de tarea
+      GFM (se desenvuelve a texto plano), imagen (con `referrerPolicy`/`loading`/`alt` preservado),
+      enlace (`target`/`rel`), enlace/imagen con `javascript:` neutralizado, el caso adversario del
+      script/HTML embebido, Markdown truncado a mitad de sintaxis, `children` vacío/solo-espacios, y
+      el formato exacto de `_finalize_draft` ("Fuentes:\n- [UC-ID] título (tipo)") end-to-end
+- [x] Todos los tests en verde (30 en `markdown-text.test.tsx`, 395 en la suite completa)
+- [x] Spec cumplida; lo declarado en `Provides` queda disponible para las tareas `02`/`03`
+- [x] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
+- [x] Gate de mutation testing superado (Stryker, 100%, 0 survivors — primera pasada 58.14%, corregida
+      añadiendo tests para `p`/`em`/`br`/h2-h6/estructura de tabla, que no tenían test dedicado)
+- [x] Gate `sdd-lint` superado — mecánico limpio
+- [x] Gate de `fact-checker` superado — 10/10 afirmaciones VERIFICADO
+- [x] Documentación actualizada:
+  - [x] TSDoc en `MarkdownText` y su allow-list
+  - [x] Histórico de la tarea — session log en
         `.claude/context/frontend/frontend-markdown-rendering-01.md`
-- [ ] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
+- [x] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
