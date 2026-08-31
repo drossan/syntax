@@ -1,7 +1,7 @@
 ---
 id: backend-auto-resolve-ticket
 package: backend
-status: pending
+status: active
 branch: plan/backend/auto-resolve-ticket
 issue:
 created: 2026-08-31
@@ -158,7 +158,7 @@ gateado por `ticket.reopen`, que llame a `TicketService.reopen()` directamente (
 
 ## Tasks
 
-- [ ] `backend-auto-resolve-ticket-01` (P1) — Extraer `TicketService.advance_to()` y migrar `approval_service.decide()`  · depends_on: —
+- [x] `backend-auto-resolve-ticket-01` (P1) — Extraer `TicketService.advance_to()` y migrar `approval_service.decide()`  · depends_on: —
 - [ ] `backend-auto-resolve-ticket-02` (P2) — Encadenar el camino auto a `resolved` en `respond.py` (usa `advance_to()`)  · depends_on: backend-auto-resolve-ticket-01
 - [ ] `backend-auto-resolve-ticket-03` (P2) — RBAC: nueva capacidad `ticket.reopen` + endpoint dedicado  · depends_on: —
 

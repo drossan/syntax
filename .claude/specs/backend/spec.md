@@ -77,8 +77,9 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-030** — Cuando se reabre un ticket, el sistema DEBERÁ lanzar un **run nuevo** (`run_seq=n+1`, thread nuevo), dejando el anterior superado.
 - **FR-031** — El sistema DEBERÁ tratar el contenido del ticket como **input no confiable** (aislado del system-prompt; sin ejecutar instrucciones embebidas) y persistir la traza en `agent_run.langsmith_trace_url`.
 - **FR-040** — Si ya hay un `agent_run` no-terminal (`queued`/`running`) para el ticket, o el tenant excede el límite de tasa de `ai-draft` en la ventana actual, entonces el sistema DEBERÁ rechazar el disparo (**409**/**429** respectivamente) sin crear un `agent_run` nuevo.
-- **FR-057** — Cuando `respond` publica en el camino **auto** (`decide.requires_approval=false`), el sistema DEBERÁ encadenar la transición del ticket hasta `resolved` (recorriendo `_VALID_TRANSITIONS` desde el estado actual, nunca saltando aristas) **antes** de publicar el `message`; si el ticket ya está en `resolved`/`closed`, DEBERÁ publicar sin intentar ninguna transición.
+- **FR-057** — Cuando `respond` publica en el camino **auto** (`decide.requires_approval=false`), el sistema DEBERÁ encadenar la transición del ticket hasta `resolved` (recorriendo `_VALID_TRANSITIONS` desde el estado actual, nunca saltando aristas) **antes** de publicar el `message`.
 - **FR-058** — El sistema DEBERÁ exponer una capacidad `ticket.reopen`, distinta y más estrecha que `ticket.transition`, que habilite **únicamente** `{resolved,closed}→reopened` — nunca ningún otro destino.
+- **FR-059** — Si el ticket ya está en `resolved`/`closed` cuando el camino auto publica, entonces el sistema DEBERÁ publicar el `message` sin intentar ninguna transición.
 
 ### KB: ingestión y retrieval — [[../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]] · [[../adr/0018-retrieval-http-de-la-kb-ventana-dedup-y-peso-de-estado]]
 

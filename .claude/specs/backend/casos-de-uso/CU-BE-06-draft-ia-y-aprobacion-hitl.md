@@ -1,6 +1,6 @@
 # CU-BE-06 — Draft IA y aprobación HITL
 
-> **SDD** (Cockburn + Gherkin). CÓMO para FR-022, FR-026…FR-031, FR-040, FR-057, FR-058 de
+> **SDD** (Cockburn + Gherkin). CÓMO para FR-022, FR-026…FR-031, FR-040, FR-057…FR-059 de
 > [`../spec.md`](../spec.md). **Núcleo de riesgo**. Decisiones:
 > [[../../adr/0007-hitl-asincrono-postgressaver-checkpointer]] ·
 > [[../../adr/0019-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]. Detalle:
@@ -98,7 +98,7 @@
 - **RN-5** (FR-040) — El disparo de `ai-draft` está acotado por un límite de tasa por tenant y ventana; excederlo rechaza el disparo sin crear ningún `agent_run` (rate-limiting in-memory por proceso, limitación multi-proceso documentada y no resuelta).
 - **RN-6** (FR-057) — El camino auto transiciona el ticket **antes** de publicar el mensaje; un fallo de transición aborta la publicación (nunca publica sobre un estado a medias).
 - **RN-7** (FR-057) — El encadenado hacia `resolved` parte del estado ACTUAL del ticket y solo recorre aristas ya válidas de `_VALID_TRANSITIONS` (CU-BE-04) — nunca fuerza un salto no cubierto por la máquina de estados.
-- **RN-8** (FR-057) — Si el ticket ya está en `resolved`/`closed` cuando el camino auto publica, no se intenta ninguna transición.
+- **RN-8** (FR-059) — Si el ticket ya está en `resolved`/`closed` cuando el camino auto publica, no se intenta ninguna transición.
 - **RN-9** (FR-058) — `ticket.reopen` es una capacidad distinta de `ticket.transition`, acotada por el servicio a `{resolved,closed}→reopened` exclusivamente — ningún otro destino es alcanzable con ella.
 - **RN-11** (FR-058, `scenario-coverage`) — Reabrir un ticket que no está en `{resolved,closed}` con la capacidad presente es **409**, no 403 — el 403 es exclusivo de la ausencia de capacidad; el 409 es exclusivo de un estado de origen inválido.
 - **RN-12** (FR-058, `scenario-coverage`) — El aislamiento cross-tenant de `ticket.reopen` sigue el mismo criterio que el resto de endpoints de ticket: un ticket de otro tenant (o inexistente) da 404, nunca 403 ni 200.
@@ -191,10 +191,17 @@ Feature: Draft IA y aprobación HITL
     When intenta transicionar un ticket a un destino distinto de reopened
     Then el sistema responde 403
 
-  Scenario: Reabrir un ticket que no está en un estado válido para ello es un conflicto
-    Given un ticket new, open, pending o reopened y un sujeto con la capacidad ticket.reopen
+  Scenario Outline: Reabrir un ticket que no está en un estado válido para ello es un conflicto
+    Given un ticket <estado_inicial> y un sujeto con la capacidad ticket.reopen
     When ese sujeto intenta reabrirlo
     Then el sistema responde 409 y el ticket no cambia de estado
+
+    Examples:
+      | estado_inicial |
+      | new            |
+      | open           |
+      | pending        |
+      | reopened       |
 
   Scenario: Reabrir un ticket de otro tenant no revela que existe
     Given un ticket resolved perteneciente a otro tenant
