@@ -56,11 +56,12 @@ aprobación humana**, todo navegable por rol y tenant.
 - **FR-016** — Si la acción es destructiva (rechazar draft, cerrar ticket, borrar user/tenant), entonces el sistema DEBERÁ pedir **confirmación** antes de ejecutarla.
 - **FR-017** — El sistema DEBERÁ mostrar los adjuntos en **solo lectura** (sin subida en Fase 1).
 
-### Flujo IA — [[../adr/0007-hitl-asincrono-postgressaver-checkpointer]] · [[../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]]
+### Flujo IA — [[../adr/0007-hitl-asincrono-postgressaver-checkpointer]] · [[../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]] · [[../adr/0019-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]
 
 - **FR-018** — El sistema DEBERÁ mostrar la **cola de aprobaciones** ordenada por SLA/confianza.
 - **FR-019** — Cuando se dispara un draft, el sistema DEBERÁ hacer **polling** de `GET /agent-runs` hasta `succeeded`/`failed`, con estado de carga y **reintento** ante `failed`.
 - **FR-020** — Cuando el agente decide, el sistema DEBERÁ permitir **aprobar, editar o rechazar** el borrador con **nota-al-humano** (confirm en rechazar).
+- **FR-029** — Cuando el `AgentRun` de un ticket llega a `succeeded` por el camino auto, el sistema DEBERÁ invalidar la caché del ticket (mensajes + cabecera) sin que el usuario recargue ni interactúe.
 
 ### KB, admin y transversales
 
