@@ -1,7 +1,7 @@
 ---
 id: frontend-ticket-thread-live-refresh
 package: frontend
-status: pending
+status: completed
 branch: plan/frontend/ticket-thread-live-refresh
 issue:
 created: 2026-08-31
@@ -95,7 +95,7 @@ dura entre ambos: esta pieza vale igual aunque el ticket no cambie de estado).
 
 ## Tasks
 
-- [ ] `frontend-ticket-thread-live-refresh-01` (P1) — Invalidar el hilo cuando el AgentRun llega a `succeeded`  · depends_on: —
+- [x] `frontend-ticket-thread-live-refresh-01` (P1) — Invalidar el hilo cuando el AgentRun llega a `succeeded`  · depends_on: —
 
 ## Registro de cambios del plan
 
@@ -132,3 +132,35 @@ dura entre ambos: esta pieza vale igual aunque el ticket no cambie de estado).
   3. Nombrado, no incorporado: falta de señal a11y/visual (toast, `aria-live`) cuando el mensaje
      llega en silencio — cae contra "no rediseñar `AiDraftPanel` más allá del `useEffect`
      necesario"; el owner no lo pidió, queda fuera de esta tarea.
+- 2026-08-31: tarea `01` cerrada. TDD + mutation (Stryker 84.48%) + `sdd-lint` + `fact-checker` (10/10)
+  + verificación manual contra el backend real. Plan movido a `completed/` (única tarea).
+
+## Nota retro
+
+- **Estimación vs. real**: 3h estimadas, ~4h reales. El exceso no vino del mecanismo en sí (la
+  implementación inicial del `useEffect` fue rápida) sino de dos rondas de endurecimiento que NINGUNA
+  fase de planificación (`grilling`/`design-review`/`scenario-coverage`) podía haber anticipado sin
+  ejecutar código: (1) el mutation testing reveló que `stryker.config.json` excluye TODOS los `.tsx`
+  del repo (`"!src/**/*.tsx"` en `mutate`) — este componente nunca había sido mutado de verdad hasta
+  esta tarea, así que además de las mutaciones de mi código nuevo, aparecieron ~15 survivors en
+  código YA EXISTENTE sin cubrir; (2) la verificación manual contra el backend real reprodujo un bug
+  genuino (`POST /ai-draft` corre síncrono, un run puede llegar `succeeded` en el primer poll) que el
+  diseño original no contemplaba — ninguna de las 3 pasadas de revisión lo vio porque ninguna ejecuta
+  código contra un backend real.
+- **Hallazgo de proceso, no solo de código**: la pasada de `scenario-coverage` fijó explícitamente el
+  Gherkin 5c ("montar con un run ya succeeded no invalida por sí solo") sin que nadie notara que la
+  implementación más simple para cumplirlo (exigir un `status` previo definido) rompía el escenario
+  MÁS común del feature (el botón "Generar borrador", camino 5a) — los dos escenarios son
+  indistinguibles a nivel de transición de `status` observada, y solo la verificación manual contra
+  el backend REAL (no MSW) lo sacó a la luz. Refuerza el valor de la verificación manual como gate
+  no-opcional, no solo ritual: aquí encontró un bug que 15 tests con mocks no habían detectado porque
+  el mock, sin querer, siempre modelaba una transición `running→succeeded` en vez del `succeeded`
+  directo que el backend real produce.
+- **Config del repo, no de esta tarea (señalado, no corregido)**: `frontend/stryker.config.json`
+  excluye todos los `.tsx` de mutation — probablemente un descuido de bootstrap del repo (el patrón
+  `"!src/**/*.tsx"` anula la inclusión de `.tsx` de la línea anterior). Corregirlo activaría mutation
+  real en TODOS los componentes React del repo de golpe, con un volumen de survivors pendientes fuera
+  del alcance de esta tarea — decisión del owner, no tomada aquí.
+- **Dependencias no vistas**: ninguna con el plan backend paralelo (`auto-resolve-ticket`) — se
+  verificó en vivo que ambos funcionan juntos (ticket auto-resuelto + hilo refrescado sin recargar)
+  sin fricción.

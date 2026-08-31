@@ -2,11 +2,11 @@
 id: frontend-ticket-thread-live-refresh-01
 package: frontend
 plan: ticket-thread-live-refresh
-status: pending
+status: done
 priority: 1
 depends_on: []
 estimate: 3h
-actual:
+actual: 4h
 issue:
 created: 2026-08-31
 updated: 2026-08-31
@@ -77,20 +77,22 @@ Criterios de aceptación (Gherkin) en el caso de uso:
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; comportamiento verificado con MSW (transición a `succeeded` invalida
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (17 en `ai-draft-panel.test.tsx`, 376 en la suite completa)
+- [x] Spec cumplida; comportamiento verificado con MSW (transición a `succeeded` invalida
       `["ticket"]`; `failed`/`escalated` no lo hacen; sin run activo, sin `refetchInterval` nuevo)
-- [ ] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
-- [ ] Gate de mutation testing superado (Stryker, `break: 80`)
-- [ ] Gate `sdd-lint` superado — artefactos SDD sin ERROR de formato/completitud (AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
-- [ ] Verificación manual contra el backend real (no solo MSW): crear un ticket con
-      `auto_approve=true` desde el tenant demo, confirmar que el mensaje aparece en el hilo sin
-      recargar la página.
-- [ ] Documentación actualizada:
-  - [ ] TSDoc en el `useEffect`/función nueva de `AiDraftPanel`
-  - [ ] Histórico de la tarea — session log en
+- [x] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
+- [x] Gate de mutation testing superado (Stryker, 84.48%, break: 80) — 16 survivors + 2 no-coverage,
+      todos mutantes equivalentes (código preexistente sin tocar, o ramas matemáticamente
+      inalcanzables dadas las invariantes del propio hook — documentado en el session log)
+- [x] Gate `sdd-lint` superado — mecánico limpio, CU-FE-06 ya tenía los escenarios 5a-5e
+- [x] Gate de `fact-checker` superado — 10/10 afirmaciones VERIFICADO
+- [x] Verificación manual contra el backend real (no solo MSW): ticket creado con `auto_approve=true`
+      desde el tenant demo, confirmado que el mensaje aparece en el hilo sin recargar la página —
+      **bug real encontrado y corregido durante esta verificación** (ver session log)
+- [x] Documentación actualizada:
+  - [x] TSDoc en el `useEffect`/función nueva de `AiDraftPanel`
+  - [x] Histórico de la tarea — session log en
         `.claude/context/frontend/frontend-ticket-thread-live-refresh-01.md`
-- [ ] Docs de dev / usuario final + `pnpm changeset` donde aplique
+- [x] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)

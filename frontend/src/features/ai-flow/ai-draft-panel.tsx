@@ -1,7 +1,8 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Can } from "@/features/rbac/can";
 
@@ -33,6 +34,7 @@ export function AiDraftPanel({
   pollMs?: number;
 }) {
   const t = useTranslations("aiDraft");
+  const queryClient = useQueryClient();
   const trigger = useTriggerDraft(ticketId);
   // Reusa `pollMs` también para el intervalo de reintento del descubrimiento (mismo prop que ya
   // aceptan los tests para acelerar el polling — no duplica una segunda prop para lo mismo).
@@ -42,6 +44,17 @@ export function AiDraftPanel({
   // descubrimiento inicial. Derivado en render, sin `useEffect`: evita el cascading-render de
   // `setState` dentro de un efecto (react-hooks/set-state-in-effect).
   const [triggeredRunId, setTriggeredRunId] = useState<string | null>(null);
+  // Ajuste de estado DURANTE el render (mismo patrón que `useActiveAgentRun` — no un `useEffect`,
+  // evita el cascading-render de `setState` dentro de un efecto, `react-hooks/set-state-in-effect`):
+  // si `TicketDetail` no desmonta este panel al navegar entre tickets (App Router no lo garantiza —
+  // el mismo componente puede seguir vivo con un `ticketId` nuevo), un `triggeredRunId` disparado
+  // para el ticket ANTERIOR seguiría "ganando" sobre el descubrimiento del nuevo ticket. Bug real,
+  // reproducido con un test que cambia `ticketId` sin desmontar.
+  const [seenTicketId, setSeenTicketId] = useState(ticketId);
+  if (ticketId !== seenTicketId) {
+    setSeenTicketId(ticketId);
+    setTriggeredRunId(null);
+  }
   const runId = triggeredRunId ?? activeRun.data?.id ?? null;
   const run = useAgentRun(runId, pollMs);
 
@@ -55,6 +68,44 @@ export function AiDraftPanel({
   // (bug real, reproducido en vivo: "Generar borrador" aparecía a ráfagas durante casi toda la
   // ventana de descubrimiento), `stillSearching` no.
   const discovering = triggeredRunId === null && activeRun.stillSearching;
+
+  // Invalida la caché del ticket (prefijo `["ticket"]` — hilo + cabecera, mismo patrón que
+  // `use-approval-decision.ts`) al observar una TRANSICIÓN a `succeeded`, para que el hilo se
+  // refresque solo cuando la auto-respuesta ya se publicó.
+  //
+  // `POST /tickets/{id}/ai-draft` corre SÍNCRONO (`agent.py`: "la respuesta 202 puede llegar con el
+  // run ya succeeded") — reproducido en vivo: un run disparado por ESTE cliente (botón "Generar
+  // borrador"/"Reintentar") puede llegar a `succeeded` en el PRIMER poll, sin pasar antes por
+  // `running`. Exigir un `status` previo definido (como hacía una versión anterior de este efecto)
+  // bloqueaba justo ese caso real — el escenario más común del botón, no un borde. Por eso el run
+  // DISPARADO por este cliente (`triggeredRunId === runId`) invalida en cuanto lo ve `succeeded`,
+  // sin exigir una transición previa observada.
+  //
+  // Un run DESCUBIERTO (`activeRun.data`, nunca disparado por este cliente — típicamente
+  // `tenant.ai_auto_draft` en la creación del ticket) sigue exigiendo `previous.status` definido:
+  // sin esto, montar el panel sobre un ticket cuyo run YA estaba `succeeded` antes de esta visita
+  // dispararía una invalidación redundante en cada visita/remontaje (el mensaje ya viene en la carga
+  // inicial del hilo). `previousRef.ticketId !== ticketId` bloquea además el primer render de un
+  // ticket nuevo aunque el `ref` traiga el `status` de un ticket anterior (cambiar a un ticket recién
+  // descubierto como `succeeded` no debe heredar el `status` distinto del anterior). Un efecto
+  // normal, no el patrón "comparar-sin-efecto" de `useActiveAgentRun` — aquí el efecto colateral es
+  // una llamada de red externa (`invalidateQueries`), no un `setState` local, así que corre fuera
+  // del render.
+  const previousRef = useRef<{ ticketId: string; status: typeof status } | null>(null);
+  useEffect(() => {
+    const previous = previousRef.current;
+    const sameTicket = previous !== null && previous.ticketId === ticketId;
+    const triggeredByThisClient = triggeredRunId !== null && triggeredRunId === runId;
+    const transitionedToSucceeded =
+      sameTicket &&
+      status === "succeeded" &&
+      previous.status !== "succeeded" &&
+      (triggeredByThisClient || previous.status !== undefined);
+    if (transitionedToSucceeded) {
+      void queryClient.invalidateQueries({ queryKey: ["ticket"] });
+    }
+    previousRef.current = { ticketId, status };
+  }, [ticketId, runId, status, triggeredRunId, queryClient]);
 
   function generate() {
     trigger.mutate(undefined, { onSuccess: (agentRun) => setTriggeredRunId(agentRun.id ?? null) });
