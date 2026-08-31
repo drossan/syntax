@@ -96,6 +96,13 @@ Estado tipado (`TypedDict`/Pydantic) con reducer `add_messages` en `messages`:
 - `resoluble=false` → el ticket no es auto-resoluble por KB (escala directo a humano, sin generate).
 - **Ticket no clasificable con confianza** (dominio incierto) → **fallback**: retrieval **sin filtro de
   dominio** (no forzar uno equivocado); se marca baja confianza de clasificación (§Refuerzos).
+- **Dominio asignado pero equivocado** (plan `rag-domain-fallback`, CU-BE-05 extensión 1c): a diferencia
+  del caso anterior, aquí SÍ hay un dominio con aparente confianza, pero el documento que responde a la
+  pregunta vive en otro de los 17 (frontera de taxonomía ambigua — verificado con casos reales donde el
+  score filtrado ya superaba el umbral de confianza y aun así era el dominio equivocado). `retrieve`
+  reintenta **siempre** sin filtro cuando hay dominio asignado, y usa ese resultado si mejora
+  significativamente sobre el filtrado (`Settings.rag_domain_fallback_margin`, sin mezclar ambas
+  listas). No corrige `ticket.domain`/`ticket.priority` persistidos.
 
 ## 5. Confianza híbrida (consume 04)
 

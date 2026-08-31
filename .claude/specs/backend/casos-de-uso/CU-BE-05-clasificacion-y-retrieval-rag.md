@@ -51,6 +51,13 @@
 ## Extensiones (flujos alternativos y de error)
 
 - **1a.** Ticket **no clasificable** con confianza: `retrieve` opera **sin filtro de dominio** (fallback) y se marca baja confianza.
+- **1c.** (plan `rag-domain-fallback`, 2026-08-31) Ticket **clasificable** con dominio asignado, pero el
+  dominio es el equivocado (frontera de taxonomía ambigua — el mismo concepto vive en varios de los 17
+  dominios): `retrieve` reintenta **siempre** sin filtro de dominio (no solo cuando el score filtrado
+  parece bajo — un caso real observado con score 0.611, ya por encima del umbral de confianza, seguía
+  siendo el dominio equivocado) y usa ese resultado si mejora significativamente sobre el filtrado
+  (margen configurable, `Settings.rag_domain_fallback_margin`). No se mezclan ambas listas de hits. No
+  se corrige `ticket.domain`/`ticket.priority` persistidos — solo cambia qué se recupera para responder.
 - **1b.** `resoluble=false`: se escala directo a humano sin `generate`.
 - **3a.** Confianza `< umbral` o `grade.suficiente=false`: se **escala** con `human_note` (contexto insuficiente).
 - **2a.** El corpus es 81% `draft`: el peso de `estado` es re-ranking, **no** filtro duro (no vacía el retrieval).
@@ -90,4 +97,77 @@ Feature: Clasificación y retrieval RAG
     Given un conjunto recuperado con confianza suficiente
     When el agente prepara el borrador
     Then el resultado incluye citas con uc_id, título y tipo de sección
+
+  Scenario: El dominio asignado pero equivocado no bloquea el retrieval de la respuesta correcta
+    Given un ticket clasificado con un dominio asignado (con confianza) que no es el dominio real del
+      documento que responde a la pregunta
+    When el agente recupera contexto
+    Then reintenta sin filtro de dominio, y si el resultado sin filtro mejora significativamente sobre
+      el filtrado, usa ese resultado completo para el resto del run
+
+  Scenario: El dominio asignado y correcto no se sustituye por ruido del resto del corpus
+    Given un ticket clasificado con el dominio correcto, cuyo retrieval filtrado ya es suficiente
+    When el agente recupera contexto y compara contra la búsqueda sin filtro
+    Then la mejora sin filtro no supera el margen configurado y se mantiene el resultado filtrado
+
+  Scenario Outline: El reintento sin filtro se ejecuta siempre que hay dominio asignado, independientemente del score filtrado
+    Given un ticket clasificado con dominio asignado y un score máximo filtrado de <score_filtrado>
+    When el agente recupera contexto
+    Then se ejecuta una segunda búsqueda sin filtro de dominio para poder comparar
+
+    Examples:
+      | score_filtrado |
+      | 0.384          |
+      | 0.611          |
+      | 0.66           |
+
+  Scenario: El retrieval filtrado sin resultados no bloquea la comparación con el sin-filtro
+    Given un ticket clasificado con un dominio asignado cuya búsqueda filtrada no devuelve ningún hit
+    When el agente recupera contexto
+    Then la comparación usa 0.0 como score máximo filtrado, sin lanzar error
+    And si el resultado sin filtro mejora sobre el margen, se usa ese resultado
+
+  Scenario: Ni el retrieval filtrado ni el sin filtro encuentran nada
+    Given un ticket clasificado con dominio asignado sin ningún hit en la KB, con o sin filtro
+    When el agente recupera contexto
+    Then se mantiene el resultado filtrado (vacío) y no se lanza ningún error
+
+  Scenario: Una mejora exactamente igual al margen no dispara el fallback
+    Given un ticket clasificado con dominio asignado cuya mejora sin filtro es exactamente igual a
+      rag_domain_fallback_margin
+    When el agente recupera contexto
+    Then se mantiene el resultado filtrado (el margen es estrictamente mayor, no mayor o igual)
+
+  Scenario Outline: El margen configurado, no un valor fijo, decide si el fallback se usa
+    Given un ticket clasificado con dominio asignado, una mejora sin filtro de <delta>, y
+      rag_domain_fallback_margin configurado a <margen>
+    When el agente recupera contexto
+    Then el resultado usado es <resultado>
+
+    Examples:
+      | delta | margen | resultado  |
+      | 0.10  | 0.05   | sin filtro |
+      | 0.10  | 0.20   | filtrado   |
+
+  Scenario: Un fallo en la segunda búsqueda (sin filtro) no se enmascara con el resultado filtrado
+    Given un ticket clasificado con dominio asignado cuya búsqueda filtrada tiene éxito
+    And la segunda búsqueda sin filtro de dominio falla (proveedor caído)
+    When el agente recupera contexto
+    Then el fallo se propaga y el run no continúa con un resultado silenciosamente incompleto
+
+  Scenario: El vector de la consulta se reutiliza entre la búsqueda filtrada y la sin filtro
+    Given un ticket clasificado con un dominio asignado
+    When el agente recupera contexto y se ejecuta el reintento sin filtro
+    Then la consulta se embebe una única vez y ambas búsquedas usan ese mismo vector
+
+  Scenario: Sin dominio asignado no se ejecuta una segunda búsqueda
+    Given un ticket cuyo dominio no puede determinarse con confianza
+    When el agente recupera contexto
+    Then se ejecuta una única búsqueda (sin filtro), sin comparación ni reintento adicional
+
+  Scenario: Toda comparación con dominio asignado se registra, dispare o no el fallback
+    Given un ticket clasificado con dominio asignado
+    When el agente recupera contexto y compara filtrado contra sin filtro
+    Then se registra un log con el ticket, el dominio original, ambos scores máximos y si se usó el fallback
+    And esto ocurre igual si el margen se supera que si no
 ```
