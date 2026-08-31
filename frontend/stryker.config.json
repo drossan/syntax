@@ -8,12 +8,12 @@
   "mutate": [
     "src/lib/**/*.{ts,tsx}",
     "src/features/**/*.{ts,tsx}",
+    "src/components/**/*.{ts,tsx}",
     "src/middleware.ts",
     "src/mocks/contract/validate.ts",
     "!src/**/*.{test,spec}.{ts,tsx}",
     "!src/**/*.d.ts",
-    "!src/lib/utils.ts",
-    "!src/**/*.tsx"
+    "!src/lib/utils.ts"
   ],
   "thresholds": { "high": 90, "low": 80, "break": 80 }
 }

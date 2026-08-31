@@ -1,7 +1,7 @@
 ---
 id: frontend-markdown-rendering
 package: frontend
-status: active
+status: completed
 branch: plan/frontend/markdown-rendering
 issue:
 created: 2026-08-31
@@ -172,7 +172,7 @@ ya pedía — no una interpretación nueva.
 - [x] `frontend-markdown-rendering-01` (P1) — Componente compartido `MarkdownText` con allow-list y garantía anti-XSS  · depends_on: —
 - [x] `frontend-markdown-rendering-02` (P2) — Renderizar el draft con `MarkdownText` en `ApprovalDecision`  · depends_on: frontend-markdown-rendering-01
 - [x] `frontend-markdown-rendering-03` (P2) — Renderizar el body del mensaje con `MarkdownText` en `TicketThread`  · depends_on: frontend-markdown-rendering-01
-- [ ] `frontend-markdown-rendering-04` (P3) — Corregir la exclusión de `.tsx`/`src/components/**` en `stryker.config.json`  · depends_on: —
+- [x] `frontend-markdown-rendering-04` (P3) — Corregir la exclusión de `.tsx`/`src/components/**` en `stryker.config.json`  · depends_on: —
 
 ## Registro de cambios del plan
 
@@ -243,3 +243,27 @@ ya pedía — no una interpretación nueva.
      de edición si el draft cambia en vivo (preexistente, no de este plan); auditoría a11y completa
      (deuda ya conocida del repo, no de este plan); `overflow-wrap` de palabras largas (cosmético);
      reutilización del componente sin fuga de estado (trivial, componente puro).
+- 2026-08-31: **plan cerrado** — 4/4 tareas completadas.
+
+## Retro de cierre
+
+- **Estimación vs. real**: 1-1.5 sesiones estimadas; se completó en una sesión continua (incluyendo
+  `/plan-task` completo con `grilling` + `design-review` + `scenario-coverage`).
+- Las 4 tareas cerraron en verde (TDD + mutation ≥80% en 01-03; 04 es config, gate N/A) y con
+  verificación manual contra el backend real en 01, 02 y 03 (draft real del LLM formateado en la
+  cola de aprobaciones y en el hilo, con capturas y `outerHTML` confirmando estructura real
+  `<ol>/<li>/<strong>`).
+- El hallazgo más valioso del pipeline fue el de `design-review` sobre `stryker.config.json` — pero
+  su afirmación concreta ("el gate no puede cubrir `.tsx`") era **incorrecta**: se verificó en vivo
+  que `--mutate` ignora las exclusiones del config. La corrección real (higiene del repo, tarea `04`)
+  se hizo igualmente a petición del owner, y confirmó al ejecutar el run completo sin acotar: score
+  **70.31%**, bajo `break: 80` — evidencia de que hay mutation testing real pendiente sobre `.tsx` ya
+  existentes que nunca se había ejecutado hasta ahora.
+- **Follow-up para el owner, fuera de este plan**: llevar el `pnpm exec stryker run` sin acotar
+  (ahora que cubre todos los `.tsx`) a `break: 80` — ver
+  `.claude/context/frontend/frontend-markdown-rendering-04.md` para el desglose de los ficheros con
+  peor cobertura (`tickets-table.tsx` 31.75%, `ticket-create-form.tsx` 57.41%,
+  `shell/theme-provider.tsx` 55%, entre otros).
+- Deuda deliberadamente fuera de alcance (documentada arriba, no repetida): sanitización de HTML
+  crudo vía `rehype-raw`, casillas de tarea GFM interactivas, Markdown en otros campos de texto
+  libre del producto.

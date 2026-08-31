@@ -2,11 +2,11 @@
 id: frontend-markdown-rendering-04
 package: frontend
 plan: markdown-rendering
-status: pending
+status: done
 priority: 3
 depends_on: []
 estimate: 0.5h
-actual:
+actual: 0.7h
 issue:
 created: 2026-08-31
 updated: 2026-08-31
@@ -58,17 +58,17 @@ la tarea — no se commitea) confirma que `pnpm exec stryker run` **sin** `--mut
 
 ## Definition of Done
 
-- [ ] Spec cumplida — diff mínimo, sin tocar nada más del fichero
-- [ ] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`) — sin impacto esperado, se verifica
+- [x] Spec cumplida — diff mínimo, sin tocar nada más del fichero
+- [x] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`) — sin impacto esperado, se verifica
       igual
-- [ ] Verificación funcional del glob corregido (ver `## Scenarios`), sin dejar ningún fichero de
+- [x] Verificación funcional del glob corregido (ver `## Scenarios`), sin dejar ningún fichero de
       prueba commiteado
-- [ ] Gate de mutation testing: N/A — esta tarea modifica el propio config de mutation testing, no
+- [x] Gate de mutation testing: N/A — esta tarea modifica el propio config de mutation testing, no
       código de producción con lógica que mutar
-- [ ] Gate `sdd-lint` superado — artefactos SDD sin ERROR de formato/completitud (AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
-- [ ] Documentación actualizada:
-  - [ ] Histórico de la tarea — session log en
+- [x] Gate `sdd-lint` superado — artefactos SDD sin ERROR de formato/completitud (AVISO se reconoce)
+- [x] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
+- [x] Documentación actualizada:
+  - [x] Histórico de la tarea — session log en
         `.claude/context/frontend/frontend-markdown-rendering-04.md`, incluyendo la nota explícita
         para el owner sobre el volumen de survivors pendiente en el `pnpm exec stryker run` sin acotar
-- [ ] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
+- [x] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
