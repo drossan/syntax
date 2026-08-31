@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { MarkdownText } from "@/components/markdown-text";
 import type { components } from "@/types/api";
 
 import { isPending, noteProvided } from "./approval-status";
@@ -67,7 +68,9 @@ export function ApprovalDecision({
 
   return (
     <div className="flex flex-col gap-3">
-      <blockquote className="whitespace-pre-wrap border-l-2 pl-3 text-sm">{approval.draft_body}</blockquote>
+      <blockquote className="border-l-2 pl-3 text-sm">
+        <MarkdownText>{approval.draft_body ?? ""}</MarkdownText>
+      </blockquote>
 
       {editing ? (
         <div className="flex flex-col gap-2">

@@ -2,11 +2,11 @@
 id: frontend-markdown-rendering-02
 package: frontend
 plan: markdown-rendering
-status: pending
+status: done
 priority: 2
 depends_on: [frontend-markdown-rendering-01]
 estimate: 1.5h
-actual:
+actual: 1.5h
 issue:
 created: 2026-08-31
 updated: 2026-08-31
@@ -54,18 +54,20 @@ Criterios de aceptación (Gherkin) en el caso de uso:
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida
-- [ ] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
-- [ ] Gate de mutation testing superado (Stryker, `pnpm exec stryker run --mutate
-      "src/features/approvals/approval-decision.tsx"`, `break: 80`)
-- [ ] Gate `sdd-lint` superado — artefactos SDD sin ERROR de formato/completitud (AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
-- [ ] Verificación manual contra el backend real: un draft real del LLM (con negrita/listas) se ve
-      formateado en la cola de aprobaciones.
-- [ ] Documentación actualizada:
-  - [ ] Histórico de la tarea — session log en
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (13 en `approval-decision.test.tsx`, 402 en la suite completa)
+- [x] Spec cumplida
+- [x] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
+- [x] Gate de mutation testing superado (Stryker, 80.30% — primera pasada 77.27%, corregida con tests
+      para `draft_body` ausente/blockquote vacío y `onRetry`; 12 survivors restantes son preexistentes,
+      fuera de las 2 líneas tocadas por esta tarea)
+- [x] Gate `sdd-lint` superado — mecánico limpio
+- [x] Gate de `fact-checker` superado — 8/8 afirmaciones VERIFICADO
+- [x] Verificación manual contra el backend real: draft real del LLM (tema embeddings, negrita +
+      lista numerada + fuentes) confirmado formateado (`<ol>`/`<li>`/`<strong>`/`<p>` reales) en la
+      cola de aprobaciones — capturado con DevTools contra el backend real.
+- [x] Documentación actualizada:
+  - [x] Histórico de la tarea — session log en
         `.claude/context/frontend/frontend-markdown-rendering-02.md`
-- [ ] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
+- [x] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
