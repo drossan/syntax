@@ -30,7 +30,10 @@
 
 ## Escenario principal (éxito)
 
-1. El usuario crea un ticket → estado `new` en su tenant.
+1. El usuario crea un ticket → estado `new` en su tenant. Si `tenant.ai_auto_draft` está activo
+   (default `true`), esto además dispara `agent.trigger` automáticamente ([CU-BE-06](./CU-BE-06-draft-ia-y-aprobacion-hitl.md))
+   — el ticket sigue en `new` (crear ≠ tomar), best-effort (un fallo del disparo IA no bloquea la
+   creación).
 2. El agente lo toma (`open`), responde (mensaje `public`) y ajusta prioridad/asignación.
 3. El agente lo marca `resolved` y luego `closed`.
 4. Cada mutación se registra en `audit_log`.

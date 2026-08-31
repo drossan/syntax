@@ -70,3 +70,15 @@ class AgentService:
         if run is None:
             raise NotFound(f"agent_run {agent_run_id} no existe", code="agent_run.not_found")
         return run
+
+    async def get_active_for_ticket(self, ticket_id: uuid.UUID) -> AgentRun | None:
+        """`GET /tickets/{id}/agent-runs/active`: el run no-terminal (`queued`/`running`) de
+        `ticket_id`, o `None` si no hay ninguno — a diferencia de `get()`, "sin run activo" es un
+        resultado legítimo (p.ej. nadie lo ha disparado todavía), nunca `NotFound`. Reutiliza el
+        mismo pre-check de `trigger()` (`AgentRunRepository.get_active_for_ticket`), no duplica lógica.
+
+        Cierra el gap de descubrimiento: con `tenant.ai_auto_draft` el run se crea en el servidor sin
+        que el cliente lo dispare, así que nunca recibe el `id` en la respuesta de `POST /tickets` —
+        sin este método, un cliente que abre el ticket tras el auto-disparo no tiene forma de saber
+        que ya hay un draft en curso."""
+        return await self._agent_runs.get_active_for_ticket(ticket_id)

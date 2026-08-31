@@ -66,3 +66,16 @@ async def get_agent_run(
     _subject, _session = subject_session
     run = await agent_service.get(id)
     return _to_schema(run)
+
+
+@router.get("/tickets/{id}/agent-runs/active")
+async def get_active_agent_run(
+    id: uuid.UUID,
+    subject_session: tuple[Subject, AsyncSession] = Depends(
+        require_any_capability(*_READ_CAPABILITIES)
+    ),
+    agent_service: AgentService = Depends(get_agent_service),
+) -> AgentRunSchema | None:
+    _subject, _session = subject_session
+    run = await agent_service.get_active_for_ticket(id)
+    return _to_schema(run) if run is not None else None

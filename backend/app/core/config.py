@@ -51,8 +51,16 @@ class Settings(BaseSettings):
     (validación perezosa: el adaptador falla al primer uso real, no aquí)."""
 
     chat_model: str = "gpt-4o-mini"
-    """Modelo de chat/clasificación (structured output). Sin adaptador real todavía en este plan
-    (`OpenAIChatModel` sigue GUIÓN) — se declara aquí junto al resto de config LLM/embeddings."""
+    """Modelo de chat/clasificación (structured output) usado por `OpenAIChatModel`
+    (`app.infra.llm.openai_adapter`, tarea `backend-agent-graph-04`)."""
+
+    llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    """`temperature` del cliente `ChatOpenAI` compartido por `classify`/`grade`/`generate`. `0.0`
+    (máximo determinismo) por defecto: `classify`/`grade` son tareas de clasificación estructurada
+    donde la varianza es puro ruido (verificado en vivo — la misma pregunta, dos llamadas, clasificó
+    el dominio distinto con el default de OpenAI, `temperature≈1`, degradando el retrieval del agente
+    por el filtro de dominio); `generate` también se beneficia: menos temperatura reduce el riesgo de
+    apartarse del CONTEXTO recuperado (CU-BE-05: "sin inventar nada fuera de él")."""
 
     embedding_model: str = "text-embedding-3-small"
     """Modelo de embeddings usado por `OpenAIEmbeddingModel`."""

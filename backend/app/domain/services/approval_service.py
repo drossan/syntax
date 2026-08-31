@@ -18,6 +18,11 @@ crea el grafo vía `interrupt()`, CU-BE-06) — sin ese consumidor el puerto que
 tras el CAS (paso 2), la `ApprovalTask` ya quedó `approved`/`edited` (CAS irreversible) y la excepción se
 propaga tal cual — no hay unit-of-work cross-repo a este nivel (servicio + fakes); una transacción real
 que cubra ambos repos es de infra (11/12).
+
+**Fix real, no del diseño original**: `new→pending`/`reopened→pending` no son transiciones válidas
+(CU-BE-04: la máquina de estados no salta `open`) — un ticket con `ai_auto_draft` activo (o cualquier
+`agent.trigger` manual antes de que alguien lo abra a mano) llega aquí sin `open` todavía. `decide()`
+encadena `→open` primero cuando hace falta, en vez de forzar el salto.
 """
 
 import uuid
@@ -38,6 +43,9 @@ _DECISION_TO_STATUS: dict[Decision, ApprovalStatus] = {
     "reject": ApprovalStatus.rejected,
 }
 _TRANSITIONS_TICKET: frozenset[Decision] = frozenset({"approve", "edit"})
+_NEEDS_OPEN_BEFORE_PENDING: frozenset[TicketStatus] = frozenset(
+    {TicketStatus.new, TicketStatus.reopened}
+)
 
 
 class ApprovalService:
@@ -110,6 +118,14 @@ class ApprovalService:
             )
 
         if decision in _TRANSITIONS_TICKET:
+            ticket = await self._ticket_service.get(updated.ticket_id)
+            if ticket.status in _NEEDS_OPEN_BEFORE_PENDING:
+                # `_VALID_TRANSITIONS` no tiene `new→pending` ni `reopened→pending` (CU-BE-04: el
+                # estado avanza de uno en uno, nunca salta `open` — "el agente lo toma"). Un ticket
+                # puede llegar aquí sin que nadie lo haya abierto a mano todavía (p.ej. `ai_auto_draft`
+                # dispara el run justo al crearlo, tarea `backend-tickets-ai-auto-draft`) — encadenar
+                # `→open` primero preserva la máquina de estados en vez de forzar un salto.
+                await self._ticket_service.transition(updated.ticket_id, TicketStatus.open)
             await self._ticket_service.transition(updated.ticket_id, TicketStatus.pending)
 
         await self._agent_runner.resume(

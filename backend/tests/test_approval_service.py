@@ -383,11 +383,12 @@ async def test_list_queue_with_status_filters_by_that_status_instead_of_pending(
 
 
 async def test_failure_after_cas_propagates_without_compensation(context: tuple) -> None:
-    """Fallo tras el CAS (el ticket ya no admite la transición a pending): la excepción se propaga y
-    la ApprovalTask YA quedó approved (riesgo conocido, sin compensación en este plan)."""
+    """Fallo tras el CAS (el ticket ya no admite ninguna transición hacia pending): la excepción se
+    propaga y la ApprovalTask YA quedó approved (riesgo conocido, sin compensación en este plan)."""
     svc, approvals, tickets, agent_runner = context
-    # `new` -> `pending` no es una arista válida de _VALID_TRANSITIONS: transition() lanzará.
-    ticket = _make_ticket(tenant_id=_TENANT_A, status=TicketStatus.new)
+    # `resolved` no tiene arista a `open` NI a `pending` en _VALID_TRANSITIONS: transition() lanzará
+    # incluso con el encadenado `→open` (a diferencia de `new`/`reopened`, ver el test de abajo).
+    ticket = _make_ticket(tenant_id=_TENANT_A, status=TicketStatus.resolved)
     tickets.seed(ticket)
     task = _make_approval_task(ticket_id=ticket.id)
     approvals.seed(task)
@@ -397,3 +398,22 @@ async def test_failure_after_cas_propagates_without_compensation(context: tuple)
 
     assert approvals.store[task.id].status is ApprovalStatus.approved  # ya no hay vuelta atrás
     assert agent_runner.calls == []  # no llegó a resume: transition() falló antes
+
+
+@pytest.mark.parametrize("initial_status", [TicketStatus.new, TicketStatus.reopened])
+async def test_approving_a_draft_chains_through_open_when_the_ticket_was_never_opened(
+    context: tuple, initial_status: TicketStatus
+) -> None:
+    """Un ticket recién creado (`new`) o reabierto (`reopened`) puede llegar aquí sin que nadie lo haya
+    abierto a mano — `ai_auto_draft`/`agent.trigger` no lo transicionan. `decide()` encadena `→open`
+    antes de `→pending` en vez de fallar con `InvalidTransition` (bug real, corregido)."""
+    svc, approvals, tickets, agent_runner = context
+    ticket = _make_ticket(tenant_id=_TENANT_A, status=initial_status)
+    tickets.seed(ticket)
+    task = _make_approval_task(ticket_id=ticket.id)
+    approvals.seed(task)
+
+    await svc.decide(task.id, "approve", None, None)
+
+    assert tickets.store[ticket.id].status is TicketStatus.pending
+    assert agent_runner.calls != []  # llegó hasta resume() — no se quedó atascado en la transición

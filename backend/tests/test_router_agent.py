@@ -783,3 +783,97 @@ async def test_trigger_uses_the_configured_agent_top_k(
     assert AGENT_TOP_K == 8, "actualiza este literal si cambia deps.AGENT_TOP_K"
     assert spy_retriever.captured_top_k == 8
     spy_app.dependency_overrides.clear()
+
+
+# ── GET /tickets/{id}/agent-runs/active — descubrir el run activo (gap ai_auto_draft) ──
+
+
+async def test_no_active_run_returns_null_not_404(app: FastAPI, db: AsyncSession) -> None:
+    """Sin ningún `agent.trigger` disparado todavía, "sin run activo" es un resultado legítimo — 200
+    con cuerpo `null`, nunca 404 (no es "el recurso no existe", es "no hay ninguno todavía")."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(db, tenant=tenant, capabilities=["ticket.read"])
+
+    async with _client(app) as c:
+        r = await c.get(
+            f"/api/v1/tickets/{ticket.id}/agent-runs/active", headers=_auth_header(token)
+        )
+
+    assert r.status_code == 200
+    assert r.json() is None
+
+
+async def test_discovers_the_run_created_by_someone_else(app: FastAPI, db: AsyncSession) -> None:
+    """Escenario `ai_auto_draft`: el servidor dispara el run SIN que este cliente lo pida — un
+    segundo request (mismo ticket, capacidad `ticket.read` basta) lo descubre igual."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    _trigger_agent, trigger_token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["agent.trigger"]
+    )
+    _viewer_agent, viewer_token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.read"]
+    )
+
+    async with _client(app) as c:
+        triggered = await c.post(
+            f"/api/v1/tickets/{ticket.id}/ai-draft", headers=_auth_header(trigger_token)
+        )
+        discovered = await c.get(
+            f"/api/v1/tickets/{ticket.id}/agent-runs/active", headers=_auth_header(viewer_token)
+        )
+
+    assert triggered.status_code == 202
+    assert discovered.status_code == 200
+    body = discovered.json()
+    assert body is not None
+    assert body["id"] == triggered.json()["id"]
+    assert body["status"] == "running"
+
+
+async def test_a_terminal_run_is_no_longer_the_active_one(app: FastAPI, db: AsyncSession) -> None:
+    """Un run ya `succeeded`/`failed` no es "activo" — tras publicarse (auto_approve) el endpoint
+    vuelve a `null`, no se queda pegado al último run terminado."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    tenant.auto_approve = True
+    tenant = await SqlAlchemyTenantRepository(db).update(tenant)
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["agent.trigger", "ticket.read"]
+    )
+
+    async with _client(app) as c:
+        triggered = await c.post(
+            f"/api/v1/tickets/{ticket.id}/ai-draft", headers=_auth_header(token)
+        )
+        after = await c.get(
+            f"/api/v1/tickets/{ticket.id}/agent-runs/active", headers=_auth_header(token)
+        )
+
+    assert triggered.json()["status"] == "succeeded"  # auto_approve=True + _FakeChatModel confiado
+    assert after.status_code == 200
+    assert after.json() is None
+
+
+async def test_active_agent_run_requires_ticket_read_or_agent_trigger(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(db, tenant=tenant, capabilities=["kb.read"])
+
+    async with _client(app) as c:
+        r = await c.get(
+            f"/api/v1/tickets/{ticket.id}/agent-runs/active", headers=_auth_header(token)
+        )
+
+    assert r.status_code == 403

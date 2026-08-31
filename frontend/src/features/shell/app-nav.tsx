@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { key: "dashboard", href: "/dashboard", capability: "analytics.read" },
   { key: "tenants", href: "/admin/tenants", capability: "tenant.manage" },
   { key: "users", href: "/admin/users", capability: "user.manage" },
+  { key: "roles", href: "/admin/roles", capability: "role.manage" },
 ] as const;
 
 /** Navegación principal: solo muestra las entradas que la sesión puede usar (`<Can>`). */

@@ -24,4 +24,13 @@ export const handlers = [
   http.post("/auth/password/reset", ({ response }) => response(204).empty()),
   http.get("/tickets", ({ response }) => response(200).json(ticketPageFixture())),
   http.post("/tickets", ({ response }) => response(201).json(ticketFixture())),
+  // Default: sin run activo — los tests que sí quieren uno lo sobrescriben con `server.use(...)`.
+  http.get("/tickets/{id}/agent-runs/active", ({ response }) => response(200).json(null)),
+  // Default: ambos ajustes en su valor de arranque — los tests que quieren otro los sobrescriben.
+  http.get("/admin/settings", ({ response }) =>
+    response(200).json({ auto_approve: false, ai_auto_draft: true }),
+  ),
+  http.patch("/admin/settings", async ({ request, response }) =>
+    response(200).json(await request.json()),
+  ),
 ];

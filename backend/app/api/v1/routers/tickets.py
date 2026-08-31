@@ -14,12 +14,20 @@ resta de conjuntos `{assignee_id} - {subject.id, None}` cubre autoasignación y 
 ad-hoc (ambas dan un conjunto vacío de destinatarios). `notification_service.emit()` es best-effort: un
 `PortError` se loguea y NO tumba la respuesta 200 ya confirmada (la notificación no es atómica con la
 asignación).
+
+`create_ticket` + `tenant.ai_auto_draft`: el disparo del draft IA corre en `BackgroundTasks`, NUNCA
+`await`eado dentro del handler — medido en vivo, el ciclo real `classify→retrieve→grade→generate→
+decide` contra OpenAI tarda **~10s**; esperarlo aquí dejaría "crear un ticket" colgado ese tiempo por
+cada ticket. La tarea de fondo abre su PROPIA sesión (`get_sessionmaker()` + `tenant_scope`, no la del
+request — ya cerrada cuando esto corre) y reconstruye a mano la misma cadena de dependencias que
+`get_agent_service` (todas son funciones planas con `Depends(...)` como default inerte fuera de
+FastAPI — llamarlas directo con argumentos explícitos es válido y no duplica la lógica de ensamblado).
 """
 
 import uuid
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.schemas.common import Page
@@ -30,19 +38,52 @@ from app.api.v1.schemas.tickets import (
     TicketTransitionRequest,
     TicketUpdate,
 )
-from app.core.deps import get_notification_service, get_ticket_service, require_capability
+from app.core.config import get_settings
+from app.core.deps import (
+    get_agent_service,
+    get_chat_model_port,
+    get_embeddings_port,
+    get_notification_service,
+    get_retriever_port,
+    get_ticket_service,
+    require_capability,
+)
 from app.domain.entities.business import Ticket as TicketEntity
 from app.domain.entities.enums import KbDomain, NotificationType, TicketPriority, TicketStatus
 from app.domain.entities.identity import Subject
-from app.domain.errors import PortError, Validation
+from app.domain.errors import DomainError, PortError, Validation
 from app.domain.ports.repositories import TICKET_SORT_FIELDS
 from app.domain.services.notification_service import NotificationService
 from app.domain.services.ticket_service import TicketService
-from app.infra.db.repositories import SqlAlchemyUserTenantMembershipRepository
+from app.infra.db.repositories import (
+    SqlAlchemyTenantRepository,
+    SqlAlchemyUserTenantMembershipRepository,
+)
+from app.infra.db.session import get_sessionmaker, tenant_scope
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 _logger = structlog.get_logger()
+
+
+async def _trigger_ai_draft_in_background(tenant_id: uuid.UUID, ticket_id: uuid.UUID) -> None:
+    """Dispara `agent.trigger` FUERA del ciclo request/response — ver docstring del módulo. Best-effort
+    (mismo criterio que la notificación de `assign_ticket`): un `DomainError` (rate-limit, proveedor
+    caído) se loguea; ya no hay ninguna respuesta HTTP a la que afectar."""
+    settings = get_settings()
+    try:
+        async with get_sessionmaker()() as session, tenant_scope(session, tenant_id):
+            chat_model = get_chat_model_port(settings=settings)
+            embeddings = get_embeddings_port(settings=settings)
+            retriever = get_retriever_port(
+                session=session, settings=settings, embeddings=embeddings
+            )
+            agent_service = get_agent_service(
+                session=session, settings=settings, chat_model=chat_model, retriever=retriever
+            )
+            await agent_service.trigger(tenant_id, ticket_id)
+    except DomainError:
+        _logger.warning("ai_auto_draft_trigger_failed", ticket_id=str(ticket_id))
 
 
 def _to_schema(ticket: TicketEntity) -> Ticket:
@@ -134,10 +175,11 @@ async def list_tickets(
 @router.post("", status_code=201)
 async def create_ticket(
     payload: TicketCreate,
+    background_tasks: BackgroundTasks,
     subject_session: tuple[Subject, AsyncSession] = Depends(require_capability("ticket.create")),
     ticket_service: TicketService = Depends(get_ticket_service),
 ) -> Ticket:
-    subject, _session = subject_session
+    subject, session = subject_session
     priority = _parse_priority(payload.priority)
     ticket = await ticket_service.create(
         tenant_id=subject.tenant_id,
@@ -146,6 +188,19 @@ async def create_ticket(
         body=payload.body,
         priority=priority,
     )
+
+    tenant = await SqlAlchemyTenantRepository(session).get(subject.tenant_id)
+    if tenant is not None and tenant.ai_auto_draft:
+        # Commit EXPLÍCITO aquí (no basta esperar al de `get_db_session` al final del request):
+        # `_trigger_ai_draft_in_background` abre su PROPIA sesión/conexión — reproducido en vivo, sin
+        # este commit ve el ticket como inexistente (`NotFound`) porque la transacción de ESTA sesión
+        # (la del request) todavía no era visible para otra conexión cuando el background task corrió
+        # (`BackgroundTasks` de Starlette se ejecuta ANTES del commit de salida de `get_db_session`).
+        await session.commit()
+        # En background: ver docstring del módulo — el ciclo real de OpenAI (~10s+) no debe
+        # bloquear esta respuesta.
+        background_tasks.add_task(_trigger_ai_draft_in_background, subject.tenant_id, ticket.id)
+
     return _to_schema(ticket)
 
 

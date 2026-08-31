@@ -802,3 +802,67 @@ async def test_downloading_an_attachment_via_the_wrong_message_id_returns_404(
     assert upload.status_code == 201
     assert mismatched.status_code == 404
     assert mismatched.headers["content-type"].startswith("application/problem+json")
+
+
+# ── Message.attachments (descubrir lo ya subido, GET /tickets/{id}/messages) ──
+
+
+async def test_a_newly_created_message_has_no_attachments(app: FastAPI, db: AsyncSession) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.read", "ticket.reply"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/messages",
+            json={"body": "sin adjuntos todavía", "visibility": "public"},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 201
+    assert r.json()["attachments"] == []
+
+
+async def test_list_messages_includes_uploaded_attachments(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """Antes de esta tarea no había forma de recuperar lo ya subido — solo subir y descargar-si-ya-
+    sabes-el-id. Este es el test que cierra ese gap: lo que se sube aparece al listar el hilo."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket, message_with_attachment = await _seed_message(db, tenant)
+    message_repo = SqlAlchemyMessageRepository(db)
+    message_without_attachment = await message_repo.add(
+        Message(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            ticket_id=ticket.id,
+            visibility=MessageVisibility.public,
+            body="sin adjunto",
+        )
+    )
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.read", "ticket.reply"]
+    )
+
+    async with _client(app) as c:
+        await c.post(
+            f"/api/v1/messages/{message_with_attachment.id}/attachments",
+            files={"file": ("informe.pdf", b"contenido-pdf", "application/pdf")},
+            headers=_auth_header(token),
+        )
+        r = await c.get(f"/api/v1/tickets/{ticket.id}/messages", headers=_auth_header(token))
+
+    assert r.status_code == 200
+    by_id = {m["id"]: m for m in r.json()["items"]}
+    attached = by_id[str(message_with_attachment.id)]["attachments"]
+    assert len(attached) == 1
+    assert attached[0]["filename"] == "informe.pdf"
+    assert attached[0]["content_type"] == "application/pdf"
+    assert attached[0]["size_bytes"] == len(b"contenido-pdf")
+    assert by_id[str(message_without_attachment.id)]["attachments"] == []

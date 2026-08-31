@@ -131,3 +131,22 @@ class SqlAlchemyMessageRepository:
         except Exception as exc:
             raise PortError("fallo al leer attachment") from exc
         return _attachment_to_domain(row) if row is not None else None
+
+    async def list_by_messages(
+        self, message_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[Attachment]]:
+        """Adjuntos de varios mensajes en UNA consulta (evita N+1 al listar el hilo de un ticket)."""
+        if not message_ids:
+            return {}
+        try:
+            rows = (
+                await self._session.execute(
+                    select(AttachmentModel).where(AttachmentModel.message_id.in_(message_ids))
+                )
+            ).scalars()
+        except Exception as exc:
+            raise PortError("fallo al listar attachments") from exc
+        by_message: dict[uuid.UUID, list[Attachment]] = {mid: [] for mid in message_ids}
+        for row in rows:
+            by_message[row.message_id].append(_attachment_to_domain(row))
+        return by_message

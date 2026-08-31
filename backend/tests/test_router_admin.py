@@ -222,7 +222,7 @@ async def test_tenant_admin_reads_own_auto_approve(app: FastAPI, db: AsyncSessio
         r = await c.get("/api/v1/admin/settings", headers=_auth_header(token))
 
     assert r.status_code == 200
-    assert r.json() == {"auto_approve": False}
+    assert r.json() == {"auto_approve": False, "ai_auto_draft": True}
 
 
 async def test_tenant_admin_updates_own_auto_approve(app: FastAPI, db: AsyncSession) -> None:
@@ -234,13 +234,15 @@ async def test_tenant_admin_updates_own_auto_approve(app: FastAPI, db: AsyncSess
 
     async with _client(app) as c:
         r = await c.patch(
-            "/api/v1/admin/settings", json={"auto_approve": True}, headers=_auth_header(token)
+            "/api/v1/admin/settings",
+            json={"auto_approve": True, "ai_auto_draft": False},
+            headers=_auth_header(token),
         )
         reread = await c.get("/api/v1/admin/settings", headers=_auth_header(token))
 
     assert r.status_code == 200
-    assert r.json() == {"auto_approve": True}
-    assert reread.json() == {"auto_approve": True}
+    assert r.json() == {"auto_approve": True, "ai_auto_draft": False}
+    assert reread.json() == {"auto_approve": True, "ai_auto_draft": False}
 
 
 async def test_soporte_global_reads_settings_of_a_specific_tenant_with_tenant_id(
@@ -262,7 +264,27 @@ async def test_soporte_global_reads_settings_of_a_specific_tenant_with_tenant_id
         )
 
     assert r.status_code == 200
-    assert r.json() == {"auto_approve": True}
+    assert r.json() == {"auto_approve": True, "ai_auto_draft": True}
+
+
+async def test_tenant_admin_disables_ai_auto_draft(app: FastAPI, db: AsyncSession) -> None:
+    """`ai_auto_draft` (default `True`, ver migración `0006`) es un setting independiente de
+    `auto_approve` — se puede desactivar sin tocar el otro."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    _admin, token = await _admin_with_capability(
+        db, tenant=tenant, capability="tenant.settings.manage", scope="tenant"
+    )
+
+    async with _client(app) as c:
+        r = await c.patch(
+            "/api/v1/admin/settings",
+            json={"auto_approve": False, "ai_auto_draft": False},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 200
+    assert r.json() == {"auto_approve": False, "ai_auto_draft": False}
 
 
 async def test_soporte_global_without_tenant_id_gets_422(app: FastAPI, db: AsyncSession) -> None:

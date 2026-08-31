@@ -903,6 +903,47 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/tickets/{id}/agent-runs/active": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["IdPath"];
+      };
+      cookie?: never;
+    };
+    /** El AgentRun no-terminal (`queued`/`running`) de este ticket, o `null` si no hay ninguno. Cierra el gap de descubrimiento de `tenant.ai_auto_draft`: el servidor puede disparar un run sin que el cliente lo pida (al crear el ticket), así que el cliente nunca recibe su `id` en la respuesta de `POST /tickets` — este endpoint es la única forma de encontrarlo. "Sin run activo" es un resultado legítimo (200 + `null`), nunca 404. */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: components["parameters"]["IdPath"];
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description AgentRun activo, o `null`. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgentRun"] | null;
+          };
+        };
+        403: components["responses"]["Forbidden"];
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/approvals": {
     parameters: {
       query?: never;
@@ -1894,6 +1935,11 @@ export interface components {
     TenantSettings: {
       /** @default false */
       auto_approve: boolean;
+      /**
+       * @description Si está activo, `POST /tickets` dispara `agent.trigger` automáticamente tras crear el ticket (best-effort — un fallo no bloquea la creación). Independiente de `auto_approve`: solo decide si se GENERA el draft, no si se publica sin revisión.
+       * @default true
+       */
+      ai_auto_draft: boolean;
     };
     /** @description Identidad GLOBAL (email único, sin `tenant_id` propio — un usuario puede pertenecer a varios tenants con una sola contraseña). `status` en las respuestas de `/admin/users*` es el de la MEMBRESÍA del tenant consultado (`UserTenantMembership.status`), no un atributo global del usuario. */
     User: {
@@ -1981,6 +2027,7 @@ export interface components {
       body?: string;
       /** Format: date-time */
       created_at?: string;
+      attachments?: components["schemas"]["Attachment"][];
     };
     MessageCreate: {
       body: string;

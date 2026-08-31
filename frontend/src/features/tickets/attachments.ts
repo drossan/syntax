@@ -15,13 +15,24 @@ export function formatFileSize(bytes: number | undefined): string {
 }
 
 /**
- * Construye la URL de descarga de un adjunto. **Gap de contrato v0.1.0**: el schema `Attachment` no trae
- * URL y no hay endpoint de descarga; se usa la ruta convencional `…/attachments/{id}` que el backend
- * proveerá cuando el puerto de storage deje de ser stub (design-review M2). Placeholder documentado.
+ * Dispara la descarga de un blob ya obtenido como si fuera un enlace normal: crea una URL de objeto
+ * temporal, la "clica" con un `<a>` desechable, y libera la URL. Hace falta este rodeo (en vez de un
+ * `<a href={urlDelAdjunto}>` directo) porque la descarga real es autenticada — el token de acceso vive
+ * solo en memoria JS (nunca en cookie), así que un `<a href>` plano nunca lo llevaría; hay que pedir el
+ * binario con el cliente autenticado primero (`useDownloadAttachment`) y descargar el blob ya en mano.
+ * Verificado en vivo: `GET /messages/{id}/attachments/{attachment_id}` sin `Authorization` responde 401
+ * (bug real, reproducido con curl, no hipotético).
  *
- * @param attachment Adjunto (se usa su `id`).
- * @param apiBase Origen de la API (default: relativo).
+ * @param blob Binario ya descargado (con el cliente autenticado).
+ * @param filename Nombre de fichero sugerido para la descarga.
  */
-export function attachmentDownloadHref(attachment: { id?: string }, apiBase = ""): string {
-  return `${apiBase}/api/v1/attachments/${attachment.id ?? ""}`;
+export function triggerBrowserDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }

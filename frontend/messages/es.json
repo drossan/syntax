@@ -9,6 +9,7 @@
     "kb": "Base de conocimiento",
     "tenants": "Clientes",
     "users": "Usuarios",
+    "roles": "Roles",
     "dashboard": "Panel"
   },
   "header": {
@@ -16,7 +17,8 @@
     "toggleTheme": "Cambiar tema",
     "language": "Idioma",
     "notifications": "Notificaciones",
-    "openMenu": "Abrir menú"
+    "openMenu": "Abrir menú",
+    "account": "Cuenta"
   },
   "tickets": {
     "title": "Bandeja de tickets",
@@ -73,7 +75,12 @@
     "loading": "Cargando clientes…",
     "error": "No se pudieron cargar los clientes.",
     "retry": "Reintentar",
-    "empty": "Aún no hay clientes."
+    "empty": "Aún no hay clientes.",
+    "settings": {
+      "autoApprove": "Auto-aprobar drafts IA",
+      "aiAutoDraft": "Auto-generar draft IA al crear un ticket",
+      "saveError": "No se pudo guardar el ajuste."
+    }
   },
   "offline": {
     "message": "Sin conexión. Reintentaremos las lecturas al recuperar la red."
@@ -174,9 +181,11 @@
   "aiDraft": {
     "region": "Borrador IA",
     "title": "Borrador IA",
+    "checking": "Comprobando si ya hay un borrador…",
     "generate": "Generar borrador",
     "retry": "Reintentar",
     "generating": "Generando el borrador…",
+    "awaitingApproval": "Borrador listo — esperando aprobación en la cola de aprobaciones.",
     "ready": "Borrador listo",
     "failed": "La generación falló.",
     "confidence": "Confianza",
@@ -212,7 +221,8 @@
     "title": "Adjuntos",
     "empty": "No hay adjuntos en este ticket.",
     "download": "Descargar",
-    "downloadLabel": "Descargar {name}"
+    "downloadLabel": "Descargar {name}",
+    "downloadError": "No se pudo descargar el adjunto."
   },
   "ticketActions": {
     "region": "Acciones del ticket",
@@ -239,6 +249,17 @@
       "system": "Sistema"
     }
   },
+  "ticketReply": {
+    "region": "Publicar mensaje",
+    "replyLabel": "Responder",
+    "visibilityLabel": "Visibilidad",
+    "visibilityPublic": "Público",
+    "visibilityInternal": "Nota interna",
+    "submit": "Enviar",
+    "genericError": "No se pudo publicar el mensaje.",
+    "attachLabel": "Adjuntar archivo (opcional)",
+    "attachmentError": "El mensaje se publicó, pero el adjunto no se pudo subir."
+  },
   "ticketCreate": {
     "title": "Nuevo ticket",
     "subject": "Asunto",
@@ -252,5 +273,14 @@
       "high": "Alta",
       "urgent": "Urgente"
     }
+  },
+  "account": {
+    "title": "Cuenta",
+    "currentPassword": "Contraseña actual",
+    "newPassword": "Nueva contraseña",
+    "confirmNewPassword": "Repite la nueva contraseña",
+    "submit": "Cambiar contraseña",
+    "success": "Contraseña actualizada.",
+    "genericError": "No se pudo cambiar la contraseña."
   }
 }
