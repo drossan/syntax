@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { approvalTaskFixture, meFixture } from "@/mocks/fixtures";
 import { server } from "@/mocks/server";
@@ -33,7 +33,11 @@ function capture(url: string, status: ApprovalStatus) {
   );
 }
 
-const pending = approvalTaskFixture({ id: ID, status: "pending", draft_body: "Respuesta propuesta por IA" });
+const pending = approvalTaskFixture({
+  id: ID,
+  status: "pending",
+  draft_body: "Respuesta propuesta por IA",
+});
 
 describe("ApprovalDecision", () => {
   it("aprobar publica la respuesta (POST approve) y se resuelve", async () => {
@@ -72,7 +76,10 @@ describe("ApprovalDecision", () => {
     expect(posted).toHaveLength(0);
 
     // Con nota: se envía el rechazo con la nota.
-    await userEvent.type(within(dialog).getByRole("textbox", { name: /nota/i }), "No procede publicar esto");
+    await userEvent.type(
+      within(dialog).getByRole("textbox", { name: /nota/i }),
+      "No procede publicar esto",
+    );
     await userEvent.click(within(dialog).getByRole("button", { name: /confirmar rechazo/i }));
 
     await waitFor(() => expect(posted[0]?.url).toBe(REJECT));
@@ -92,9 +99,12 @@ describe("ApprovalDecision", () => {
   });
 
   it("un draft ya resuelto no se vuelve a aprobar (idempotencia)", async () => {
-    renderWithSession(<ApprovalDecision approval={approvalTaskFixture({ id: ID, status: "approved" })} />, {
-      me,
-    });
+    renderWithSession(
+      <ApprovalDecision approval={approvalTaskFixture({ id: ID, status: "approved" })} />,
+      {
+        me,
+      },
+    );
 
     expect(await screen.findByText(/ya está resuelta/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^aprobar$/i })).not.toBeInTheDocument();
@@ -105,5 +115,80 @@ describe("ApprovalDecision", () => {
 
     expect(await screen.findByText(/no hay borrador/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^aprobar$/i })).not.toBeInTheDocument();
+  });
+
+  it("sin borrador, con onRetry, el botón de reintentar lo invoca", async () => {
+    const onRetry = vi.fn();
+    renderWithSession(<ApprovalDecision approval={undefined} onRetry={onRetry} />, { me });
+
+    await userEvent.click(await screen.findByRole("button", { name: /reintentar/i }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("el borrador con Markdown se muestra formateado, no como texto literal", async () => {
+    const markdown = approvalTaskFixture({
+      id: ID,
+      status: "pending",
+      draft_body:
+        "Puedes **publicar el sitio** siguiendo estos pasos:\n\n1. Abre el listado\n2. Pulsa publicar",
+    });
+    renderWithSession(<ApprovalDecision approval={markdown} />, { me });
+
+    expect(await screen.findByText("publicar el sitio")).toBeInTheDocument();
+    expect(screen.getByText("publicar el sitio").tagName).toBe("STRONG");
+    expect(screen.getByRole("list").tagName).toBe("OL");
+    expect(screen.queryByText(/\*\*publicar el sitio\*\*/)).not.toBeInTheDocument();
+  });
+
+  it("el borrador con marcado adversario se muestra como texto inerte, nunca se ejecuta", async () => {
+    const adversarial = approvalTaskFixture({
+      id: ID,
+      status: "pending",
+      draft_body: "texto <script>window.__pwned = true;</script> normal",
+    });
+    renderWithSession(<ApprovalDecision approval={adversarial} />, { me });
+
+    await screen.findByText(/normal/);
+    expect(document.querySelector("script")).not.toBeInTheDocument();
+  });
+
+  it("el borrador truncado a mitad de sintaxis no rompe el render", async () => {
+    const truncated = approvalTaskFixture({
+      id: ID,
+      status: "pending",
+      draft_body: "esto es **negrita a medio cortar sin cerrar",
+    });
+    renderWithSession(<ApprovalDecision approval={truncated} />, { me });
+
+    expect(await screen.findByText(/negrita a medio cortar/)).toBeInTheDocument();
+  });
+
+  it("un borrador vacío o solo con espacios no rompe el render", async () => {
+    const blank = approvalTaskFixture({ id: ID, status: "pending", draft_body: "   " });
+    renderWithSession(<ApprovalDecision approval={blank} />, { me });
+
+    expect(await screen.findByRole("button", { name: /^aprobar$/i })).toBeInTheDocument();
+  });
+
+  it("un borrador sin draft_body (campo ausente) renderiza el blockquote vacío, sin fallback visible", async () => {
+    const noBody = approvalTaskFixture({ id: ID, status: "pending" });
+    delete (noBody as { draft_body?: string }).draft_body;
+    renderWithSession(<ApprovalDecision approval={noBody} />, { me });
+
+    await screen.findByRole("button", { name: /^aprobar$/i });
+    expect(document.querySelector("blockquote")?.textContent).toBe("");
+  });
+
+  it("un enlace del borrador se abre en pestaña nueva sin arriesgar la sesión", async () => {
+    const withLink = approvalTaskFixture({
+      id: ID,
+      status: "pending",
+      draft_body: "[ver más](https://example.com/docs)",
+    });
+    renderWithSession(<ApprovalDecision approval={withLink} />, { me });
+
+    const link = await screen.findByRole("link", { name: "ver más" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 });
