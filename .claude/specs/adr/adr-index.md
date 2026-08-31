@@ -28,3 +28,4 @@
 | [0016](./0016-rls-via-rol-dedicado-no-superuser-y-guc-de-bypass.md) | RLS multi-tenant vía rol dedicado no-superuser + GUC de bypass por transacción (refina 0006) | accepted | 2026-08-16 |
 | [0017](./0017-tipos-de-fuente-de-kb-en-codigo-y-alias-de-package.md) | Tipos de fuente de la KB registrados en código + alias de package como configuración (refina 0010) | accepted | 2026-08-24 |
 | [0018](./0018-retrieval-http-de-la-kb-ventana-dedup-y-peso-de-estado.md) | Retrieval HTTP de la KB: ventana de recuperación, dedup por `uc_id` y peso de `estado` fuera de SQL (refina 0010) | accepted | 2026-08-25 |
+| [0020](./0020-renderizado-markdown-seguro-con-allow-list.md) | Renderizado Markdown seguro del texto generado por IA, con allow-list explícito (`react-markdown`) | accepted | 2026-08-31 |

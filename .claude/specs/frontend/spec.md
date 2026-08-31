@@ -55,6 +55,9 @@ aprobación humana**, todo navegable por rol y tenant.
 - **FR-015** — Cuando el usuario muta un ticket idempotente (estado/prioridad/asignación), el sistema DEBERÁ aplicar **optimistic-update** con **rollback** por envelope de error.
 - **FR-016** — Si la acción es destructiva (rechazar draft, cerrar ticket, borrar user/tenant), entonces el sistema DEBERÁ pedir **confirmación** antes de ejecutarla.
 - **FR-017** — El sistema DEBERÁ mostrar los adjuntos en **solo lectura** (sin subida en Fase 1).
+- **FR-029** — Cuando el cuerpo de un mensaje del hilo (de cualquier autor) contiene sintaxis
+  Markdown, el sistema DEBERÁ renderizarlo formateado mediante un allow-list explícito de elementos,
+  manteniendo la garantía anti-XSS de NFR-004 (nunca HTML crudo interpretado).
 
 ### Flujo IA — [[../adr/0007-hitl-asincrono-postgressaver-checkpointer]] · [[../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]]
 
