@@ -1,7 +1,7 @@
 ---
 id: backend-auto-resolve-ticket
 package: backend
-status: active
+status: completed
 branch: plan/backend/auto-resolve-ticket
 issue:
 created: 2026-08-31
@@ -160,7 +160,7 @@ gateado por `ticket.reopen`, que llame a `TicketService.reopen()` directamente (
 
 - [x] `backend-auto-resolve-ticket-01` (P1) — Extraer `TicketService.advance_to()` y migrar `approval_service.decide()`  · depends_on: —
 - [x] `backend-auto-resolve-ticket-02` (P2) — Encadenar el camino auto a `resolved` en `respond.py` (usa `advance_to()`)  · depends_on: backend-auto-resolve-ticket-01
-- [ ] `backend-auto-resolve-ticket-03` (P2) — RBAC: nueva capacidad `ticket.reopen` + endpoint dedicado  · depends_on: —
+- [x] `backend-auto-resolve-ticket-03` (P2) — RBAC: nueva capacidad `ticket.reopen` + endpoint dedicado  · depends_on: —
 
 ## Registro de cambios del plan
 
@@ -212,3 +212,33 @@ gateado por `ticket.reopen`, que llame a `TicketService.reopen()` directamente (
      unit-of-work cross-repo en `approval_service.py`.
   5. Confirmado sin hallazgo nuevo: la asimetría auto-vs-HITL y el hueco de FR-030 (run nuevo al
      reabrir) ya estaban completamente documentados; ningún cambio adicional.
+- 2026-08-31: tareas `01`/`02`/`03` cerradas (TDD + mutation + `sdd-lint` + `fact-checker` + verificación
+  manual contra el backend real en cada una). Plan movido a `completed/`.
+
+## Nota retro
+
+- **Estimación vs. real**: 3 tareas, estimadas 2-3 sesiones en conjunto; ejecutadas en una sesión
+  continua sin bloqueos — el trabajo de `grilling`/`design-review`/`scenario-coverage` durante la
+  planificación (que ya fijó las 3 semánticas ambiguas de `advance_to()`, el mecanismo de `actor_id`
+  y los 3 riesgos aceptados) evitó re-trabajo durante el TDD; ninguna tarea tuvo que parar a
+  re-decidir nada.
+- **Sorpresa real, no vista en la planificación**: el BFS ingenuo de `_shortest_path()` (tarea `01`)
+  encontraba un camino `resolved→reopened→open→pending`, lo que habría cambiado en silencio el
+  comportamiento de `approval_service.decide()` sobre un ticket ya `resolved` — capturado por un
+  test EXISTENTE (no uno nuevo de esta tarea), no por diseño previo. Ninguna de las pasadas de
+  `grilling`/`design-review`/`scenario-coverage` lo anticipó porque ninguna ejecuta código; el TDD sí.
+- **Incidente propio (tarea `01`)**: un `git checkout --` sin `git status` previo descartó
+  temporalmente la implementación completa de un fichero — recuperado sin pérdida real, pero costó
+  una vuelta completa de reconstrucción. Lección aplicada el resto de la sesión: siempre `git status`
+  antes de cualquier `git checkout --`, incluso "solo para mirar".
+- **Dependencia no vista**: la tarea `03` (mutation testing) arrastró 10 survivors de código
+  PREEXISTENTE no tocado por la tarea (`tickets.py` es un router grande; `cosmic-ray` mutó el fichero
+  completo, no solo la función nueva) — mismo patrón que si `scope=por-fichero` en vez de
+  `scope=por-función/diff`; el gate pasó igual (91.94% > 80%) y los survivors quedaron documentados
+  como fuera de alcance, pero es una fricción a tener en cuenta si futuras tareas tocan ficheros
+  grandes ya existentes: el mutation score reportado no distingue "código nuevo" de "código heredado".
+- **Fuera de este plan, señalado y no actuado**: `api-contract.yaml` no documenta
+  `POST /tickets/{id}/reopen` — decisión pendiente del owner, no una tarea abierta aquí.
+- **PR / merge**: NO abierto automáticamente (acción visible/hard-to-reverse, requiere confirmación
+  explícita del owner antes de `git push`/`gh pr create`) — la rama `plan/backend/auto-resolve-ticket`
+  queda lista, con las 3 tareas commiteadas y en verde.

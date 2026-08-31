@@ -2,11 +2,11 @@
 id: backend-auto-resolve-ticket-03
 package: backend
 plan: auto-resolve-ticket
-status: pending
+status: done
 priority: 2
 depends_on: [backend-auto-resolve-ticket-01]
 estimate: 3h
-actual:
+actual: 3h
 issue:
 created: 2026-08-31
 updated: 2026-08-31
@@ -78,21 +78,25 @@ Criterios de aceptación (Gherkin) en el caso de uso:
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores) — incl. los 3
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores) — incl. los 3
       casos negativos distintos: 403 (sin `ticket.reopen`), 409 (con la capacidad, estado inválido),
       404 (cross-tenant / inexistente) — no colapsados en uno solo
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; `rbac.md` y `seed.py` sincronizados (prosa + tabla + código, sin divergencia)
-- [ ] Lint / format / typecheck OK (`make lint`, `make typecheck`)
-- [ ] Gate de mutation testing superado con `cosmic-ray` (`make mutation`, `break: 80`)
-- [ ] Gate `sdd-lint` superado — artefactos SDD sin ERROR de formato/completitud (AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
-- [ ] Verificación manual contra el backend real: login como `client_agent` (tenant demo), reabrir un
+- [x] Todos los tests en verde (89: 40 `test_router_tickets.py` + 49 `test_ticket_service.py`)
+- [x] Spec cumplida; `rbac.md` y `seed.py` sincronizados (prosa + tabla + código, sin divergencia)
+- [x] Lint / format / typecheck OK (`ruff check`, `ruff format --check`, `mypy app` strict)
+- [x] Gate de mutation testing superado con `cosmic-ray` (91.94%, 114/124 killed, break: 80) — 10
+      survivors, todos en código PREEXISTENTE sin tocar por esta tarea (`list_tickets`,
+      `update_ticket`, `assign_ticket`, `_parse_status`, `_trigger_ai_draft_in_background`); 0
+      survivors en `reopen_ticket` (código nuevo de esta tarea)
+- [x] Gate `sdd-lint` superado — mecánico limpio (sin contenido SDD nuevo en esta tarea)
+- [x] Gate de `fact-checker` superado — 9/9 afirmaciones VERIFICADO (incluye su propia verificación
+      manual independiente contra el backend real)
+- [x] Verificación manual contra el backend real: login como `client_agent` (tenant demo), reabrir un
       ticket `resolved` propio, confirmar 200 y `status=reopened`; confirmar 403 contra cualquier
       otro destino.
-- [ ] Documentación actualizada:
-  - [ ] TSDoc/docstrings en el nuevo endpoint y en el catálogo de `seed.py`
-  - [ ] `.claude/specs/backend/rbac.md` actualizado (prosa + matriz)
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-auto-resolve-ticket-03.md`
-- [ ] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — backend no usa changesets)
+- [x] Documentación actualizada:
+  - [x] TSDoc/docstrings en el nuevo endpoint y en el catálogo de `seed.py`
+  - [x] `.claude/specs/backend/rbac.md` actualizado (prosa + matriz)
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-auto-resolve-ticket-03.md`
+- [x] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — backend no usa changesets)

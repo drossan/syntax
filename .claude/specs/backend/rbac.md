@@ -28,7 +28,8 @@ Agrupadas por recurso. `scope` indica el ámbito máximo en que tienen sentido.
 | `ticket.read` | Ver tickets | tenant/global |
 | `ticket.create` | Crear tickets | tenant/global |
 | `ticket.reply` | Responder (mensaje `public`) | tenant/global |
-| `ticket.transition` | Cambiar estado | tenant/global |
+| `ticket.transition` | Cambiar estado (cualquier destino válido) | tenant/global |
+| `ticket.reopen` | Reabrir un ticket `resolved`/`closed` — acotada por el servicio a ese único destino (`reopened`), no da acceso a `ticket.transition` | tenant |
 | `ticket.assign` | Asignar a un agente | tenant/global |
 | `ticket.update` | Editar campos (`subject`/`priority`/`category`/`csat`) sin cambiar de estado | tenant/global |
 | `note.internal.read` | Ver mensajes `internal` (Syntax) | global |
@@ -59,7 +60,7 @@ Dos familias. La numeración normaliza el brief (1,2,4 → 1,2,3).
 **CLIENTE (ámbito `tenant` = su dominio):**
 - `client_admin` — sobre su tenant: `ticket.*` (sin `note.internal.*`), `user.manage`, `role.manage`,
   `kb.read`, `analytics.read`, `agent.trigger`. **Nunca** ve `internal`/`developer` ni gestiona otros tenants.
-- `client_agent` (usuario normal) — `ticket.create`, `ticket.reply`, `ticket.read` (de su tenant), `kb.read`, `agent.trigger`.
+- `client_agent` (usuario normal) — `ticket.create`, `ticket.reply`, `ticket.read`, `ticket.reopen` (de su tenant), `kb.read`, `agent.trigger`.
 - `client_viewer` — `ticket.read`, `kb.read` (solo lectura de su tenant).
 
 ### Matriz rol × capacidad (resumen)
@@ -69,13 +70,18 @@ Dos familias. La numeración normaliza el brief (1,2,4 → 1,2,3).
 | ticket.read | ✅g | ✅g | ✅g | ✅t | ✅t | ✅t |
 | ticket.create/reply | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
 | ticket.transition/assign/update | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| ticket.reopen | ✅ | ❌* | ❌ | ❌* | ✅ | ❌ |
 | note.internal.* | ✅ | ✅ | read | ❌ | ❌ | ❌ |
 | approval.decide / agent.trigger | ✅ | ✅ | ❌ | ❌* / ✅ | ❌ / ✅ | ❌ |
 | kb.read / analytics.read | ✅ | ✅ | ✅ | ✅ | ✅r | ❌ |
 | tenant.manage | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | user.manage / role.manage | ✅ | ❌ | ❌ | ✅t | ❌ | ❌ |
 
-`g`=global · `t`=acotado al tenant · `r`=solo lectura · `*` la decisión de aprobación es de Syntax (soporte).
+`g`=global · `t`=acotado al tenant · `r`=solo lectura · `*` (fila `approval.decide/agent.trigger`) la
+decisión de aprobación es de Syntax (soporte) · `*` (fila `ticket.reopen`) no tienen la capacidad
+`ticket.reopen` en sí, pero ya pueden reabrir por `ticket.transition` (capacidad más amplia que ya
+poseen) vía el endpoint genérico — `ticket.reopen` es una capacidad NUEVA y estrecha, pensada para
+`client_agent` (que no tiene `ticket.transition`), no una que se reparte a quien ya tiene la general.
 
 ## 4. Roles custom por tenant
 
