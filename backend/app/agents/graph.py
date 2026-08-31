@@ -22,6 +22,7 @@ from app.agents.nodes.trim import make_trim_node
 from app.agents.state import HelpdeskState
 from app.domain.ports.llm import ChatModel
 from app.domain.ports.repositories import MessageRepository
+from app.domain.services.ticket_service import TicketService
 from app.rag.retriever import Retriever
 
 
@@ -29,6 +30,7 @@ def build_graph(
     chat_model: ChatModel,
     retriever: Retriever,
     messages_repo: MessageRepository,
+    ticket_service: TicketService,
     *,
     top_k: int,
     confidence_threshold: float,
@@ -42,7 +44,7 @@ def build_graph(
     graph.add_node("grade", make_grade_node(chat_model))
     graph.add_node("generate", make_generate_node(chat_model))
     graph.add_node("decide", make_decide_node(confidence_threshold))
-    graph.add_node("respond", make_respond_node(messages_repo))
+    graph.add_node("respond", make_respond_node(messages_repo, ticket_service))
 
     graph.add_edge(START, "trim")
     graph.add_edge("trim", "classify")

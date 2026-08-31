@@ -31,11 +31,15 @@ from app.domain.errors import NotFound, PortError
 from app.domain.ports.agent_runner import ApprovalOutcome
 from app.domain.ports.vector import Hit
 from app.domain.services.classification import Classification
+from app.domain.services.ticket_service import TicketService
+from app.infra.clock import SystemClock
 from app.infra.db.repositories.agent_run import SqlAlchemyAgentRunRepository
 from app.infra.db.repositories.approval import SqlAlchemyApprovalRepository
+from app.infra.db.repositories.audit_log import SqlAlchemyAuditLogRepository
 from app.infra.db.repositories.message import SqlAlchemyMessageRepository
 from app.infra.db.repositories.tenant import SqlAlchemyTenantRepository
 from app.infra.db.repositories.ticket import SqlAlchemyTicketRepository
+from app.infra.sla import StubSlaPolicy
 from app.rag.reranker import RankedHit
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -217,6 +221,7 @@ def _make_runner(
     clock=None,
     confidence_threshold: float = 0.5,
     messages_repo=None,
+    ticket_service: TicketService | None = None,
     langsmith_tracing: bool = False,
     langsmith_api_key: str = "",
 ) -> LangGraphAgentRunner:
@@ -227,12 +232,23 @@ def _make_runner(
         tenants=SqlAlchemyTenantRepository(session),
         agent_runs=SqlAlchemyAgentRunRepository(session),
         approvals=SqlAlchemyApprovalRepository(session),
+        ticket_service=ticket_service or _make_ticket_service(session),
         clock=clock or _FixedClock(datetime(2026, 8, 27, tzinfo=UTC)),
         top_k=5,
         confidence_threshold=confidence_threshold,
         trim_max_tokens=50,
         langsmith_tracing=langsmith_tracing,
         langsmith_api_key=langsmith_api_key,
+    )
+
+
+def _make_ticket_service(session: AsyncSession) -> TicketService:
+    return TicketService(
+        tickets=SqlAlchemyTicketRepository(session),
+        messages=SqlAlchemyMessageRepository(session),
+        audit_log=SqlAlchemyAuditLogRepository(session),
+        sla_policy=StubSlaPolicy(),
+        clock=SystemClock(),
     )
 
 
@@ -266,6 +282,124 @@ async def test_auto_approve_run_with_sufficient_confidence_succeeds_without_an_a
     assert page.items == []
     messages_page = await SqlAlchemyMessageRepository(session).list_by_ticket(ticket.id)
     assert any(m.is_ai_draft for m in messages_page.items)
+    updated_ticket = await SqlAlchemyTicketRepository(session).get(ticket.id)
+    assert updated_ticket is not None
+    assert updated_ticket.status is TicketStatus.resolved
+
+
+@pytest.mark.parametrize(
+    "initial_status",
+    [TicketStatus.new, TicketStatus.reopened, TicketStatus.open, TicketStatus.pending],
+)
+async def test_auto_path_advances_to_resolved_from_any_starting_state(
+    session: AsyncSession, initial_status: TicketStatus
+) -> None:
+    """CU-BE-06 — 'La auto-respuesta encadena hasta resolved desde cualquier estado de partida'
+    (Scenario Outline): el camino auto llega a `resolved` sea cual sea el estado real del ticket en
+    el momento del disparo (no siempre `new` — un `agent.trigger` manual puede llegar con el ticket ya
+    `open`/`pending`, o `reopened` si el cliente objetó una respuesta anterior)."""
+    tenant = await _make_tenant(session, auto_approve=True)
+    ticket = await _make_ticket_with_message(session, tenant.id, "¿cómo subo un vídeo?")
+    await _make_ticket_service(session).advance_to(ticket.id, initial_status)
+    classification = Classification(
+        categoria="incidencia",
+        dominio=KbDomain.media_and_dam,
+        prioridad=TicketPriority.normal,
+        resoluble=True,
+    )
+    grade = Grade(suficiente=True, motivo="basta")
+    runner = _make_runner(
+        session,
+        chat_model=_FakeChatModel(classification=classification, grade=grade, draft="respuesta"),
+        retriever=_FakeRetriever([_hit()]),
+    )
+
+    run = await runner.trigger(tenant.id, ticket.id, 1, f"ticket_{ticket.id}_run_1")
+
+    assert run.status is AgentRunStatus.succeeded
+    updated_ticket = await SqlAlchemyTicketRepository(session).get(ticket.id)
+    assert updated_ticket is not None
+    assert updated_ticket.status is TicketStatus.resolved
+    messages_page = await SqlAlchemyMessageRepository(session).list_by_ticket(ticket.id)
+    assert any(m.is_ai_draft for m in messages_page.items)
+
+
+@pytest.mark.parametrize("terminal_status", [TicketStatus.resolved, TicketStatus.closed])
+async def test_auto_path_on_an_already_resolved_ticket_does_not_touch_the_state(
+    session: AsyncSession, terminal_status: TicketStatus
+) -> None:
+    """CU-BE-06 4d — 'Auto-respuesta sobre un ticket ya resuelto no toca el estado': un
+    `agent.trigger` manual sobre un ticket YA `resolved`/`closed` publica igual, sin transicionar."""
+    tenant = await _make_tenant(session, auto_approve=True)
+    ticket = await _make_ticket_with_message(session, tenant.id, "¿cómo subo un vídeo?")
+    await _make_ticket_service(session).advance_to(ticket.id, terminal_status)
+    classification = Classification(
+        categoria="incidencia",
+        dominio=KbDomain.media_and_dam,
+        prioridad=TicketPriority.normal,
+        resoluble=True,
+    )
+    grade = Grade(suficiente=True, motivo="basta")
+    runner = _make_runner(
+        session,
+        chat_model=_FakeChatModel(classification=classification, grade=grade, draft="respuesta"),
+        retriever=_FakeRetriever([_hit()]),
+    )
+
+    run = await runner.trigger(tenant.id, ticket.id, 1, f"ticket_{ticket.id}_run_1")
+
+    assert run.status is AgentRunStatus.succeeded
+    updated_ticket = await SqlAlchemyTicketRepository(session).get(ticket.id)
+    assert updated_ticket is not None
+    assert updated_ticket.status is terminal_status  # NO cambió
+    messages_page = await SqlAlchemyMessageRepository(session).list_by_ticket(ticket.id)
+    assert any(m.is_ai_draft for m in messages_page.items)  # pero SÍ publicó
+
+
+async def test_auto_path_does_not_publish_if_the_transition_chain_fails(
+    session: AsyncSession,
+) -> None:
+    """CU-BE-06 — 'La auto-respuesta no publica si un salto de la transición falla': orden
+    transición-antes-de-publicar — si `advance_to()` lanza, `_publish()` nunca se llama. Un fallo NO
+    `PortError` se propaga sin controlar (mismo criterio que
+    `test_a_port_failure_propagates_uncaught_through_the_compiled_graph`; `runner.trigger()` solo
+    convierte `PortError` en `AgentRunStatus.failed`)."""
+    tenant = await _make_tenant(session, auto_approve=True)
+    ticket = await _make_ticket_with_message(session, tenant.id, "¿cómo subo un vídeo?")
+    real_ticket_service = _make_ticket_service(session)
+
+    class _FailingTicketService:
+        def __init__(self, real: TicketService) -> None:
+            self._real = real
+
+        async def get(self, ticket_id: uuid.UUID):
+            return await self._real.get(ticket_id)
+
+        async def advance_to(self, ticket_id: uuid.UUID, target, *, actor_id=None):
+            raise RuntimeError("boom: la transición falla a propósito")
+
+    classification = Classification(
+        categoria="incidencia",
+        dominio=KbDomain.media_and_dam,
+        prioridad=TicketPriority.normal,
+        resoluble=True,
+    )
+    grade = Grade(suficiente=True, motivo="basta")
+    runner = _make_runner(
+        session,
+        chat_model=_FakeChatModel(classification=classification, grade=grade, draft="respuesta"),
+        retriever=_FakeRetriever([_hit()]),
+        ticket_service=_FailingTicketService(real_ticket_service),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await runner.trigger(tenant.id, ticket.id, 1, f"ticket_{ticket.id}_run_1")
+
+    messages_page = await SqlAlchemyMessageRepository(session).list_by_ticket(ticket.id)
+    assert not any(m.is_ai_draft for m in messages_page.items)  # nada publicado por la IA
+    updated_ticket = await SqlAlchemyTicketRepository(session).get(ticket.id)
+    assert updated_ticket is not None
+    assert updated_ticket.status is TicketStatus.new  # sin cambios
 
 
 async def test_run_reaching_interrupt_creates_a_pending_approval_task(
@@ -966,6 +1100,7 @@ async def test_tracing_defaults_to_disabled_when_the_runner_is_constructed_direc
         tenants=SqlAlchemyTenantRepository(session),
         agent_runs=SqlAlchemyAgentRunRepository(session),
         approvals=SqlAlchemyApprovalRepository(session),
+        ticket_service=_make_ticket_service(session),
         clock=_FixedClock(datetime(2026, 8, 27, tzinfo=UTC)),
         top_k=5,
         confidence_threshold=0.5,

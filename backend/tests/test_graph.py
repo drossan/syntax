@@ -8,12 +8,13 @@ nodo otra vez.
 """
 
 import uuid
+from types import SimpleNamespace
 
 import pytest
 from app.agents.graph import build_graph
 from app.agents.nodes.grade import Grade
 from app.domain.entities.business import Message
-from app.domain.entities.enums import KbDomain, KbEstado, TicketPriority
+from app.domain.entities.enums import KbDomain, KbEstado, TicketPriority, TicketStatus
 from app.domain.errors import PortError
 from app.domain.ports.vector import Hit
 from app.domain.services.classification import Classification
@@ -94,6 +95,29 @@ class _FakeMessageRepository:
         raise NotImplementedError
 
 
+class _FakeTicketService:
+    """Doble mínimo: `respond` (camino auto) solo necesita `.get()`/`.advance_to()` — el
+    comportamiento real de la máquina de estados ya está cubierto por `test_ticket_service.py` y por
+    la integración real de `test_runner.py`; aquí solo se verifica el ENSAMBLAJE (se llama, en el
+    orden correcto), no la lógica de dominio otra vez."""
+
+    def __init__(self, initial_status: TicketStatus = TicketStatus.new) -> None:
+        self.status = initial_status
+        self.get_calls = 0
+        self.advance_to_calls: list[tuple[uuid.UUID, TicketStatus]] = []
+
+    async def get(self, ticket_id: uuid.UUID) -> SimpleNamespace:
+        self.get_calls += 1
+        return SimpleNamespace(status=self.status)
+
+    async def advance_to(
+        self, ticket_id: uuid.UUID, target: TicketStatus, *, actor_id: uuid.UUID | None = None
+    ) -> SimpleNamespace:
+        self.advance_to_calls.append((ticket_id, target))
+        self.status = target
+        return SimpleNamespace(status=self.status)
+
+
 def _initial_state(*, auto_approve: bool, messages: list | None = None) -> dict:
     return {
         "messages": messages
@@ -113,11 +137,12 @@ def _initial_state(*, auto_approve: bool, messages: list | None = None) -> dict:
     }
 
 
-def _compile(chat_model, retriever, messages_repo):
+def _compile(chat_model, retriever, messages_repo, ticket_service=None):
     graph = build_graph(
         chat_model,
         retriever,
         messages_repo,
+        ticket_service or _FakeTicketService(),
         top_k=5,
         confidence_threshold=0.5,
         trim_max_tokens=50,

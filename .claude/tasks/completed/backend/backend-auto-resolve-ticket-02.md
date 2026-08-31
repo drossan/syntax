@@ -2,11 +2,11 @@
 id: backend-auto-resolve-ticket-02
 package: backend
 plan: auto-resolve-ticket
-status: pending
+status: done
 priority: 2
 depends_on: [backend-auto-resolve-ticket-01]
 estimate: 3h
-actual:
+actual: 3h
 issue:
 created: 2026-08-31
 updated: 2026-08-31
@@ -78,20 +78,21 @@ Criterios de aceptación (Gherkin) en el caso de uso:
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores) — **integración
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores) — **integración
       real contra Postgres** para el camino auto completo (footgun RLS/`tenant_scope`, no solo fakes)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida; lo declarado en `Provides` queda disponible para la tarea `03`
-- [ ] Lint / format / typecheck OK (`make lint`, `make typecheck`)
-- [ ] Gate de mutation testing superado con `cosmic-ray` (`make mutation`, `break: 80`)
-- [ ] Gate `sdd-lint` superado — artefactos SDD sin ERROR de formato/completitud (AVISO se reconoce)
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
-- [ ] Verificación manual contra el backend real (no solo tests): crear un ticket con
+- [x] Todos los tests en verde (43 passed: `test_graph.py`+`test_runner.py`+`test_node_respond.py`)
+- [x] Spec cumplida; lo declarado en `Provides` queda disponible para la tarea `03`
+- [x] Lint / format / typecheck OK (`ruff check`, `ruff format --check`, `mypy app` strict)
+- [x] Gate de mutation testing superado con `cosmic-ray` (93.33%, 42/45 killed, break: 80) — 3
+      survivors documentados como mutantes equivalentes (`is`/`==` sobre singletons de `Enum`)
+- [x] Gate `sdd-lint` superado — mecánico limpio (sin contenido SDD nuevo en esta tarea)
+- [x] Gate de `fact-checker` superado — 10/10 afirmaciones VERIFICADO
+- [x] Verificación manual contra el backend real (no solo tests): crear un ticket con
       `auto_approve=true` y confianza alta desde el tenant demo, confirmar que queda `resolved` con
       el mensaje publicado.
-- [ ] Documentación actualizada:
-  - [ ] TSDoc/docstrings en `respond.py`, `graph.py`, `runner.py`, `deps.py` donde cambie la firma
-  - [ ] `app/agents/nodes/__init__.py` documenta `respond` como excepción a la convención de nodos
-  - [ ] Histórico de la tarea — session log en `.claude/context/backend/backend-auto-resolve-ticket-02.md`
-- [ ] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — backend no usa changesets)
+- [x] Documentación actualizada:
+  - [x] TSDoc/docstrings en `respond.py`, `graph.py`, `runner.py`, `deps.py` donde cambie la firma
+  - [x] `app/agents/nodes/__init__.py` documenta `respond` como excepción a la convención de nodos
+  - [x] Histórico de la tarea — session log en `.claude/context/backend/backend-auto-resolve-ticket-02.md`
+- [x] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — backend no usa changesets)
