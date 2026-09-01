@@ -1,7 +1,7 @@
 ---
 id: frontend-markdown-editor
 package: frontend
-status: active
+status: completed
 branch: plan/frontend/markdown-editor
 issue:
 created: 2026-09-01
@@ -179,6 +179,21 @@ en `approval-decision.tsx`, no pasa por el renderer.
      de `preview="live"` fijo en las 3 superficies).
   2. Pegar/arrastrar imagen como `data:`/base64 — **se verifica y bloquea explícitamente** en
      implementación si la librería lo hace por defecto (no se acepta como riesgo conocido).
+- 2026-09-01: implementado (`MarkdownEditor` + adopción en las 3 superficies), verificado su Markdown
+  con el backend real vía navegador (login como `support-agent@syntax.local`), incluyendo el ciclo
+  completo alta de ticket → respuesta → borrador IA → editar y aprobar, todos con formato real
+  (negrita/cursiva/tachado/enlace) publicado y renderizado correctamente. El owner pidió, ante 17
+  supervivientes preexistentes del gate de mutation en `ticket-reply-form.tsx` (código no tocado por
+  esta tarea), **arreglarlos ahora** en vez de documentarlos y diferirlos — mismo criterio aplicado
+  después a `ticket-create-form.tsx` y `approval-decision.tsx` sin volver a preguntar, por
+  consistencia. `sdd-lint`: 0 ERROR, 8 AVISO — 2 escenarios Gherkin compuestos (CU-FE-04, CU-FE-06) y
+  1 desajuste de conteo de escenarios (tarea) corregidos; la asimetría de trazabilidad FR↔editor en
+  `spec.md` (sin un FR dedicado a la capacidad de escritura, a diferencia de FR-029 para la lectura)
+  se reconoce como AVISO sin bloquear el cierre. `fact-checker`: 10/11 VERIFICADO, 1 INCORRECTO
+  ("suite 457/457 en verde" no era determinista — 3 tests flakeaban bajo carga de CPU por el timeout
+  por defecto de testing-library, 1000ms, corriendo contra el `next/dynamic` de `MarkdownEditor`).
+  Corregido subiendo `asyncUtilTimeout` a 5000ms en `src/test/setup.ts` y re-verificado con corridas
+  limpias repetidas.
 
 ## Criterios de calidad y verificación
 
@@ -190,4 +205,19 @@ en `approval-decision.tsx`, no pasa por el renderer.
 
 ## Tasks
 
-- [ ] `frontend-markdown-editor-01` (P1) — Componente `MarkdownEditor` y adopción en las 3 superficies  · depends_on: —
+- [x] `frontend-markdown-editor-01` (P1) — Componente `MarkdownEditor` y adopción en las 3 superficies  · depends_on: —
+
+## Retro de cierre
+
+- **Objetivo cumplido**: las 3 superficies (`ticket-reply-form.tsx`, `ticket-create-form.tsx`,
+  `approval-decision.tsx` modo edición) usan `MarkdownEditor`, verificado contra el backend real.
+- **Lo más caro**: el gate de mutation testing, no por `markdown-editor.tsx` en sí (89% a la primera)
+  sino por el criterio "arreglar ahora" del owner sobre supervivientes preexistentes en las 3
+  superficies (17 en `ticket-reply-form.tsx` solo) — triplicó el esfuerzo de esa fase frente a
+  documentar y diferir.
+- **Hallazgo no previsto**: `fact-checker` encontró una flakiness real de la suite (timeout de
+  testing-library demasiado ajustado para el `next/dynamic` del editor bajo carga) — corregido con un
+  cambio de una línea (`asyncUtilTimeout: 5000`) que beneficia a toda la suite, no solo a este plan.
+- **Deuda reconocida, no bloqueante**: `spec.md` no tiene un FR dedicado a la capacidad de escritura
+  con editor Markdown (asimetría con FR-029 de lectura) — AVISO de `sdd-lint`, no se añade en este
+  plan para no ampliar su alcance ya cerrado.

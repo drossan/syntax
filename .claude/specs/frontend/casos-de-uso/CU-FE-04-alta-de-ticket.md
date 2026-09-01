@@ -91,7 +91,12 @@ Feature: Alta de ticket
   Scenario: Usar el toolbar marca el formulario como modificado
     Given el formulario de alta recién abierto
     When el usuario usa un botón del toolbar del editor (no teclea directamente)
-    Then el formulario queda marcado como modificado y el aviso de salida sin guardar se activa
+    Then el formulario queda marcado como modificado
+
+  Scenario: Un formulario modificado por el toolbar activa el aviso de salida sin guardar
+    Given el formulario de alta marcado como modificado tras usar el toolbar del editor
+    When el usuario intenta abandonar la página
+    Then el aviso de salida sin guardar se activa
 
   Scenario: El editor no está disponible antes de la hidratación del cliente
     Given la página de alta de ticket recién servida

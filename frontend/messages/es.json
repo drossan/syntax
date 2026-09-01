@@ -282,5 +282,17 @@
     "submit": "Cambiar contraseña",
     "success": "Contraseña actualizada.",
     "genericError": "No se pudo cambiar la contraseña."
+  },
+  "markdownEditor": {
+    "bold": "Negrita",
+    "italic": "Cursiva",
+    "strikethrough": "Tachado",
+    "unorderedList": "Lista sin ordenar",
+    "orderedList": "Lista ordenada",
+    "link": "Enlace",
+    "image": "Imagen",
+    "code": "Bloque de código",
+    "quote": "Cita",
+    "table": "Tabla"
   }
 }

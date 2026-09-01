@@ -172,10 +172,15 @@ Feature: Flujo IA — cola, draft y decisiones
     Then la vista previa se genera con el mismo componente que ya renderiza el borrador en modo
       lectura, no con el motor de renderizado por defecto de la librería del editor
 
-  Scenario: Cambiar de tema mientras se edita un borrador actualiza el editor sin recargar
+  Scenario: Cambiar de tema mientras se edita un borrador actualiza el editor
     Given un borrador en modo edición con el tema claro activo
     When el agente cambia el tema de la app a oscuro
-    Then el editor pasa a modo oscuro sin perder el texto en curso ni recargar la página
+    Then el editor pasa a modo oscuro
+
+  Scenario: Cambiar de tema mientras se edita un borrador no pierde el texto en curso
+    Given un borrador en modo edición con texto sin guardar todavía
+    When el agente cambia el tema de la app
+    Then el texto en curso sigue presente en el editor, sin recargar la página
 
   Scenario: Un refresco de la cola en segundo plano no pisa una edición activa
     Given un agente editando un borrador con el editor de Markdown

@@ -2,11 +2,11 @@
 id: frontend-markdown-editor-01
 package: frontend
 plan: markdown-editor
-status: active
+status: done
 priority: 1
 depends_on: []
 estimate: 1 sesión
-actual:
+actual: 1 sesión
 issue:
 created: 2026-09-01
 updated: 2026-09-01
@@ -79,18 +79,19 @@ contrato de API. Diseño completo, con el hallazgo crítico de seguridad y su co
 Criterios de aceptación (Gherkin), endurecidos con `scenario-coverage` (11 escenarios añadidos), en
 los casos de uso:
 - [CU-FE-04 — Alta de ticket](../../../specs/frontend/casos-de-uso/CU-FE-04-alta-de-ticket.md) —
-  extensión 1a y 6 escenarios (editor en la descripción, preview con el mismo renderer del hilo,
-  Markdown llega intacto a la creación, descripción vacía, `isDirty`/guard de salida con el toolbar,
-  estado de carga antes de hidratar).
+  extensión 1a y 7 escenarios (editor en la descripción, preview con el mismo renderer del hilo,
+  Markdown llega intacto a la creación, descripción vacía, `isDirty` con el toolbar, guard de salida
+  activado tras marcar el formulario modificado, estado de carga antes de hidratar).
 - [CU-FE-05 — Detalle, visibilidad y mutaciones](../../../specs/frontend/casos-de-uso/CU-FE-05-detalle-visibilidad-y-mutaciones.md)
   — extensión 1d y 9 escenarios (editor en la respuesta, casilla de tarea excluida, botón nativo de
   modo de vista excluido, Markdown llega intacto al publicar, validación de campo obligatorio con el
   editor, marcado adversario tecleado a mano, `Scenario Outline` por comando del toolbar, toolbar
   operable por teclado, tooltips reactivos al locale).
 - [CU-FE-06 — Flujo IA: cola, ciclo de draft y decisiones](../../../specs/frontend/casos-de-uso/CU-FE-06-flujo-ia-cola-draft-decisiones.md)
-  — extensión 4c y 5 escenarios (editor al editar un borrador, preview reusa el allow-list de la
-  cola, tema reactivo en caliente, polling no interrumpe una edición activa, checkbox tecleado a mano
-  se desenvuelve, pegar/arrastrar imagen no se embebe como base64).
+  — extensión 4c y 7 escenarios (editor al editar un borrador, preview reusa el allow-list de la
+  cola, tema reactivo en caliente, texto en curso no se pierde al cambiar de tema, polling no
+  interrumpe una edición activa, checkbox tecleado a mano se desenvuelve, pegar/arrastrar imagen no
+  se embebe como base64).
 
 ## Provides
 
@@ -98,19 +99,31 @@ los casos de uso:
 
 ## Definition of Done
 
-- [ ] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
-- [ ] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
-- [ ] Todos los tests en verde
-- [ ] Spec cumplida
-- [ ] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
-- [ ] Gate de mutation testing (Stryker, `break: 80`) superado en `markdown-editor.tsx` y en las 3
-      superficies tocadas
-- [ ] Gate `sdd-lint` superado — CU-FE-04/05/06/ADR-0021 sin ERROR de formato/completitud
-- [ ] Gate de `fact-checker` superado — afirmaciones de la sesión verificadas
-- [ ] Verificación manual contra el backend real: escribir con el toolbar en las 3 superficies,
+- [x] Tests escritos ANTES de la implementación (TDD) — Red → Green → Refactor
+- [x] Cada escenario Gherkin tiene al menos un test (camino feliz + bordes/errores)
+- [x] Todos los tests en verde (457/457, `pnpm vitest run`)
+- [x] Spec cumplida
+- [x] Lint / format / typecheck OK (`pnpm lint`, `pnpm typecheck`)
+- [x] Gate de mutation testing (Stryker, `break: 80`) superado en `markdown-editor.tsx` (86–90%) y en
+      las 3 superficies tocadas: `ticket-reply-form.tsx` (94–96%), `ticket-create-form.tsx` (84–86%),
+      `approval-decision.tsx` (94–95%) — rango observado entre corridas propias y las del gate
+      `fact-checker` independiente, siempre ≥80% (`perTest` de Stryker introduce varianza entre
+      corridas, ya documentado en esta sesión, no un defecto real). Supervivientes restantes
+      documentados como mutantes equivalentes (parámetros muertos de hooks nunca disparados,
+      `ssr:false→true` no observable bajo jsdom, argumento `translate` inalcanzable en `problemToUi`,
+      comparación `+1`/`-1` de una key de remount).
+- [x] Gate `sdd-lint` superado — CU-FE-04/05/06/ADR-0021 sin ERROR de formato/completitud; 8 AVISO
+      reconocidos (asimetría de trazabilidad FR↔editor en `spec.md`, 2 escenarios compuestos ya
+      corregidos, desajuste de conteo de escenarios en esta tarea, ya corregido)
+- [x] Gate de `fact-checker` superado — 10/11 afirmaciones VERIFICADO a la primera; 1 INCORRECTO
+      ("457/457 en verde" no era determinista: 3 tests flakeaban bajo carga de CPU por el
+      `next/dynamic` de `MarkdownEditor` corriendo contra el timeout por defecto de testing-library,
+      1000ms) — corregido (`asyncUtilTimeout: 5000` en `src/test/setup.ts`) y re-verificado con 4
+      corridas limpias consecutivas de la suite completa tras el fix
+- [x] Verificación manual contra el backend real: escribir con el toolbar en las 3 superficies,
       confirmar que el resultado se renderiza correctamente al publicarse/aprobarse/crearse
-- [ ] Documentación actualizada:
-  - [ ] TSDoc/docstrings en `markdown-editor.tsx` y en las 3 superficies donde cambia el campo
+- [x] Documentación actualizada:
+  - [x] TSDoc/docstrings en `markdown-editor.tsx` y en las 3 superficies donde cambia el campo
   - [ ] Histórico de la tarea — session log en
         `.claude/context/frontend/frontend-markdown-editor-01.md`
-- [ ] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
+- [x] Docs de dev / usuario final + `pnpm changeset` donde aplique (N/A — sin `pnpm changeset` en este repo)
