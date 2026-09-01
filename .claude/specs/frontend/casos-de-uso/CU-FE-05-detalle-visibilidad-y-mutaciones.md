@@ -2,7 +2,9 @@
 
 > **SDD** (Cockburn + Gherkin). CÓMO para FR-014…FR-017 de [`../spec.md`](../spec.md). Políticas:
 > [`../cross-cutting.md`](../cross-cutting.md) §6 (concurrencia optimista), §1 (anti-XSS). Backend:
-> [CU-BE-04](../../backend/casos-de-uso/CU-BE-04-ciclo-de-vida-del-ticket.md).
+> [CU-BE-04](../../backend/casos-de-uso/CU-BE-04-ciclo-de-vida-del-ticket.md). Renderizado:
+> [ADR-0020](../../adr/0020-renderizado-markdown-seguro-con-allow-list.md); edición:
+> [ADR-0021](../../adr/0021-editor-markdown-nativo-con-preview-reusando-el-allow-list.md).
 
 - **Ámbito**: frontend (feature tickets — detalle)
 - **Nivel**: objetivo de usuario
@@ -47,6 +49,12 @@
   el usuario al servidor de esa imagen).
 - **2b.** Acción destructiva (cerrar ticket): pide **confirmación** antes de ejecutar.
 - **1b.** Adjuntos: **solo lectura** (sin subida en Fase 1).
+- **1d.** (plan `frontend/markdown-editor`,
+  [[../../adr/0021-editor-markdown-nativo-con-preview-reusando-el-allow-list]]) Responder al ticket
+  usa `MarkdownEditor` (toolbar + preview) en vez de un `<textarea>` plano — la preview reusa el
+  mismo allow-list de la extensión 1c, sin motor de renderizado adicional. La casilla de
+  lista-de-tareas del toolbar (`- [ ] texto`) está excluida — no forma parte del allow-list de
+  lectura, y dejarla produciría un texto que se ve distinto al escribirlo que al publicarse.
 
 ## Reglas de negocio
 
@@ -111,4 +119,62 @@ Feature: Detalle, visibilidad y mutaciones del ticket
     Given un mensaje escrito por un humano con guiones o asteriscos sin intención de dar formato
     When se renderiza el hilo del ticket
     Then el mensaje se sigue pudiendo leer con sentido, aunque se reinterprete como Markdown
+
+  Scenario: Responder al ticket usa el editor de Markdown en vez de texto plano
+    Given el formulario de respuesta al ticket
+    When el usuario usa el toolbar del editor para dar formato a la respuesta
+    Then el campo de respuesta contiene el string de Markdown resultante
+
+  Scenario: La casilla de lista-de-tareas no está disponible en el toolbar de respuesta
+    Given el editor de respuesta al ticket
+    When el usuario mira los comandos disponibles del toolbar
+    Then no hay un comando que inserte una casilla de lista-de-tareas
+
+  Scenario: El botón nativo de alternar modo de vista no está disponible
+    Given el editor de respuesta al ticket
+    When el usuario mira los comandos disponibles del toolbar
+    Then no hay un botón para cambiar entre modo edición/preview/live — la vista previa queda fija,
+      igual en las 3 superficies que la usan
+
+  Scenario: El Markdown compuesto en el editor llega intacto a la publicación
+    Given una respuesta compuesta con el editor de Markdown
+    When el usuario envía el formulario de respuesta
+    Then el mensaje se publica con el mismo string de Markdown que el editor mostraba
+
+  Scenario: Una respuesta vacía sigue bloqueando el envío con el nuevo editor
+    Given el editor de respuesta vacío
+    When el usuario intenta enviar el formulario
+    Then el envío se bloquea y el error de "mensaje obligatorio" se asocia al campo del editor
+
+  Scenario: Marcado adversario tecleado directamente en el editor se previsualiza inerte
+    Given el editor de respuesta con texto <script>window.__pwned = true;</script> pegado a mano
+    When el usuario mira la vista previa del editor
+    Then el script se muestra como texto, nunca se ejecuta
+
+  Scenario Outline: Cada comando del toolbar produce Markdown que la preview renderiza formateado
+    Given el editor de respuesta vacío
+    When el usuario usa el comando <comando> del toolbar
+    Then la vista previa muestra el resultado como <resultado>
+
+    Examples:
+      | comando          | resultado                      |
+      | negrita          | texto en <strong>              |
+      | cursiva          | texto en <em>                  |
+      | tachado          | texto en <del>                 |
+      | lista no ordenada| un <ul> con al menos un <li>    |
+      | lista ordenada   | un <ol> con al menos un <li>    |
+      | enlace           | un <a> con target/rel seguros   |
+      | código           | un <code>                       |
+      | cita             | un <blockquote>                 |
+      | tabla            | una <table> con cabecera y filas|
+
+  Scenario: El toolbar es operable por teclado
+    Given el editor de respuesta al ticket
+    When el usuario navega el toolbar con el teclado (sin ratón)
+    Then cada comando es alcanzable y activable por teclado
+
+  Scenario: Las etiquetas del toolbar cambian con el idioma activo
+    Given el editor de respuesta al ticket con el idioma de la sesión en inglés
+    When el usuario pasa el ratón sobre un comando del toolbar
+    Then el tooltip se muestra en inglés, no en el idioma por defecto de la librería
 ```

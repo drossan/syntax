@@ -1,7 +1,8 @@
 # CU-FE-06 — Flujo IA: cola, ciclo de draft y decisiones
 
 > **SDD** (Cockburn + Gherkin). CÓMO para FR-018…FR-020 de [`../spec.md`](../spec.md). Decisiones:
-> [[../../adr/0011-entrega-draft-por-polling-no-sse-fase-1]], [[../../adr/0007-hitl-asincrono-postgressaver-checkpointer]].
+> [[../../adr/0011-entrega-draft-por-polling-no-sse-fase-1]], [[../../adr/0007-hitl-asincrono-postgressaver-checkpointer]],
+> [[../../adr/0021-editor-markdown-nativo-con-preview-reusando-el-allow-list]] (edición del borrador).
 > Backend: [CU-BE-06](../../backend/casos-de-uso/CU-BE-06-draft-ia-y-aprobacion-hitl.md).
 
 - **Ámbito**: frontend (feature flujo-IA)
@@ -55,6 +56,11 @@
   render no falla.
 - **4a.** **Rechazar**: pide **confirmación** (acción destructiva).
 - **4b.** Segunda decisión sobre una tarea ya decidida (409): la app reconcilia sin duplicar (refresca la cola).
+- **4c.** (plan `frontend/markdown-editor`,
+  [[../../adr/0021-editor-markdown-nativo-con-preview-reusando-el-allow-list]]) **Editar** un borrador
+  antes de aprobar usa `MarkdownEditor` (toolbar + preview) en vez de un `<textarea>` plano — la
+  preview reusa el mismo componente/allow-list de la extensión 3a (RN-3), garantizando que lo que se
+  ve al editar es exactamente lo que se publicará.
 
 ## Reglas de negocio
 
@@ -154,4 +160,36 @@ Feature: Flujo IA — cola, draft y decisiones
     Given un borrador con la sección "Fuentes" en el formato que genera el agente
     When el agente revisa el borrador en la cola
     Then la sección de fuentes se muestra como una lista formateada
+
+  Scenario: Editar un borrador usa el editor de Markdown en vez de texto plano
+    Given un borrador de la IA en modo edición
+    When el agente usa el toolbar del editor para modificar el texto
+    Then el campo de edición contiene el string de Markdown resultante
+
+  Scenario: La vista previa al editar un borrador reusa el mismo allow-list que la cola
+    Given un borrador de la IA en modo edición, con formato Markdown
+    When el agente mira la vista previa del editor
+    Then la vista previa se genera con el mismo componente que ya renderiza el borrador en modo
+      lectura, no con el motor de renderizado por defecto de la librería del editor
+
+  Scenario: Cambiar de tema mientras se edita un borrador actualiza el editor sin recargar
+    Given un borrador en modo edición con el tema claro activo
+    When el agente cambia el tema de la app a oscuro
+    Then el editor pasa a modo oscuro sin perder el texto en curso ni recargar la página
+
+  Scenario: Un refresco de la cola en segundo plano no pisa una edición activa
+    Given un agente editando un borrador con el editor de Markdown
+    When la cola de aprobaciones se refresca en segundo plano (polling)
+    Then el texto que el agente está editando no se pierde ni se resetea
+
+  Scenario: Una casilla de lista-de-tareas tecleada a mano se previsualiza como texto plano
+    Given un borrador en modo edición con "- [ ] paso" tecleado directamente (no vía toolbar)
+    When el agente mira la vista previa del editor
+    Then se muestra como texto plano con corchetes, igual que en el hilo ya publicado
+
+  Scenario: Pegar o arrastrar una imagen no la embebe como datos en el propio texto
+    Given un borrador en modo edición
+    When el agente pega o arrastra un fichero de imagen sobre el editor
+    Then el editor NO inserta una imagen embebida en base64/`data:` — solo el botón de imagen del
+      toolbar, que inserta una URL externa pegada por el agente
 ```
