@@ -142,9 +142,12 @@ class _FakeChatModel:
 
 
 class _FakeRetriever:
-    async def retrieve(
+    async def embed_query(self, query: str) -> list[float]:
+        return [0.1]
+
+    async def search(
         self,
-        query: str,
+        vector: list[float],
         *,
         top_k: int,
         domain: KbDomain | None = None,
@@ -164,14 +167,6 @@ class _FakeRetriever:
         )
         return [RankedHit(hit=hit, weighted_score=0.9)]
 
-
-class _SpyRetriever(_FakeRetriever):
-    """Además de devolver hits fijos, guarda el `top_k` con el que `trigger()` de verdad la llama —
-    para verificar que `deps.AGENT_TOP_K` llega intacto a través de `_get_agent_runner`/`build_graph`."""
-
-    def __init__(self) -> None:
-        self.captured_top_k: int | None = None
-
     async def retrieve(
         self,
         query: str,
@@ -181,9 +176,29 @@ class _SpyRetriever(_FakeRetriever):
         package: Package | None = None,
         estado: KbEstado | None = None,
     ) -> list[RankedHit]:
+        vector = await self.embed_query(query)
+        return await self.search(vector, top_k=top_k, domain=domain, package=package, estado=estado)
+
+
+class _SpyRetriever(_FakeRetriever):
+    """Además de devolver hits fijos, guarda el `top_k` con el que `trigger()` de verdad la llama —
+    para verificar que `deps.AGENT_TOP_K` llega intacto a través de `_get_agent_runner`/`build_graph`."""
+
+    def __init__(self) -> None:
+        self.captured_top_k: int | None = None
+
+    async def search(
+        self,
+        vector: list[float],
+        *,
+        top_k: int,
+        domain: KbDomain | None = None,
+        package: Package | None = None,
+        estado: KbEstado | None = None,
+    ) -> list[RankedHit]:
         self.captured_top_k = top_k
-        return await super().retrieve(
-            query, top_k=top_k, domain=domain, package=package, estado=estado
+        return await super().search(
+            vector, top_k=top_k, domain=domain, package=package, estado=estado
         )
 
 

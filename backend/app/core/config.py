@@ -145,6 +145,17 @@ class Settings(BaseSettings):
     telemetría de aciertos/escalados reales. `[0.0, 1.0]` porque es un umbral sobre `confidence.py`,
     que devuelve un score en ese mismo rango."""
 
+    rag_domain_fallback_margin: float = Field(default=0.05, ge=0.0)
+    """Margen sobre el que el nodo `retrieve` del agente decide usar el resultado SIN filtro de dominio
+    en vez del filtrado, cuando hay un dominio asignado (ADR-0019, CU-BE-05 extensión 1c).
+
+    `0.05` es un **default de arranque, no calibrado**: viene de una investigación puntual (9 tickets con
+    draft vacío) donde separa limpio los 3 casos reales de fallo de clasificación (mejoras de
+    +0.106/+0.164/+0.164 sobre el score filtrado) de los 6 casos sin mejora (máximo +0.0137) — mismo
+    criterio que documenta `agent_confidence_threshold`, se revisa cuando exista telemetría real (el log
+    `structlog` del nodo `retrieve` registra ambos scores en toda comparación, dispare o no el
+    fallback). `ge=0.0`: un margen negativo invertiría el sentido de la comparación."""
+
     langsmith_tracing: bool = False
     """Activa el tracing de LangSmith en `LangGraphAgentRunner` (`app/agents/runner.py`, tarea
     `backend-agent-graph-11`) — versión **mínima**: solo puebla `agent_run.langsmith_trace_url`, sin
