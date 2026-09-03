@@ -59,11 +59,12 @@ aprobación humana**, todo navegable por rol y tenant.
   Markdown, el sistema DEBERÁ renderizarlo formateado mediante un allow-list explícito de elementos,
   manteniendo la garantía anti-XSS de NFR-004 (nunca HTML crudo interpretado).
 
-### Flujo IA — [[../adr/0007-hitl-asincrono-postgressaver-checkpointer]] · [[../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]]
+### Flujo IA — [[../adr/0007-hitl-asincrono-postgressaver-checkpointer]] · [[../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]] · [[../adr/0022-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]
 
 - **FR-018** — El sistema DEBERÁ mostrar la **cola de aprobaciones** ordenada por SLA/confianza.
 - **FR-019** — Cuando se dispara un draft, el sistema DEBERÁ hacer **polling** de `GET /agent-runs` hasta `succeeded`/`failed`, con estado de carga y **reintento** ante `failed`.
 - **FR-020** — Cuando el agente decide, el sistema DEBERÁ permitir **aprobar, editar o rechazar** el borrador con **nota-al-humano** (confirm en rechazar).
+- **FR-029** — Cuando el `AgentRun` de un ticket llega a `succeeded` por el camino auto, el sistema DEBERÁ invalidar la caché del ticket (mensajes + cabecera) sin que el usuario recargue ni interactúe.
 
 ### KB, admin y transversales
 
