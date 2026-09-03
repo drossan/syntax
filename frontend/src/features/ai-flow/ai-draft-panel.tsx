@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useState } from "react";
 
 import { Can } from "@/features/rbac/can";
@@ -99,9 +100,16 @@ export function AiDraftPanel({
           {t("generating")}
         </p>
       ) : awaitingApproval ? (
-        <p role="status" aria-live="polite" className="text-muted-foreground">
-          {t("awaitingApproval")}
-        </p>
+        <div className="flex flex-col items-start gap-2">
+          <p role="status" aria-live="polite" className="text-muted-foreground">
+            {t("awaitingApproval")}
+          </p>
+          <Can capability="approval.decide">
+            <Link href="/approvals" className="text-sm text-primary underline">
+              {t("reviewInQueue")}
+            </Link>
+          </Can>
+        </div>
       ) : status === "succeeded" ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{t("ready")}</p>

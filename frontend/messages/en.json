@@ -186,6 +186,7 @@
     "retry": "Retry",
     "generating": "Generating the draft…",
     "awaitingApproval": "Draft ready — awaiting approval in the approvals queue.",
+    "reviewInQueue": "Review in the approvals queue",
     "ready": "Draft ready",
     "failed": "Generation failed.",
     "confidence": "Confidence",
