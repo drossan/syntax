@@ -39,6 +39,7 @@ from app.domain.ports.repositories import (
     MessageRepository,
     TenantRepository,
 )
+from app.domain.services.ticket_service import TicketService
 from app.rag.citations import build_citations
 from app.rag.retriever import Retriever
 
@@ -55,10 +56,12 @@ class LangGraphAgentRunner:
         tenants: TenantRepository,
         agent_runs: AgentRunRepository,
         approvals: ApprovalRepository,
+        ticket_service: TicketService,
         clock: Clock,
         top_k: int,
         confidence_threshold: float,
         trim_max_tokens: int,
+        domain_fallback_margin: float,
         langsmith_tracing: bool = False,
         langsmith_api_key: str = "",
         langsmith_project: str = "syntax",
@@ -72,9 +75,11 @@ class LangGraphAgentRunner:
             chat_model,
             retriever,
             messages_repo,
+            ticket_service,
             top_k=top_k,
             confidence_threshold=confidence_threshold,
             trim_max_tokens=trim_max_tokens,
+            domain_fallback_margin=domain_fallback_margin,
         )
         # `langsmith_tracing=True` sin `langsmith_api_key` es tracing desactivado (spec de la tarea
         # 11), no un error — mismo criterio permisivo que `agent_confidence_threshold` sin calibrar.

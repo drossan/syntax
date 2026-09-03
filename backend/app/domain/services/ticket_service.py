@@ -38,6 +38,35 @@ _CSAT_MIN = 1
 _CSAT_MAX = 5
 
 
+def _shortest_path(start: TicketStatus, target: TicketStatus) -> list[TicketStatus] | None:
+    """BFS sobre `_VALID_TRANSITIONS` con visitados — cycle-safe (el grafo tiene ciclos reales).
+    Devuelve la secuencia de estados a recorrer (sin incluir `start`), o `None` si `target` es
+    inalcanzable desde `start`. Usado por `advance_to()`; no valida `start == target` (responsabilidad
+    del llamante, que lo trata como no-op antes de llegar aquí).
+
+    Las aristas HACIA `reopened` (`resolved→reopened`, `closed→reopened`) se excluyen del recorrido
+    salvo que `reopened` sea el propio `target` — "reabrir" es una acción de negocio deliberada
+    (`reopen()`), no un paso intermedio implícito hacia otro destino. Sin esta exclusión, un ticket
+    `resolved` "alcanzaría" `pending` rebotando por el ciclo `resolved→reopened→open→pending`, lo que
+    cambiaría el comportamiento observable de `approval_service.decide()` (antes fallaba con
+    `InvalidTransition` para un ticket ya `resolved` — reproducido y confirmado con test real)."""
+    queue: list[tuple[TicketStatus, list[TicketStatus]]] = [(start, [])]
+    visited: set[TicketStatus] = {start}
+    while queue:
+        node, path = queue.pop(0)
+        for from_status, to_status in _VALID_TRANSITIONS:
+            if from_status is not node or to_status in visited:
+                continue
+            if to_status is TicketStatus.reopened and target is not TicketStatus.reopened:
+                continue
+            next_path = [*path, to_status]
+            if to_status is target:
+                return next_path
+            visited.add(to_status)
+            queue.append((to_status, next_path))
+    return None
+
+
 class TicketService:
     """Servicio de dominio del ciclo de vida del ticket. Puertos por inyección de constructor."""
 
@@ -91,7 +120,14 @@ class TicketService:
             sort=sort,
         )
 
-    async def _audit(self, ticket: Ticket, action: str, payload: dict[str, object]) -> None:
+    async def _audit(
+        self,
+        ticket: Ticket,
+        action: str,
+        payload: dict[str, object],
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> None:
         await self._audit_log.add(
             AuditLogEntry(
                 tenant_id=ticket.tenant_id,
@@ -99,6 +135,7 @@ class TicketService:
                 entity_type="ticket",
                 entity_id=str(ticket.id),
                 payload=payload,
+                actor_id=actor_id,
             )
         )
 
@@ -139,8 +176,18 @@ class TicketService:
         await self._audit(ticket, "ticket.created", {"status": ticket.status.value})
         return ticket
 
-    async def transition(self, ticket_id: uuid.UUID, new_status: TicketStatus) -> Ticket:
-        """Aplica una transición si es una arista válida; si no, `InvalidTransition` (no muta)."""
+    async def transition(
+        self,
+        ticket_id: uuid.UUID,
+        new_status: TicketStatus,
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> Ticket:
+        """Aplica una transición si es una arista válida; si no, `InvalidTransition` (no muta).
+
+        `actor_id` es opcional (default `None`, sin cambio de comportamiento para los llamantes
+        existentes) — quien decide la transición, para el audit log (`None` = "sistema", ninguna
+        decisión humana detrás, p.ej. el camino auto de `respond.py`)."""
         ticket = await self._get_or_raise(ticket_id)
         if (ticket.status, new_status) not in _VALID_TRANSITIONS:
             raise InvalidTransition(
@@ -152,18 +199,59 @@ class TicketService:
         ticket.status = new_status
         await self._tickets.update(ticket)
         await self._audit(
-            ticket, "ticket.transitioned", {"from": previous.value, "to": new_status.value}
+            ticket,
+            "ticket.transitioned",
+            {"from": previous.value, "to": new_status.value},
+            actor_id=actor_id,
         )
         return ticket
 
-    async def reopen(self, ticket_id: uuid.UUID) -> Ticket:
-        """`resolved`/`closed` → `reopened` (estado de reposo real) + recalcula `sla_due` vía `SlaPolicy`."""
-        ticket = await self.transition(ticket_id, TicketStatus.reopened)
+    async def reopen(self, ticket_id: uuid.UUID, *, actor_id: uuid.UUID | None = None) -> Ticket:
+        """`resolved`/`closed` → `reopened` (estado de reposo real) + recalcula `sla_due` vía
+        `SlaPolicy`. `actor_id`: el `Subject` que decide reabrir (opcional, default `None`)."""
+        ticket = await self.transition(ticket_id, TicketStatus.reopened, actor_id=actor_id)
         ticket.sla_due = self._sla_policy.due_at(
             ticket.priority, self._clock.now(), ticket.tenant_id
         )
         await self._tickets.update(ticket)
         return ticket
+
+    async def advance_to(
+        self,
+        ticket_id: uuid.UUID,
+        target: TicketStatus,
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> Ticket:
+        """Encadena transiciones válidas desde el estado ACTUAL del ticket hasta `target`, recorriendo
+        `_VALID_TRANSITIONS` (BFS con visitados — el grafo tiene ciclos reales, p.ej.
+        `open→pending→resolved→reopened→open`; sin marcar visitados un destino inalcanzable podría no
+        terminar). Semánticas (decisión de `scenario-coverage`, plan `auto-resolve-ticket`):
+
+        - Si el ticket YA está en `target`: no-op, no propaga `InvalidTransition` — necesario para que
+          `approval_service.decide()` no cambie de comportamiento ante una segunda decisión con el
+          ticket ya en `pending`.
+        - Si no hay ningún camino de aristas válidas hasta `target`: `InvalidTransition`.
+        - Si un salto intermedio falla (excepción de `self._tickets.update()` o de infra): el ticket
+          queda en el ÚLTIMO estado alcanzado con éxito — no revierte, no unit-of-work cross-repo
+          (mismo criterio ya aceptado en `approval_service.py`).
+        """
+        ticket = await self._get_or_raise(ticket_id)
+        if ticket.status is target:
+            return ticket
+
+        path = _shortest_path(ticket.status, target)
+        if path is None:
+            raise InvalidTransition(
+                f"sin camino válido: {ticket.status.value} → {target.value}",
+                code="ticket.invalid_transition",
+                details={"from": ticket.status.value, "to": target.value},
+            )
+
+        current = ticket
+        for hop in path:
+            current = await self.transition(ticket_id, hop, actor_id=actor_id)
+        return current
 
     async def assign(
         self,

@@ -287,3 +287,19 @@ async def assign_ticket(
             )
 
     return _to_schema(ticket)
+
+
+@router.post("/{id}/reopen")
+async def reopen_ticket(
+    id: uuid.UUID,
+    subject_session: tuple[Subject, AsyncSession] = Depends(require_capability("ticket.reopen")),
+    ticket_service: TicketService = Depends(get_ticket_service),
+) -> Ticket:
+    """`resolved/closed → reopened` (CU-BE-06 4e-4g). Capacidad DEDICADA, distinta de
+    `ticket.transition`: acotada por `TicketService.reopen()` a ese único destino — ningún otro
+    salto es alcanzable con ella (endpoint separado de `POST /{id}/transition` a propósito). El
+    `actor_id` del audit log es el `Subject` real que decide reabrir (a diferencia del camino auto de
+    `respond.py`, que usa `actor_id=None`)."""
+    subject, _session = subject_session
+    ticket = await ticket_service.reopen(id, actor_id=subject.id)
+    return _to_schema(ticket)

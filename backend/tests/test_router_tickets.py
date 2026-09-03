@@ -629,6 +629,145 @@ async def _notifications_for(db: AsyncSession, user_id: uuid.UUID) -> list[objec
     return list(result.items)
 
 
+# ── POST /tickets/{id}/reopen (backend-auto-resolve-ticket-03, CU-BE-06 4e-4g) ──
+
+
+async def _audit_actor_id(db: AsyncSession, *, ticket_id: uuid.UUID) -> uuid.UUID | None:
+    row = (
+        await db.execute(
+            text(
+                "SELECT actor_id FROM audit_log WHERE entity_id = :id "
+                "ORDER BY created_at DESC LIMIT 1"
+            ),
+            {"id": str(ticket_id)},
+        )
+    ).scalar_one()
+    return row
+
+
+@pytest.mark.parametrize("initial_status", [TicketStatus.resolved, TicketStatus.closed])
+async def test_reopening_an_auto_resolved_ticket_the_client_did_not_want_succeeds(
+    app: FastAPI, db: AsyncSession, initial_status: TicketStatus
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        _make_ticket_entity(tenant.id, status=initial_status)
+    )
+    await db.commit()
+    agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.reopen"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(f"/api/v1/tickets/{ticket.id}/reopen", headers=_auth_header(token))
+
+    assert r.status_code == 200
+    assert r.json()["status"] == "reopened"
+    assert await _audit_actor_id(db, ticket_id=ticket.id) == agent.id
+
+
+async def test_reopening_without_the_capability_is_rejected(app: FastAPI, db: AsyncSession) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        _make_ticket_entity(tenant.id, status=TicketStatus.resolved)
+    )
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(db, tenant=tenant, capabilities=["ticket.read"])
+
+    async with _client(app) as c:
+        r = await c.post(f"/api/v1/tickets/{ticket.id}/reopen", headers=_auth_header(token))
+
+    assert r.status_code == 403
+    refetched = await SqlAlchemyTicketRepository(db).get(ticket.id)
+    assert refetched is not None
+    assert refetched.status is TicketStatus.resolved
+
+
+async def test_ticket_reopen_does_not_grant_any_other_transition(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        _make_ticket_entity(tenant.id, status=TicketStatus.new)
+    )
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.reopen"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/transition",
+            json={"status": "open"},
+            headers=_auth_header(token),
+        )
+
+    assert r.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "initial_status",
+    [TicketStatus.new, TicketStatus.open, TicketStatus.pending, TicketStatus.reopened],
+)
+async def test_reopening_a_ticket_not_in_a_valid_state_for_it_is_a_conflict(
+    app: FastAPI, db: AsyncSession, initial_status: TicketStatus
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        _make_ticket_entity(tenant.id, status=initial_status)
+    )
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.reopen"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(f"/api/v1/tickets/{ticket.id}/reopen", headers=_auth_header(token))
+
+    assert r.status_code == 409
+    assert r.headers["content-type"].startswith("application/problem+json")
+    refetched = await SqlAlchemyTicketRepository(db).get(ticket.id)
+    assert refetched is not None
+    assert refetched.status is initial_status
+
+
+async def test_reopening_a_ticket_from_another_tenant_does_not_reveal_it_exists(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant_a = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    tenant_b = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        _make_ticket_entity(tenant_a.id, status=TicketStatus.resolved)
+    )
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant_b, capabilities=["ticket.reopen"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(f"/api/v1/tickets/{ticket.id}/reopen", headers=_auth_header(token))
+
+    assert r.status_code == 404
+
+
+async def test_reopening_a_nonexistent_ticket_returns_404(app: FastAPI, db: AsyncSession) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.reopen"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(f"/api/v1/tickets/{uuid.uuid4()}/reopen", headers=_auth_header(token))
+
+    assert r.status_code == 404
+
+
 async def test_assigning_to_a_new_agent_notifies_them(app: FastAPI, db: AsyncSession) -> None:
     tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
     await db.commit()
@@ -909,9 +1048,12 @@ async def test_the_background_trigger_actually_creates_a_real_agent_run(
             raise NotImplementedError
 
     class _FakeRetriever:
-        async def retrieve(
+        async def embed_query(self, query: str) -> list[float]:
+            return [0.1]
+
+        async def search(
             self,
-            query: str,
+            vector: list[float],
             *,
             top_k: int,
             domain: KbDomain | None = None,
@@ -986,9 +1128,12 @@ async def test_creating_a_ticket_via_http_makes_it_visible_to_the_background_tas
             raise NotImplementedError
 
     class _FakeRetriever:
-        async def retrieve(
+        async def embed_query(self, query: str) -> list[float]:
+            return [0.1]
+
+        async def search(
             self,
-            query: str,
+            vector: list[float],
             *,
             top_k: int,
             domain: KbDomain | None = None,

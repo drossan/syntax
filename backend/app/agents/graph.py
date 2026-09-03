@@ -22,6 +22,7 @@ from app.agents.nodes.trim import make_trim_node
 from app.agents.state import HelpdeskState
 from app.domain.ports.llm import ChatModel
 from app.domain.ports.repositories import MessageRepository
+from app.domain.services.ticket_service import TicketService
 from app.rag.retriever import Retriever
 
 
@@ -29,20 +30,22 @@ def build_graph(
     chat_model: ChatModel,
     retriever: Retriever,
     messages_repo: MessageRepository,
+    ticket_service: TicketService,
     *,
     top_k: int,
     confidence_threshold: float,
     trim_max_tokens: int,
+    domain_fallback_margin: float,
 ) -> StateGraph[HelpdeskState]:
     """Registra los 7 nodos y sus edges; devuelve el `StateGraph[HelpdeskState]` SIN compilar."""
     graph: StateGraph[HelpdeskState] = StateGraph(HelpdeskState)
     graph.add_node("trim", make_trim_node(trim_max_tokens))
     graph.add_node("classify", make_classify_node(chat_model))
-    graph.add_node("retrieve", make_retrieve_node(retriever, top_k))
+    graph.add_node("retrieve", make_retrieve_node(retriever, top_k, domain_fallback_margin))
     graph.add_node("grade", make_grade_node(chat_model))
     graph.add_node("generate", make_generate_node(chat_model))
     graph.add_node("decide", make_decide_node(confidence_threshold))
-    graph.add_node("respond", make_respond_node(messages_repo))
+    graph.add_node("respond", make_respond_node(messages_repo, ticket_service))
 
     graph.add_edge(START, "trim")
     graph.add_edge("trim", "classify")

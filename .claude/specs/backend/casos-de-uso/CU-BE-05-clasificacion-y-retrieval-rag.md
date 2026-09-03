@@ -2,8 +2,9 @@
 
 > **SDD** (Cockburn + Gherkin). CÓMO para FR-023…FR-025, FR-035 de [`../spec.md`](../spec.md). Decisiones:
 > [[../../adr/0008-grafo-langgraph-plano-edges-tipados]], [[../../adr/0010-rag-pgvector-chunking-h2-tolerante-estado-peso]],
-> [[../../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]]. Detalle: [`../rag-ingestion.md`](../rag-ingestion.md) §6,
-> [`../agent-graph.md`](../agent-graph.md) §4-§5.
+> [[../../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]],
+> [[../../adr/0019-fallback-de-dominio-por-relevancia-baja-en-retrieval]] (extensión 1c). Detalle:
+> [`../rag-ingestion.md`](../rag-ingestion.md) §6, [`../agent-graph.md`](../agent-graph.md) §4-§5.
 >
 > **Alcance de este CU frente al plan `kb-retriever`** (nota añadida 2026-08-25). Este CU cubre el
 > retrieval del **agente LangGraph**: chunks con `chunk_id`, **sin deduplicar**, con el `score` **crudo**
@@ -51,6 +52,14 @@
 ## Extensiones (flujos alternativos y de error)
 
 - **1a.** Ticket **no clasificable** con confianza: `retrieve` opera **sin filtro de dominio** (fallback) y se marca baja confianza.
+- **1c.** ([ADR-0019](../../adr/0019-fallback-de-dominio-por-relevancia-baja-en-retrieval.md), plan
+  `rag-domain-fallback`, 2026-08-31) Ticket **clasificable** con dominio asignado, pero el dominio es el
+  equivocado (frontera de taxonomía ambigua — el mismo concepto vive en varios de los 17 dominios):
+  `retrieve` reintenta **siempre** sin filtro de dominio (no solo cuando el score filtrado parece bajo —
+  un caso real observado con score 0.611, ya por encima del umbral de confianza, seguía siendo el
+  dominio equivocado) y usa ese resultado si mejora significativamente sobre el filtrado (margen
+  configurable, `Settings.rag_domain_fallback_margin`). No se mezclan ambas listas de hits. No se
+  corrige `ticket.domain`/`ticket.priority` persistidos — solo cambia qué se recupera para responder.
 - **1b.** `resoluble=false`: se escala directo a humano sin `generate`.
 - **3a.** Confianza `< umbral` o `grade.suficiente=false`: se **escala** con `human_note` (contexto insuficiente).
 - **2a.** El corpus es 81% `draft`: el peso de `estado` es re-ranking, **no** filtro duro (no vacía el retrieval).
@@ -90,4 +99,71 @@ Feature: Clasificación y retrieval RAG
     Given un conjunto recuperado con confianza suficiente
     When el agente prepara el borrador
     Then el resultado incluye citas con uc_id, título y tipo de sección
+
+  Scenario: El dominio asignado pero equivocado no bloquea el retrieval de la respuesta correcta
+    Given un ticket clasificado con un dominio asignado (con confianza) que no es el dominio real del
+      documento que responde a la pregunta
+    When el agente recupera contexto
+    Then reintenta sin filtro de dominio, y si el resultado sin filtro mejora significativamente sobre
+      el filtrado, usa ese resultado completo para el resto del run
+
+  Scenario: El dominio asignado y correcto no se sustituye por ruido del resto del corpus
+    Given un ticket clasificado con el dominio correcto, cuyo retrieval filtrado ya es suficiente
+    When el agente recupera contexto y compara contra la búsqueda sin filtro
+    Then la mejora sin filtro no supera el margen configurado y se mantiene el resultado filtrado
+
+  Scenario Outline: El reintento sin filtro se ejecuta siempre que hay dominio asignado, independientemente del score filtrado
+    Given un ticket clasificado con dominio asignado y un score máximo filtrado de <score_filtrado>
+    When el agente recupera contexto
+    Then se ejecuta una segunda búsqueda sin filtro de dominio para poder comparar
+
+    Examples:
+      | score_filtrado |
+      | 0.384          |
+      | 0.611          |
+      | 0.66           |
+
+  Scenario: El retrieval filtrado sin resultados no bloquea la comparación con el sin-filtro
+    Given un ticket clasificado con un dominio asignado cuya búsqueda filtrada no devuelve ningún hit
+    When el agente recupera contexto
+    Then la comparación usa 0.0 como score máximo filtrado, sin lanzar error
+
+  Scenario: Ni el retrieval filtrado ni el sin filtro encuentran nada
+    Given un ticket clasificado con dominio asignado sin ningún hit en la KB, con o sin filtro
+    When el agente recupera contexto
+    Then se mantiene el resultado filtrado (vacío) y no se lanza ningún error
+
+  Scenario Outline: El margen de mejora configurado, no un valor fijo, decide si el fallback se usa
+    Given un ticket clasificado con dominio asignado y una mejora sin filtro de <delta>, con el margen
+      de mejora configurado a <margen>
+    When el agente recupera contexto
+    Then el resultado usado es <resultado>
+
+    Examples:
+      | delta | margen | resultado  |
+      | 0.10  | 0.05   | sin filtro |
+      | 0.10  | 0.20   | filtrado   |
+      | 0.125 | 0.125  | filtrado   |
+
+  Scenario: Un fallo en la segunda búsqueda (sin filtro) no se enmascara con el resultado filtrado
+    Given un ticket clasificado con dominio asignado cuya búsqueda filtrada tiene éxito
+    And la segunda búsqueda sin filtro de dominio falla (proveedor caído)
+    When el agente recupera contexto
+    Then el fallo se propaga y el run no continúa con un resultado silenciosamente incompleto
+
+  Scenario: El vector de la consulta se reutiliza entre la búsqueda filtrada y la sin filtro
+    Given un ticket clasificado con un dominio asignado
+    When el agente recupera contexto y se ejecuta el reintento sin filtro
+    Then la consulta se embebe una única vez y ambas búsquedas usan ese mismo vector
+
+  Scenario: Sin dominio asignado no se ejecuta una segunda búsqueda
+    Given un ticket cuyo dominio no puede determinarse con confianza
+    When el agente recupera contexto
+    Then se ejecuta una única búsqueda (sin filtro), sin comparación ni reintento adicional
+
+  Scenario: Toda comparación con dominio asignado se registra, dispare o no el fallback
+    Given un ticket clasificado con dominio asignado
+    When el agente recupera contexto y compara filtrado contra sin filtro
+    Then se registra un log con el ticket, el dominio original, ambos scores máximos y si se usó el fallback
+    And esto ocurre igual si el margen se supera que si no
 ```

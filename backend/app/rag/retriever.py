@@ -56,6 +56,11 @@ class Retriever:
     ) -> list[RankedHit]:
         """Los `top_k` chunks más relevantes para `query`, re-rankeados y **sin deduplicar**.
 
+        Envoltorio fino de `embed_query()` + `search()` (ADR-0019) — mismo comportamiento de siempre
+        para este llamante (camino HTTP, tests). Se parte en dos métodos para que el nodo `retrieve` del
+        agente pueda reutilizar el mismo vector en una segunda búsqueda (filtrada + sin filtro) sin pagar
+        dos veces la llamada al proveedor de embeddings.
+
         Los filtros van tal cual al puerto: si no se piden, **no se inventan** — `domain=None` recupera
         del corpus entero, que es el fallback de CU-BE-05 cuando el clasificador no fija dominio con
         confianza, y `estado=None` deja participar a los `draft` (opt-in, ADR-0010).
@@ -64,12 +69,35 @@ class Retriever:
             propaga**, no se convierte en lista vacía: un fallo de dependencia nunca puede presentarse
             como "la KB no tiene resultados" (garantía mínima de CU-BE-12).
         """
-        query_vector = await self._embeddings.embed_query(query)
+        query_vector = await self.embed_query(query)
+        return await self.search(
+            query_vector, top_k=top_k, domain=domain, package=package, estado=estado
+        )
+
+    async def embed_query(self, query: str) -> list[float]:
+        """El vector de embeddings de `query` (`EmbeddingModel.embed_query`), sin buscar nada todavía.
+
+        :raises app.domain.errors.PortError: si falla el proveedor de embeddings. Se propaga tal cual.
+        """
+        return await self._embeddings.embed_query(query)
+
+    async def search(
+        self,
+        vector: list[float],
+        *,
+        top_k: int,
+        domain: KbDomain | None = None,
+        package: Package | None = None,
+        estado: KbEstado | None = None,
+    ) -> list[RankedHit]:
+        """Los `top_k` chunks más parecidos a un `vector` YA calculado, re-rankeados y sin deduplicar.
+
+        No toca el puerto de embeddings — a diferencia de `retrieve()`, permite reutilizar el mismo
+        vector en varias búsquedas (ADR-0019).
+
+        :raises app.domain.errors.PortError: si falla la búsqueda. Se propaga tal cual.
+        """
         hits = await self._index.search(
-            query_vector,
-            top_k=top_k,
-            domain=domain,
-            package=package,
-            estado=estado,
+            vector, top_k=top_k, domain=domain, package=package, estado=estado
         )
         return rerank(hits, weight=self._estado_weight)
