@@ -3,8 +3,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 
+import { MarkdownEditor } from "@/components/markdown-editor";
 import { useCan } from "@/features/rbac/use-can";
 import { problemToUi, type Problem } from "@/lib/api/problem";
 
@@ -59,6 +60,7 @@ export function TicketReplyForm({
     handleSubmit,
     reset,
     setValue,
+    control,
     formState: { errors, isSubmitting, dirtyFields },
   } = useForm<TicketReplyValues>({
     resolver: zodResolver(ticketReplySchema),
@@ -118,12 +120,13 @@ export function TicketReplyForm({
 
       <div className="flex flex-col gap-1">
         <label htmlFor="ticket-reply-body">{t("replyLabel")}</label>
-        <textarea
-          id="ticket-reply-body"
-          rows={3}
-          aria-invalid={errors.body ? true : undefined}
-          className="rounded-md border px-2 py-1"
-          {...register("body")}
+        {/* MarkdownEditor es un componente controlado (value/onChange) — register() no aplica. */}
+        <Controller
+          name="body"
+          control={control}
+          render={({ field }) => (
+            <MarkdownEditor id="ticket-reply-body" value={field.value} onChange={field.onChange} />
+          )}
         />
         {errors.body ? <p className="text-sm text-destructive">{errors.body.message}</p> : null}
       </div>

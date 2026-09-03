@@ -4,8 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 
+import { MarkdownEditor } from "@/components/markdown-editor";
 import { useUnsavedGuard } from "@/features/cross-cutting/use-unsaved-guard";
 import { problemToUi, type Problem } from "@/lib/api/problem";
 
@@ -34,6 +35,7 @@ export function TicketCreateForm() {
     register,
     handleSubmit,
     setError,
+    control,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<TicketCreateValues>({
     resolver: zodResolver(ticketCreateSchema),
@@ -84,12 +86,13 @@ export function TicketCreateForm() {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="ticket-body">{t("body")}</label>
-        <textarea
-          id="ticket-body"
-          rows={5}
-          aria-invalid={errors.body ? true : undefined}
-          className="rounded-md border px-2 py-1"
-          {...register("body")}
+        {/* MarkdownEditor es un componente controlado (value/onChange) — register() no aplica. */}
+        <Controller
+          name="body"
+          control={control}
+          render={({ field }) => (
+            <MarkdownEditor id="ticket-body" value={field.value ?? ""} onChange={field.onChange} />
+          )}
         />
         {errors.body ? <p className="text-sm text-destructive">{errors.body.message}</p> : null}
       </div>
