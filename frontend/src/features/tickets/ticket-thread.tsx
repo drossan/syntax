@@ -39,40 +39,46 @@ export function TicketThread({
 
   if (thread.length === 0) {
     return (
-      <p role="status" className="text-muted-foreground">
-        {t("empty")}
-      </p>
+      <div className="flex flex-col gap-2">
+        <h2 className="text-sm font-medium">{t("thread.title")}</h2>
+        <p role="status" className="text-muted-foreground">
+          {t("empty")}
+        </p>
+      </div>
     );
   }
 
   return (
-    <ul className="flex flex-col gap-3">
-      {thread.map((message) => (
-        <li key={message.id} className="rounded-md border p-3">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{authorLabel(message, t)}</span>
-            {message.created_at ? (
-              <span>
-                {format.dateTime(new Date(message.created_at), {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-              </span>
-            ) : null}
-            {message.visibility === "internal" ? (
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                {t("thread.internal")}
-              </span>
-            ) : null}
-            {message.is_ai_draft ? (
-              <span className="rounded bg-accent px-1.5 py-0.5">{t("thread.aiDraft")}</span>
-            ) : null}
-          </div>
-          <div className="mt-1 text-sm">
-            <MarkdownText>{message.body ?? ""}</MarkdownText>
-          </div>
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-2">
+      <h2 className="text-sm font-medium">{t("thread.title")}</h2>
+      <ul className="flex flex-col gap-3">
+        {thread.map((message) => (
+          <li key={message.id} className="rounded-md border p-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{authorLabel(message, t)}</span>
+              {message.created_at ? (
+                <span>
+                  {format.dateTime(new Date(message.created_at), {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </span>
+              ) : null}
+              {message.visibility === "internal" ? (
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                  {t("thread.internal")}
+                </span>
+              ) : null}
+              {message.is_ai_draft ? (
+                <span className="rounded bg-accent px-1.5 py-0.5">{t("thread.aiDraft")}</span>
+              ) : null}
+            </div>
+            <div className="mt-1 text-sm">
+              <MarkdownText>{message.body ?? ""}</MarkdownText>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

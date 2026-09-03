@@ -91,4 +91,21 @@ describe("UsersAdmin", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(patched).toBeUndefined();
   });
+
+  it("si deshabilitar falla, muestra un error", async () => {
+    serveAdmin([userFixture({ id: "u1", email: "ana@acme.io", status: "active" })]);
+    server.use(
+      http.patch(`${USERS}/:id`, () =>
+        HttpResponse.json({ type: "about:blank", title: "boom", status: 500 }, { status: 500 }),
+      ),
+    );
+    renderWithSession(<UsersAdmin />, { me: admin });
+
+    const row = (await screen.findByText("ana@acme.io")).closest("tr")!;
+    await userEvent.click(within(row).getByRole("button", { name: /deshabilitar/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: /confirmar/i }));
+
+    await screen.findByRole("alert");
+  });
 });

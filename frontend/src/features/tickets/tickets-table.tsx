@@ -2,6 +2,7 @@
 
 import { createColumnHelper, tableFeatures, useTable } from "@tanstack/react-table";
 import { useFormatter, useTranslations } from "next-intl";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import type { components } from "@/types/api";
@@ -40,18 +41,30 @@ function UpdatedCell({ value }: { value: string | undefined }) {
   return <>{value ? format.dateTime(new Date(value), { dateStyle: "medium", timeStyle: "short" }) : null}</>;
 }
 
-/** Celda de asunto con marcador de "no leído" (task 22) si el ticket está en `unreadIds`. */
-function SubjectCell({ subject, unread }: { subject: string | undefined; unread: boolean }) {
+/**
+ * Celda de asunto: enlaza al detalle del ticket (única vía para abrirlo desde la bandeja) y marca
+ * "no leído" (task 22) si el ticket está en `unreadIds`.
+ */
+function SubjectCell({
+  id,
+  subject,
+  unread,
+}: {
+  id: string | undefined;
+  subject: string | undefined;
+  unread: boolean;
+}) {
   const t = useTranslations("tickets");
+  if (!id) return <span>{subject}</span>;
   return (
-    <span className={unread ? "font-semibold" : undefined}>
+    <Link href={`/tickets/${id}`} className={unread ? "font-semibold underline" : "underline"}>
       {unread ? (
         <span aria-label={t("unread")} title={t("unread")} className="mr-1 text-primary">
           ●
         </span>
       ) : null}
       {subject}
-    </span>
+    </Link>
   );
 }
 
@@ -88,7 +101,11 @@ export function TicketsTable({
         helper.accessor("subject", {
           header: () => <ColHeader k="subject" />,
           cell: (c) => (
-            <SubjectCell subject={c.getValue()} unread={unreadIds?.has(c.row.original.id ?? "") ?? false} />
+            <SubjectCell
+              id={c.row.original.id}
+              subject={c.getValue()}
+              unread={unreadIds?.has(c.row.original.id ?? "") ?? false}
+            />
           ),
         }),
         helper.accessor("status", {
@@ -119,29 +136,31 @@ export function TicketsTable({
   const table = useTable({ features, columns, data: tickets });
 
   return (
-    <table aria-label={caption} className="w-full border-collapse text-sm">
-      <thead>
-        {table.getHeaderGroups().map((group) => (
-          <tr key={group.id} className="border-b text-left">
-            {group.headers.map((header) => (
-              <th key={header.id} scope="col" className="px-3 py-2 font-medium">
-                {header.isPlaceholder ? null : <table.FlexRender header={header} />}
-              </th>
-            ))}
-          </tr>
-        ))}
-      </thead>
-      <tbody>
-        {table.getRowModel().rows.map((row) => (
-          <tr key={row.id} className="border-b hover:bg-accent/50">
-            {row.getAllCells().map((cell) => (
-              <td key={cell.id} className="px-3 py-2">
-                <table.FlexRender cell={cell} />
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="overflow-x-auto">
+      <table aria-label={caption} className="w-full min-w-[640px] border-collapse text-sm">
+        <thead>
+          {table.getHeaderGroups().map((group) => (
+            <tr key={group.id} className="border-b text-left">
+              {group.headers.map((header) => (
+                <th key={header.id} scope="col" className="px-3 py-2 font-medium">
+                  {header.isPlaceholder ? null : <table.FlexRender header={header} />}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row) => (
+            <tr key={row.id} className="border-b hover:bg-accent/50">
+              {row.getAllCells().map((cell) => (
+                <td key={cell.id} className="px-3 py-2">
+                  <table.FlexRender cell={cell} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

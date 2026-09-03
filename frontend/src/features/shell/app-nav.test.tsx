@@ -1,9 +1,13 @@
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AppNav } from "@/features/shell/app-nav";
 import { meFixture, userFixture } from "@/mocks/fixtures";
 import { renderWithSession } from "@/test/render-with-session";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/approvals",
+}));
 
 /**
  * Escenario Gherkin: «la navegación refleja las capacidades del rol».
@@ -55,5 +59,21 @@ describe("AppNav", () => {
       }),
     });
     expect(await screen.findByRole("link", { name: "Roles" })).toBeInTheDocument();
+  });
+
+  it("marca la sección activa con aria-current, y ninguna otra", async () => {
+    renderWithSession(<AppNav />, {
+      me: meFixture({
+        capabilities: [
+          { capability: "ticket.read", scope: "tenant" },
+          { capability: "approval.decide", scope: "global" },
+        ],
+        user: userFixture(),
+      }),
+    });
+
+    const active = await screen.findByRole("link", { name: "Aprobaciones" });
+    expect(active).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Bandeja" })).not.toHaveAttribute("aria-current");
   });
 });

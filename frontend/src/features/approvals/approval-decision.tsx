@@ -5,12 +5,16 @@ import { useState } from "react";
 
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { MarkdownText } from "@/components/markdown-text";
+import { ConfirmDialog } from "@/features/tickets/confirm-dialog";
 import type { components } from "@/types/api";
 
 import { isPending, noteProvided } from "./approval-status";
 import { useApproveApproval, useEditApproval, useRejectApproval } from "./use-approval-decision";
 
 type ApprovalTask = components["schemas"]["ApprovalTask"];
+
+/** Umbral (caracteres) a partir del cual el draft se trunca por defecto en la cola. */
+const DRAFT_PREVIEW_THRESHOLD = 240;
 
 /**
  * Acciones de decisión sobre un draft IA: **aprobar** (publica tal cual), **editar y aprobar** (publica
@@ -37,6 +41,7 @@ export function ApprovalDecision({
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   if (!approval) {
     return (
@@ -67,11 +72,36 @@ export function ApprovalDecision({
     reject.mutate({ human_note: note }, { onSuccess: () => setRejecting(false) });
   }
 
+  const hasDraft = (approval.draft_body ?? "").trim().length > 0;
+  const isLong = (approval.draft_body?.length ?? 0) > DRAFT_PREVIEW_THRESHOLD;
+
   return (
     <div className="flex flex-col gap-3">
-      <blockquote className="border-l-2 pl-3 text-sm">
-        <MarkdownText>{approval.draft_body ?? ""}</MarkdownText>
-      </blockquote>
+      {hasDraft ? (
+        <>
+          <blockquote
+            className={`border-l-2 pl-3 text-sm ${isLong && !expanded ? "line-clamp-4" : ""}`}
+          >
+            <MarkdownText>{approval.draft_body ?? ""}</MarkdownText>
+          </blockquote>
+          {isLong ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((current) => !current)}
+              className="self-start text-sm text-primary underline"
+            >
+              {expanded ? t("showLess") : t("showMore")}
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <div role="status" className="flex flex-col gap-1 rounded-md border border-dashed p-3 text-sm">
+          <p className="font-medium">{t("noDraftGenerated")}</p>
+          {approval.human_note ? (
+            <p className="text-muted-foreground">{approval.human_note}</p>
+          ) : null}
+        </div>
+      )}
 
       {editing ? (
         <div className="flex flex-col gap-2">
@@ -94,7 +124,8 @@ export function ApprovalDecision({
           <button
             type="button"
             onClick={() => approve.mutate(undefined)}
-            className="rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground"
+            disabled={approve.isPending}
+            className="rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
           >
             {t("approve")}
           </button>
@@ -119,11 +150,18 @@ export function ApprovalDecision({
       )}
 
       {rejecting ? (
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-label={t("rejectTitle")}
-          className="flex flex-col gap-2 rounded-md border p-3"
+        <ConfirmDialog
+          title={t("rejectTitle")}
+          description={t("rejectDescription")}
+          confirmLabel={t("confirmReject")}
+          cancelLabel={t("cancel")}
+          confirmDisabled={reject.isPending}
+          onCancel={() => {
+            setRejecting(false);
+            setNote("");
+            setNoteError(false);
+          }}
+          onConfirm={confirmReject}
         >
           <label className="flex flex-col gap-1 text-sm">
             {t("noteLabel")}
@@ -136,27 +174,7 @@ export function ApprovalDecision({
             />
           </label>
           {noteError ? <p className="text-sm text-destructive">{t("noteRequired")}</p> : null}
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setRejecting(false);
-                setNote("");
-                setNoteError(false);
-              }}
-              className="rounded-md border px-3 py-1.5 text-sm"
-            >
-              {t("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={confirmReject}
-              className="rounded-md border bg-destructive px-3 py-1.5 text-sm text-destructive-foreground"
-            >
-              {t("confirmReject")}
-            </button>
-          </div>
-        </div>
+        </ConfirmDialog>
       ) : null}
     </div>
   );

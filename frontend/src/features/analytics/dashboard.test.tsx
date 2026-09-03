@@ -34,6 +34,9 @@ describe("Dashboard", () => {
     expect(screen.getByRole("group", { name: /sla/i })).toHaveTextContent("1");
     // Confianza media 82%
     expect(screen.getByText(/82/)).toBeInTheDocument();
+    // El desglose por estado usa las etiquetas traducidas, no la clave cruda del backend.
+    expect(screen.getByText("Abierto")).toBeInTheDocument();
+    expect(screen.queryByText("open")).not.toBeInTheDocument();
   });
 
   it("estado vacío cuando el tenant no tiene actividad", async () => {

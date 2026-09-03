@@ -3,9 +3,12 @@
 import { useTranslations } from "next-intl";
 
 import { formatConfidencePercent } from "@/features/ai-flow/agent-run";
+import type { components } from "@/types/api";
 
 import { isEmptySummary, totalTickets } from "./analytics";
 import { useAnalyticsSummary } from "./use-analytics";
+
+type TicketStatus = components["schemas"]["TicketStatus"];
 
 /** Tarjeta de métrica accesible (grupo etiquetado con su valor). */
 function StatCard({ label, value }: { label: string; value: string }) {
@@ -24,6 +27,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
  */
 export function Dashboard() {
   const t = useTranslations("dashboard");
+  const tStatus = useTranslations("tickets.status");
   const { data, isLoading, isError, refetch } = useAnalyticsSummary();
 
   if (isLoading) {
@@ -72,7 +76,9 @@ export function Dashboard() {
             <ul className="flex flex-col gap-1">
               {byStatus.map(([status, count]) => (
                 <li key={status} className="flex items-center gap-2 text-sm">
-                  <span className="w-24 text-muted-foreground">{status}</span>
+                  <span className="w-24 text-muted-foreground">
+                    {tStatus(status as TicketStatus)}
+                  </span>
                   <span
                     aria-hidden="true"
                     className="h-3 rounded bg-primary/70"

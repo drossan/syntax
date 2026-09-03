@@ -155,6 +155,42 @@ describe("AiDraftPanel", () => {
     expect(runCalls).toBe(callsAtAwaiting);
   });
 
+  it("running + escalated=true, sin approval.decide: no ofrece enlace a la cola de aprobaciones", async () => {
+    serveTrigger();
+    server.use(
+      http.get(RUN, () =>
+        HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "running", escalated: true })),
+      ),
+    );
+
+    renderWithSession(<AiDraftPanel ticketId={TICKET_ID} pollMs={10} />, { me });
+    await userEvent.click(await screen.findByRole("button", { name: /generar borrador/i }));
+
+    await screen.findByText(/esperando aprobación/i);
+    expect(screen.queryByRole("link", { name: /cola de aprobaciones/i })).not.toBeInTheDocument();
+  });
+
+  it("running + escalated=true, CON approval.decide: enlaza a la cola de aprobaciones", async () => {
+    const decider = meFixture({
+      capabilities: [
+        { capability: "agent.trigger", scope: "tenant" },
+        { capability: "approval.decide", scope: "global" },
+      ],
+    });
+    serveTrigger();
+    server.use(
+      http.get(RUN, () =>
+        HttpResponse.json(agentRunFixture({ id: RUN_ID, status: "running", escalated: true })),
+      ),
+    );
+
+    renderWithSession(<AiDraftPanel ticketId={TICKET_ID} pollMs={10} />, { me: decider });
+    await userEvent.click(await screen.findByRole("button", { name: /generar borrador/i }));
+
+    const link = await screen.findByRole("link", { name: /cola de aprobaciones/i });
+    expect(link).toHaveAttribute("href", "/approvals");
+  });
+
   it("ai_auto_draft: descubre un run ya disparado por el servidor SIN que el usuario haga clic", async () => {
     server.use(
       http.get(ACTIVE_RUN, () =>

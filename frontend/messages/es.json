@@ -10,7 +10,9 @@
     "tenants": "Clientes",
     "users": "Usuarios",
     "roles": "Roles",
-    "dashboard": "Panel"
+    "dashboard": "Panel",
+    "openMenu": "Abrir navegación",
+    "closeMenu": "Cerrar navegación"
   },
   "header": {
     "logout": "Cerrar sesión",
@@ -119,7 +121,8 @@
     "noRoles": "sin roles",
     "chooseRole": "Elige un rol",
     "assign": "Asignar",
-    "assignRoleTo": "Asignar rol a {email}"
+    "assignRoleTo": "Asignar rol a {email}",
+    "assignError": "No se pudo asignar el rol."
   },
   "adminUsers": {
     "title": "Usuarios",
@@ -132,6 +135,7 @@
     "disable": "Deshabilitar",
     "disableTitle": "¿Deshabilitar usuario?",
     "disableBody": "El usuario no podrá iniciar sesión hasta que se reactive.",
+    "disableError": "No se pudo deshabilitar el usuario.",
     "loading": "Cargando usuarios…",
     "error": "No se pudieron cargar los usuarios.",
     "retry": "Reintentar",
@@ -174,8 +178,12 @@
     "cancel": "Cancelar",
     "noteRequired": "La nota al humano es obligatoria.",
     "rejectTitle": "Rechazar el borrador",
+    "rejectDescription": "El borrador no se publicará. Añade una nota para quien retome el ticket.",
+    "showMore": "Ver más",
+    "showLess": "Ver menos",
     "resolved": "Esta aprobación ya está resuelta.",
     "noDraft": "No hay borrador para aprobar (el run falló).",
+    "noDraftGenerated": "El agente no generó un borrador para este ticket.",
     "retry": "Reintentar / escalar"
   },
   "aiDraft": {
@@ -186,6 +194,7 @@
     "retry": "Reintentar",
     "generating": "Generando el borrador…",
     "awaitingApproval": "Borrador listo — esperando aprobación en la cola de aprobaciones.",
+    "reviewInQueue": "Revisar en la cola de aprobaciones",
     "ready": "Borrador listo",
     "failed": "La generación falló.",
     "confidence": "Confianza",
@@ -243,6 +252,7 @@
     "retry": "Reintentar",
     "empty": "Aún no hay mensajes en este ticket.",
     "thread": {
+      "title": "Conversación",
       "internal": "Interna",
       "aiDraft": "Borrador IA",
       "assistant": "Asistente IA",

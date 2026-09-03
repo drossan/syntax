@@ -106,4 +106,49 @@ describe("RoleAssignment", () => {
       }),
     );
   });
+
+  it("si el PATCH falla, muestra un error y el botón vuelve a estar disponible", async () => {
+    server.use(
+      http.patch(`${API}/admin/users/:id`, () =>
+        HttpResponse.json({ type: "about:blank", title: "boom", status: 500 }, { status: 500 }),
+      ),
+    );
+    const user = userFixture({ id: "u1", roles: [] });
+    renderWithSession(<RoleAssignment user={user} seedRoles={seedRoles} />, { me });
+
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: /asignar rol/i }),
+      "11111111-1111-1111-1111-111111111111",
+    );
+    const button = screen.getByRole("button", { name: /asignar/i });
+    await userEvent.click(button);
+
+    await screen.findByRole("alert");
+    expect(button).toBeEnabled();
+  });
+
+  it("mientras el PATCH está en vuelo, el botón de asignar se deshabilita", async () => {
+    let resolvePatch!: (value: Response) => void;
+    server.use(
+      http.patch(
+        `${API}/admin/users/:id`,
+        () =>
+          new Promise((resolve) => {
+            resolvePatch = resolve;
+          }),
+      ),
+    );
+    const user = userFixture({ id: "u1", roles: [] });
+    renderWithSession(<RoleAssignment user={user} seedRoles={seedRoles} />, { me });
+
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: /asignar rol/i }),
+      "11111111-1111-1111-1111-111111111111",
+    );
+    const button = screen.getByRole("button", { name: /asignar/i });
+    await userEvent.click(button);
+
+    await waitFor(() => expect(button).toBeDisabled());
+    resolvePatch(HttpResponse.json(userFixture({ id: "u1", roles: ["client_agent"] })));
+  });
 });

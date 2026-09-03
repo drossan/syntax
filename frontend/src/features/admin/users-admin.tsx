@@ -29,6 +29,7 @@ export function UsersAdmin() {
   const updateUser = useUpdateUser();
   const [formError, setFormError] = useState<string | null>(null);
   const [disabling, setDisabling] = useState<string | null>(null);
+  const [disableError, setDisableError] = useState(false);
 
   const {
     register,
@@ -90,6 +91,12 @@ export function UsersAdmin() {
         </button>
       </form>
 
+      {disableError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {t("disableError")}
+        </p>
+      ) : null}
+
       {users.isLoading ? (
         <p role="status" aria-busy="true" className="text-muted-foreground">
           {t("loading")}
@@ -106,34 +113,42 @@ export function UsersAdmin() {
           {t("empty")}
         </p>
       ) : (
-        <table aria-label={t("title")} className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left">
-              <th scope="col" className="px-2 py-1">{t("email")}</th>
-              <th scope="col" className="px-2 py-1">{t("status")}</th>
-              <th scope="col" className="px-2 py-1">{t("actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.data?.map((user) => (
-              <tr key={user.id} className="border-b">
-                <td className="px-2 py-1">{user.email}</td>
-                <td className="px-2 py-1">{user.status ? t(`statuses.${user.status}`) : "—"}</td>
-                <td className="px-2 py-1">
-                  {user.status !== "disabled" && user.id ? (
-                    <button
-                      type="button"
-                      onClick={() => setDisabling(user.id ?? null)}
-                      className="rounded-md border px-2 py-1"
-                    >
-                      {t("disable")}
-                    </button>
-                  ) : null}
-                </td>
+        <div className="overflow-x-auto">
+          <table aria-label={t("title")} className="w-full min-w-[480px] text-sm">
+            <thead>
+              <tr className="border-b text-left">
+                <th scope="col" className="px-2 py-1">
+                  {t("email")}
+                </th>
+                <th scope="col" className="px-2 py-1">
+                  {t("status")}
+                </th>
+                <th scope="col" className="px-2 py-1">
+                  {t("actions")}
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.data?.map((user) => (
+                <tr key={user.id} className="border-b">
+                  <td className="px-2 py-1">{user.email}</td>
+                  <td className="px-2 py-1">{user.status ? t(`statuses.${user.status}`) : "—"}</td>
+                  <td className="px-2 py-1">
+                    {user.status !== "disabled" && user.id ? (
+                      <button
+                        type="button"
+                        onClick={() => setDisabling(user.id ?? null)}
+                        className="rounded-md border px-2 py-1"
+                      >
+                        {t("disable")}
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {disabling ? (
@@ -141,7 +156,11 @@ export function UsersAdmin() {
           title={t("disableTitle")}
           description={t("disableBody")}
           onConfirm={() => {
-            updateUser.mutate({ id: disabling, status: "disabled" });
+            setDisableError(false);
+            updateUser.mutate(
+              { id: disabling, status: "disabled" },
+              { onError: () => setDisableError(true) },
+            );
             setDisabling(null);
           }}
           onCancel={() => setDisabling(null)}

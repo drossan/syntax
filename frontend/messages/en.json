@@ -10,7 +10,9 @@
     "tenants": "Clients",
     "users": "Users",
     "roles": "Roles",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "openMenu": "Open navigation",
+    "closeMenu": "Close navigation"
   },
   "header": {
     "logout": "Log out",
@@ -119,7 +121,8 @@
     "noRoles": "no roles",
     "chooseRole": "Choose a role",
     "assign": "Assign",
-    "assignRoleTo": "Assign role to {email}"
+    "assignRoleTo": "Assign role to {email}",
+    "assignError": "Could not assign the role."
   },
   "adminUsers": {
     "title": "Users",
@@ -132,6 +135,7 @@
     "disable": "Disable",
     "disableTitle": "Disable user?",
     "disableBody": "The user will not be able to sign in until reactivated.",
+    "disableError": "Could not disable the user.",
     "loading": "Loading users…",
     "error": "Could not load users.",
     "retry": "Retry",
@@ -174,8 +178,12 @@
     "cancel": "Cancel",
     "noteRequired": "The note to human is required.",
     "rejectTitle": "Reject the draft",
+    "rejectDescription": "The draft will not be published. Add a note for whoever picks up the ticket.",
+    "showMore": "Show more",
+    "showLess": "Show less",
     "resolved": "This approval is already resolved.",
     "noDraft": "No draft to approve (the run failed).",
+    "noDraftGenerated": "The agent did not generate a draft for this ticket.",
     "retry": "Retry / escalate"
   },
   "aiDraft": {
@@ -186,6 +194,7 @@
     "retry": "Retry",
     "generating": "Generating the draft…",
     "awaitingApproval": "Draft ready — awaiting approval in the approvals queue.",
+    "reviewInQueue": "Review in the approvals queue",
     "ready": "Draft ready",
     "failed": "Generation failed.",
     "confidence": "Confidence",
@@ -243,6 +252,7 @@
     "retry": "Retry",
     "empty": "No messages yet on this ticket.",
     "thread": {
+      "title": "Conversation",
       "internal": "Internal",
       "aiDraft": "AI draft",
       "assistant": "AI assistant",

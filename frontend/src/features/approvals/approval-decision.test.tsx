@@ -171,13 +171,66 @@ describe("ApprovalDecision", () => {
     expect(await screen.findByRole("button", { name: /^aprobar$/i })).toBeInTheDocument();
   });
 
-  it("un borrador sin draft_body (campo ausente) renderiza el blockquote vacío, sin fallback visible", async () => {
+  it("un borrador sin draft_body (campo ausente) muestra que la IA no generó borrador", async () => {
     const noBody = approvalTaskFixture({ id: ID, status: "pending" });
     delete (noBody as { draft_body?: string }).draft_body;
     renderWithSession(<ApprovalDecision approval={noBody} />, { me });
 
     await screen.findByRole("button", { name: /^aprobar$/i });
-    expect(document.querySelector("blockquote")?.textContent).toBe("");
+    expect(screen.getByText(/no generó un borrador/i)).toBeInTheDocument();
+    expect(document.querySelector("blockquote")).toBeNull();
+  });
+
+  it("escalado sin borrador (draft_body vacío) muestra el motivo del agente, no un hueco en blanco", async () => {
+    const escalated = approvalTaskFixture({
+      id: ID,
+      status: "pending",
+      draft_body: "",
+      human_note: "El contexto proporcionado no aborda directamente el problema.",
+    });
+    renderWithSession(<ApprovalDecision approval={escalated} />, { me });
+
+    expect(
+      await screen.findByText(/el contexto proporcionado no aborda directamente el problema/i),
+    ).toBeInTheDocument();
+    expect(document.querySelector("blockquote")).toBeNull();
+  });
+
+  it("un draft largo se trunca con un botón para expandirlo", async () => {
+    const long = approvalTaskFixture({ id: ID, status: "pending", draft_body: "x".repeat(300) });
+    renderWithSession(<ApprovalDecision approval={long} />, { me });
+
+    await screen.findByText(/^x+$/);
+    const blockquote = document.querySelector<HTMLElement>("blockquote");
+    expect(blockquote?.className).toContain("line-clamp-4");
+    const toggle = screen.getByRole("button", { name: /ver más/i });
+
+    await userEvent.click(toggle);
+
+    expect(blockquote?.className).not.toContain("line-clamp-4");
+    expect(screen.getByRole("button", { name: /ver menos/i })).toBeInTheDocument();
+  });
+
+  it("un draft corto no muestra el botón de expandir", async () => {
+    renderWithSession(<ApprovalDecision approval={pending} />, { me });
+
+    await screen.findByText("Respuesta propuesta por IA");
+    expect(screen.queryByRole("button", { name: /ver más/i })).not.toBeInTheDocument();
+  });
+
+  it("aprobar deshabilita el botón mientras la mutación está en vuelo", async () => {
+    server.use(
+      http.post(APPROVE, async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return HttpResponse.json(approvalTaskFixture({ id: ID, status: "approved" }));
+      }),
+    );
+    renderWithSession(<ApprovalDecision approval={pending} />, { me });
+
+    const approveButton = await screen.findByRole("button", { name: /^aprobar$/i });
+    await userEvent.click(approveButton);
+
+    expect(approveButton).toBeDisabled();
   });
 
   it("un enlace del borrador se abre en pestaña nueva sin arriesgar la sesión", async () => {
@@ -299,9 +352,10 @@ describe("ApprovalDecision", () => {
     renderWithSession(<ApprovalDecision approval={pending} />, { me });
 
     await userEvent.click(await screen.findByRole("button", { name: /^rechazar$/i }));
-    const dialog = await screen.findByRole("alertdialog");
 
-    expect(dialog).toHaveAttribute("aria-label", "Rechazar el borrador");
+    expect(
+      await screen.findByRole("alertdialog", { name: "Rechazar el borrador" }),
+    ).toBeInTheDocument();
   });
 
   it("el campo de nota del diálogo de rechazo tiene su etiqueta visible real", async () => {

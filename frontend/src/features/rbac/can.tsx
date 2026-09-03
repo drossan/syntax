@@ -27,7 +27,7 @@ export function Can({
 export function AccessDenied() {
   return (
     <div role="alert" className="mx-auto flex max-w-md flex-col gap-2 p-8 text-center">
-      <h1 className="text-2xl font-semibold tracking-tight">Acceso denegado</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Acceso denegado</h1>
       <p className="text-sm text-muted-foreground">No tienes permiso para ver esta sección.</p>
     </div>
   );
