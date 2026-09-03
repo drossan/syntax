@@ -174,8 +174,12 @@
     "cancel": "Cancelar",
     "noteRequired": "La nota al humano es obligatoria.",
     "rejectTitle": "Rechazar el borrador",
+    "rejectDescription": "El borrador no se publicará. Añade una nota para quien retome el ticket.",
+    "showMore": "Ver más",
+    "showLess": "Ver menos",
     "resolved": "Esta aprobación ya está resuelta.",
     "noDraft": "No hay borrador para aprobar (el run falló).",
+    "noDraftGenerated": "El agente no generó un borrador para este ticket.",
     "retry": "Reintentar / escalar"
   },
   "aiDraft": {

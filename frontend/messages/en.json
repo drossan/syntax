@@ -174,8 +174,12 @@
     "cancel": "Cancel",
     "noteRequired": "The note to human is required.",
     "rejectTitle": "Reject the draft",
+    "rejectDescription": "The draft will not be published. Add a note for whoever picks up the ticket.",
+    "showMore": "Show more",
+    "showLess": "Show less",
     "resolved": "This approval is already resolved.",
     "noDraft": "No draft to approve (the run failed).",
+    "noDraftGenerated": "The agent did not generate a draft for this ticket.",
     "retry": "Retry / escalate"
   },
   "aiDraft": {
