@@ -1,4 +1,4 @@
-# 0019. Auto-respuesta IA transiciona el ticket a `resolved`; nueva capacidad `ticket.reopen` (refina 0009)
+# 0022. Auto-respuesta IA transiciona el ticket a `resolved`; nueva capacidad `ticket.reopen` (refina 0009)
 
 - **Estado**: accepted
 - **Fecha**: 2026-08-31
