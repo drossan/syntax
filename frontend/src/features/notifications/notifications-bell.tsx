@@ -1,5 +1,6 @@
 "use client";
 
+import { Bell } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 
@@ -31,7 +32,12 @@ export function NotificationsBell({ pollMs }: { pollMs?: number }) {
         onClick={() => setOpen((value) => !value)}
         className="rounded-md border px-2 py-1 text-sm"
       >
-        ☍{unread > 0 ? <span className="ml-1 rounded-full bg-primary px-1 text-xs text-primary-foreground">{unread}</span> : null}
+        <Bell className="inline size-4" aria-hidden="true" />
+        {unread > 0 ? (
+          <span className="ml-1 rounded-full bg-primary px-1 text-xs text-primary-foreground">
+            {unread}
+          </span>
+        ) : null}
       </button>
 
       {open ? (

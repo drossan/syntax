@@ -1,5 +1,6 @@
 "use client";
 
+import { Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useTheme } from "./theme-provider";
@@ -17,7 +18,7 @@ export function ThemeToggle() {
       aria-pressed={theme === "dark"}
       className="rounded-md border px-2 py-1 text-sm"
     >
-      {theme === "dark" ? "☀" : "☾"}
+      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
     </button>
   );
 }
