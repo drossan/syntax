@@ -243,6 +243,7 @@
     "retry": "Reintentar",
     "empty": "Aún no hay mensajes en este ticket.",
     "thread": {
+      "title": "Conversación",
       "internal": "Interna",
       "aiDraft": "Borrador IA",
       "assistant": "Asistente IA",

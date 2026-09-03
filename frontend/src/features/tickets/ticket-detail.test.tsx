@@ -86,6 +86,14 @@ describe("TicketDetail", () => {
     expect(within(items[0]!).getByText(/2026/)).toBeInTheDocument();
   });
 
+  it("el hilo tiene un encabezado propio que lo identifica como conversación", async () => {
+    serveTicketWith([publicMsg]);
+    renderWithSession(<TicketDetail ticketId={TICKET_ID} />, { me: clientMe });
+
+    await screen.findByText("Mensaje público visible");
+    expect(screen.getByRole("heading", { name: /conversación/i, level: 2 })).toBeInTheDocument();
+  });
+
   it("hilo sin mensajes → estado vacío", async () => {
     serveTicketWith([]);
     renderWithSession(<TicketDetail ticketId={TICKET_ID} />, { me: clientMe });

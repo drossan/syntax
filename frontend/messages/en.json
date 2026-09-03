@@ -243,6 +243,7 @@
     "retry": "Retry",
     "empty": "No messages yet on this ticket.",
     "thread": {
+      "title": "Conversation",
       "internal": "Internal",
       "aiDraft": "AI draft",
       "assistant": "AI assistant",
