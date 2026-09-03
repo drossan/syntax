@@ -29,6 +29,7 @@ export function RoleAssignment({ user, seedRoles }: { user: User; seedRoles: Rol
   const t = useTranslations("adminRoles");
   const updateUser = useUpdateUser();
   const [selected, setSelected] = useState("");
+  const [assignError, setAssignError] = useState(false);
 
   const current = user.roles ?? [];
   const currentIds = seedRoles
@@ -37,7 +38,11 @@ export function RoleAssignment({ user, seedRoles }: { user: User; seedRoles: Rol
 
   function assign() {
     if (selected === "" || !user.id) return;
-    updateUser.mutate({ id: user.id, roles: addRole(currentIds, selected) });
+    setAssignError(false);
+    updateUser.mutate(
+      { id: user.id, roles: addRole(currentIds, selected) },
+      { onError: () => setAssignError(true) },
+    );
   }
 
   return (
@@ -57,9 +62,19 @@ export function RoleAssignment({ user, seedRoles }: { user: User; seedRoles: Rol
           </option>
         ))}
       </select>
-      <button type="button" onClick={assign} className="rounded-md border px-3 py-1.5">
+      <button
+        type="button"
+        onClick={assign}
+        disabled={updateUser.isPending}
+        className="rounded-md border px-3 py-1.5 disabled:opacity-50"
+      >
         {t("assign")}
       </button>
+      {assignError ? (
+        <p role="alert" className="text-destructive">
+          {t("assignError")}
+        </p>
+      ) : null}
     </div>
   );
 }

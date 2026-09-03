@@ -119,7 +119,8 @@
     "noRoles": "sin roles",
     "chooseRole": "Elige un rol",
     "assign": "Asignar",
-    "assignRoleTo": "Asignar rol a {email}"
+    "assignRoleTo": "Asignar rol a {email}",
+    "assignError": "No se pudo asignar el rol."
   },
   "adminUsers": {
     "title": "Usuarios",
