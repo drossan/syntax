@@ -133,6 +133,7 @@
     "disable": "Deshabilitar",
     "disableTitle": "¿Deshabilitar usuario?",
     "disableBody": "El usuario no podrá iniciar sesión hasta que se reactive.",
+    "disableError": "No se pudo deshabilitar el usuario.",
     "loading": "Cargando usuarios…",
     "error": "No se pudieron cargar los usuarios.",
     "retry": "Reintentar",

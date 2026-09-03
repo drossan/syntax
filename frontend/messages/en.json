@@ -133,6 +133,7 @@
     "disable": "Disable",
     "disableTitle": "Disable user?",
     "disableBody": "The user will not be able to sign in until reactivated.",
+    "disableError": "Could not disable the user.",
     "loading": "Loading users…",
     "error": "Could not load users.",
     "retry": "Retry",
