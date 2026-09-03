@@ -458,7 +458,7 @@ describe("TicketReplyForm", () => {
     expect((posted as { body: string }).body).toContain("**");
   });
 
-  it("marcado adversario tecleado en el editor se previsualiza inerte, sin ejecutarse", async () => {
+  it("marcado adversario tecleado en el editor queda como texto inerte, nunca se ejecuta", async () => {
     renderWithSession(
       <TicketReplyForm
         ticketId={TICKET_ID}
@@ -470,9 +470,7 @@ describe("TicketReplyForm", () => {
     const textarea = await screen.findByLabelText(/responder/i);
     await userEvent.type(textarea, "texto <script>window.__pwned = true;</script> normal");
 
-    const preview = document.querySelector<HTMLElement>(".w-md-editor-preview");
-    if (!preview) throw new Error("preview no encontrado");
-    expect(await within(preview).findByText(/normal/)).toBeInTheDocument();
+    expect(textarea).toHaveValue("texto <script>window.__pwned = true;</script> normal");
     expect(document.querySelector("script")).not.toBeInTheDocument();
   });
 });

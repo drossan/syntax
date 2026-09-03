@@ -246,7 +246,7 @@ describe("ApprovalDecision", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("marcado adversario tecleado al editar el borrador se previsualiza inerte", async () => {
+  it("marcado adversario tecleado al editar el borrador queda como texto inerte, nunca se ejecuta", async () => {
     renderWithSession(<ApprovalDecision approval={pending} />, { me });
 
     await userEvent.click(await screen.findByRole("button", { name: /editar/i }));
@@ -254,13 +254,11 @@ describe("ApprovalDecision", () => {
     await userEvent.clear(textarea);
     await userEvent.type(textarea, "texto <script>window.__pwned = true;</script> normal");
 
-    const preview = document.querySelector<HTMLElement>(".w-md-editor-preview");
-    if (!preview) throw new Error("preview no encontrado");
-    expect(await within(preview).findByText(/normal/)).toBeInTheDocument();
+    expect(textarea).toHaveValue("texto <script>window.__pwned = true;</script> normal");
     expect(document.querySelector("script")).not.toBeInTheDocument();
   });
 
-  it("una casilla de lista-de-tareas tecleada a mano se desenvuelve a texto plano al editar", async () => {
+  it("una casilla de lista-de-tareas tecleada a mano se guarda tal cual (sin editor no hay unwrap)", async () => {
     renderWithSession(<ApprovalDecision approval={pending} />, { me });
 
     await userEvent.click(await screen.findByRole("button", { name: /editar/i }));
@@ -269,9 +267,7 @@ describe("ApprovalDecision", () => {
     // userEvent.type interpreta `{`/`[` como inicio de secuencias especiales — se escapan doblando.
     await userEvent.type(textarea, "- [[ ]] paso pendiente");
 
-    const preview = document.querySelector<HTMLElement>(".w-md-editor-preview");
-    if (!preview) throw new Error("preview no encontrado");
-    expect(await within(preview).findByText(/paso pendiente/)).toBeInTheDocument();
+    expect(textarea).toHaveValue("- [ ]] paso pendiente");
     expect(document.querySelector('input[type="checkbox"]')).not.toBeInTheDocument();
   });
 

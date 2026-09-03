@@ -46,17 +46,6 @@ async function findToolbar(): Promise<HTMLElement> {
   return toolbar;
 }
 
-/** El panel de preview (`.w-md-editor-preview`) usa `MarkdownText` (override); el panel de EDICIÓN
- * (`preview="live"` muestra ambos a la vez) tiene su propio resaltado de sintaxis que también puede
- * contener el mismo texto — acotar a `.w-md-editor-preview` evita falsos positivos de "múltiples
- * coincidencias" entre los dos paneles. */
-async function findPreview(): Promise<HTMLElement> {
-  await screen.findByRole("button", { name: /negrita|bold/i });
-  const preview = document.querySelector<HTMLElement>(".w-md-editor-preview");
-  if (!preview) throw new Error("preview no encontrado");
-  return preview;
-}
-
 describe("MarkdownEditor", () => {
   it("muestra un estado de carga antes de que el editor se hidrate", () => {
     renderEditor();
@@ -96,24 +85,13 @@ describe("MarkdownEditor", () => {
     expect(buttons).toHaveLength(10);
   });
 
-  it("la vista previa renderiza el Markdown formateado, con el mismo MarkdownText", async () => {
+  it("no muestra ningún panel de vista previa — solo el área de escritura, a todo el ancho", async () => {
     renderEditor({ value: "esto es **importante**" });
-    const preview = await findPreview();
-    expect(within(preview).getByText("importante").tagName).toBe("STRONG");
-  });
+    await findToolbar();
 
-  it("la vista previa muestra el marcado adversario como texto inerte", async () => {
-    renderEditor({ value: "texto <script>window.__pwned = true;</script> normal" });
-    const preview = await findPreview();
-    expect(within(preview).getByText(/normal/)).toBeInTheDocument();
-    expect(document.querySelector("script")).not.toBeInTheDocument();
-  });
-
-  it("una casilla de lista-de-tareas tecleada a mano se desenvuelve a texto plano, sin checkbox", async () => {
-    renderEditor({ value: "- [ ] paso pendiente" });
-    const preview = await findPreview();
-    expect(within(preview).getByText(/paso pendiente/)).toBeInTheDocument();
-    expect(document.querySelector('input[type="checkbox"]')).not.toBeInTheDocument();
+    expect(document.querySelector(".w-md-editor-preview")).not.toBeInTheDocument();
+    const textarea = await screen.findByRole("textbox");
+    expect(textarea).toHaveValue("esto es **importante**");
   });
 
   it("usar el comando de negrita del toolbar inserta la sintaxis y actualiza el valor", async () => {
