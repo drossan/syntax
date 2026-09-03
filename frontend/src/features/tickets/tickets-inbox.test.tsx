@@ -164,6 +164,14 @@ describe("TicketsInbox", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("cada fila enlaza al detalle del ticket (/tickets/{id})", async () => {
+    serveTickets({ items: [recent], page: 1, page_size: 20, total: 1 });
+    renderWithSession(<TicketsInbox />);
+
+    const link = await screen.findByRole("link", { name: /Ticket reciente/ });
+    expect(link).toHaveAttribute("href", `/tickets/${recent.id}`);
+  });
+
   it("con ticket.create ofrece un enlace de alta hacia /tickets/new (entrada de la 08)", async () => {
     serveTickets({ items: [recent], page: 1, page_size: 20, total: 1 });
     renderWithSession(<TicketsInbox />, {
