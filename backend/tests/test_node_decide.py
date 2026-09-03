@@ -12,6 +12,8 @@ import uuid
 import app.agents.nodes.decide as decide_module
 from app.agents.nodes.decide import make_decide_node
 from app.agents.nodes.grade import Grade
+from app.domain.entities.enums import TicketPriority
+from app.domain.services.classification import Classification
 from langchain_core.messages import HumanMessage
 
 
@@ -21,13 +23,14 @@ def _state(
     confidence: float | None,
     grade: Grade | None,
     draft_response: str | None = None,
+    classification: Classification | None = None,
 ) -> dict:
     return {
         "messages": [HumanMessage(content="pregunta")],
         "tenant_id": uuid.uuid4(),
         "ticket_id": uuid.uuid4(),
         "auto_approve": auto_approve,
-        "classification": None,
+        "classification": classification,
         "retrieved": [],
         "grade": grade,
         "confidence": confidence,
@@ -152,3 +155,38 @@ async def test_escalating_calls_interrupt_with_the_review_payload(monkeypatch) -
 
     assert captured["payload"] is not None
     assert result["human_decision"] == "decisión-humana"
+
+
+async def test_escalating_with_a_grade_persists_its_motivo_into_human_note(monkeypatch) -> None:
+    """El motivo que ya viaja en el payload de revisión (`grade.motivo`) también queda en
+    `state["human_note"]` -- es lo que termina en `ApprovalTask.human_note` (`runner.py`), no solo en
+    el payload de `interrupt()` que ve el checkpointer."""
+    _patch_interrupt(monkeypatch)
+    grade = Grade(suficiente=False, motivo="falta la sección de precios")
+    node = make_decide_node(confidence_threshold=0.5)
+
+    result = await node(_state(auto_approve=True, confidence=0.1, grade=grade))
+
+    assert result["human_note"] == "falta la sección de precios"
+
+
+async def test_classification_not_resoluble_sets_a_human_note_explaining_the_skip(monkeypatch) -> None:
+    """Camino `classification.resoluble=False` (CU-BE-05 extensión 1b): el grafo salta
+    retrieve/grade/generate, así que ni `grade` ni `human_note` se han fijado nunca antes de llegar
+    aquí. Sin este fix, `human_note` quedaba `None` -- el humano revisor no veía ningún motivo, solo
+    "sin borrador"."""
+    _patch_interrupt(monkeypatch)
+    classification = Classification(
+        categoria="consulta general",
+        dominio=None,
+        prioridad=TicketPriority.normal,
+        resoluble=False,
+    )
+    node = make_decide_node(confidence_threshold=0.5)
+
+    result = await node(
+        _state(auto_approve=True, confidence=None, grade=None, classification=classification)
+    )
+
+    assert result["human_note"]
+    assert result["human_note"] != "None"

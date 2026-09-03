@@ -29,10 +29,22 @@ def make_decide_node(confidence_threshold: float) -> NodeFn:
         )
         state["requires_approval"] = requires_approval
         if requires_approval:
+            classification = state["classification"]
+            motivo: str | None
+            if grade is not None:
+                motivo = grade.motivo
+            elif classification is not None and not classification.resoluble:
+                motivo = (
+                    "El ticket se clasificó como no resoluble automáticamente; requiere revisión "
+                    "manual."
+                )
+            else:
+                motivo = state["human_note"]
+            state["human_note"] = motivo
             payload = {
                 "draft_response": state["draft_response"],
                 "citations": state["retrieved"],
-                "motivo": grade.motivo if grade is not None else state["human_note"],
+                "motivo": motivo,
             }
             state["human_decision"] = interrupt(payload)
         return state
