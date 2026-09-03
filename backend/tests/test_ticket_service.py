@@ -375,6 +375,149 @@ async def test_get_on_a_nonexistent_ticket_raises_not_found(service: tuple) -> N
         await svc.get(uuid.uuid4())
 
 
+@pytest.mark.parametrize(
+    ("from_status", "target", "expected_hops"),
+    [
+        (
+            TicketStatus.new,
+            TicketStatus.resolved,
+            [TicketStatus.open, TicketStatus.pending, TicketStatus.resolved],
+        ),
+        (
+            TicketStatus.reopened,
+            TicketStatus.resolved,
+            [TicketStatus.open, TicketStatus.pending, TicketStatus.resolved],
+        ),
+        (TicketStatus.open, TicketStatus.resolved, [TicketStatus.pending, TicketStatus.resolved]),
+        (TicketStatus.pending, TicketStatus.resolved, [TicketStatus.resolved]),
+        (TicketStatus.new, TicketStatus.pending, [TicketStatus.open, TicketStatus.pending]),
+    ],
+)
+async def test_advance_to_walks_the_valid_edges_from_the_current_state(
+    service: tuple,
+    from_status: TicketStatus,
+    target: TicketStatus,
+    expected_hops: list[TicketStatus],
+) -> None:
+    """advance_to() encadena transiciones válidas desde el estado ACTUAL hasta target, sin saltos."""
+    svc, tickets, _messages, audit, _sla = service
+    ticket = await _make_ticket(svc)
+    ticket.status = from_status
+    await tickets.update(ticket)
+    count_before = len(audit.entries)
+
+    result = await svc.advance_to(ticket.id, target)
+
+    assert result.status is target
+    assert len(audit.entries) == count_before + len(expected_hops)
+
+
+async def test_advance_to_when_already_at_target_is_a_noop(service: tuple) -> None:
+    """Origen == destino: no-op, NO propaga InvalidTransition (decisión de scenario-coverage)."""
+    svc, tickets, _messages, audit, _sla = service
+    ticket = await _make_ticket(svc)
+    ticket.status = TicketStatus.pending
+    await tickets.update(ticket)
+    count_before = len(audit.entries)
+
+    result = await svc.advance_to(ticket.id, TicketStatus.pending)
+
+    assert result.status is TicketStatus.pending
+    assert len(audit.entries) == count_before  # ningún transition() de más
+
+
+async def test_advance_to_an_unreachable_target_raises_in_bounded_time(service: tuple) -> None:
+    """Sin camino válido (incl. si hay que recorrer un ciclo antes de descartarlo): InvalidTransition,
+    nunca un bucle infinito. `new` no tiene ninguna arista de ENTRADA — inalcanzable desde `open`,
+    que sí está en un ciclo real (open→pending→resolved→reopened→open)."""
+    svc, tickets, *_ = service
+    ticket = await _make_ticket(svc)
+    ticket.status = TicketStatus.open
+    await tickets.update(ticket)
+
+    with pytest.raises(InvalidTransition):
+        await svc.advance_to(ticket.id, TicketStatus.new)
+
+
+async def test_advance_to_with_a_failure_mid_chain_leaves_the_last_successful_state(
+    service: tuple,
+) -> None:
+    """Un fallo a mitad de camino NO revierte: el ticket queda en el último estado alcanzado con
+    éxito (sin unit-of-work cross-repo, mismo criterio ya aceptado en approval_service.py)."""
+    svc, tickets, _messages, audit, _sla = service
+    ticket = await _make_ticket(svc)  # ya arranca en `new`
+
+    # Se intercepta `transition()` (no `tickets.update`, que el fake muta por referencia — no
+    # distingue "falló antes de persistir" de "ya mutó el objeto en memoria"): el 2º salto
+    # (open→pending) falla ANTES de ejecutarse; el 1er salto (new→open) sí llega a persistir.
+    real_transition = svc.transition
+
+    async def failing_transition(
+        ticket_id: uuid.UUID, new_status: TicketStatus, *, actor_id: uuid.UUID | None = None
+    ) -> Ticket:
+        if new_status is TicketStatus.pending:
+            raise RuntimeError("boom")
+        return await real_transition(ticket_id, new_status, actor_id=actor_id)
+
+    svc.transition = failing_transition  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError):
+        await svc.advance_to(ticket.id, TicketStatus.resolved)
+
+    svc.transition = real_transition  # type: ignore[method-assign]
+    assert (await tickets.get(ticket.id)).status is TicketStatus.open
+
+
+async def test_advance_to_propagates_actor_id_to_every_hop(service: tuple) -> None:
+    """actor_id (nuevo parámetro opcional) se propaga a cada transition()/_audit() encadenado."""
+    svc, tickets, _messages, audit, _sla = service
+    ticket = await _make_ticket(svc)
+    ticket.status = TicketStatus.open
+    await tickets.update(ticket)
+    actor = uuid.uuid4()
+    count_before = len(audit.entries)
+
+    await svc.advance_to(ticket.id, TicketStatus.resolved, actor_id=actor)
+
+    new_entries = audit.entries[count_before:]
+    assert len(new_entries) == 2  # open→pending, pending→resolved
+    assert all(entry.actor_id == actor for entry in new_entries)
+
+
+async def test_transition_accepts_and_propagates_actor_id(service: tuple) -> None:
+    """transition() acepta actor_id opcional (default None) y lo pasa al audit log."""
+    svc, _tickets, _messages, audit, _sla = service
+    ticket = await _make_ticket(svc)
+    actor = uuid.uuid4()
+
+    await svc.transition(ticket.id, TicketStatus.open, actor_id=actor)
+
+    assert audit.entries[-1].actor_id == actor
+
+
+async def test_transition_without_actor_id_defaults_to_none(service: tuple) -> None:
+    """Sin actor_id explícito, el audit log sigue con actor_id=None (sin cambio de comportamiento)."""
+    svc, _tickets, _messages, audit, _sla = service
+    ticket = await _make_ticket(svc)
+
+    await svc.transition(ticket.id, TicketStatus.open)
+
+    assert audit.entries[-1].actor_id is None
+
+
+async def test_reopen_accepts_and_propagates_actor_id(service: tuple) -> None:
+    """reopen() acepta actor_id opcional y lo pasa al audit log (el humano que decide reabrir)."""
+    svc, tickets, _messages, audit, _sla = service
+    ticket = await _make_ticket(svc)
+    ticket.status = TicketStatus.resolved
+    await tickets.update(ticket)
+    actor = uuid.uuid4()
+
+    await svc.reopen(ticket.id, actor_id=actor)
+
+    assert audit.entries[-1].actor_id == actor
+
+
 async def test_list_tickets_delegates_to_the_repository_port(service: tuple) -> None:
     svc, tickets, *_ = service
     await _make_ticket(svc)

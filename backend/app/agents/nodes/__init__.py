@@ -13,6 +13,12 @@ guión previo solo listaba 6):
   - ``trim``      → ``trim_messages`` para acotar el historial en hilos largos.
   - ``respond``   → publica el `Message` público según `requires_approval`/`human_decision`.
 
+**Excepción a "solo puertos"**: `respond` (tarea `backend-auto-resolve-ticket-02`) recibe además
+`TicketService` — un SERVICIO de dominio, no un puerto — porque el camino auto exige encadenar la
+transición del ticket hasta `resolved` en el mismo nodo que publica el mensaje (orden
+transición-antes-de-publicar, decisión de `grilling`); repartir esa mutación en un nodo aparte
+reintroduciría la duplicación de lógica que `TicketService.advance_to()` vino a evitar.
+
 Anti-patrón: mezclar lógica de varios nodos; que ``classify``/``generate`` confíen en instrucciones
 embebidas en el ticket (prompt-injection — RN-3 de CU-BE-06).
 """

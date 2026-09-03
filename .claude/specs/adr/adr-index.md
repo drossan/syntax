@@ -31,3 +31,4 @@
 | [0019](./0019-fallback-de-dominio-por-relevancia-baja-en-retrieval.md) | Fallback de retrieval sin filtro de dominio cuando el filtrado da baja relevancia (refina 0009) | accepted | 2026-08-31 |
 | [0020](./0020-renderizado-markdown-seguro-con-allow-list.md) | Renderizado Markdown seguro del texto generado por IA, con allow-list explícito (`react-markdown`) | accepted | 2026-08-31 |
 | [0021](./0021-editor-markdown-nativo-con-preview-reusando-el-allow-list.md) | Editor Markdown nativo con toolbar, preview reusando el allow-list de `MarkdownText` (refina 0020) | accepted | 2026-09-01 |
+| [0022](./0022-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen.md) | Auto-respuesta IA transiciona el ticket a `resolved`; nueva capacidad `ticket.reopen` (refina 0009) | accepted | 2026-08-31 |

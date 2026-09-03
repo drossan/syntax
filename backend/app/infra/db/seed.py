@@ -49,6 +49,7 @@ CAPABILITIES: dict[str, CapabilityScope] = {
     "ticket.create": CapabilityScope.tenant,
     "ticket.reply": CapabilityScope.tenant,
     "ticket.transition": CapabilityScope.tenant,
+    "ticket.reopen": CapabilityScope.tenant,
     "ticket.assign": CapabilityScope.tenant,
     "ticket.update": CapabilityScope.tenant,
     "note.internal.read": CapabilityScope.global_,
@@ -95,7 +96,14 @@ SYSTEM_ROLES: dict[str, list[str]] = {
         "analytics.read",
         "agent.trigger",
     ],
-    "client_agent": ["ticket.create", "ticket.reply", "ticket.read", "kb.read", "agent.trigger"],
+    "client_agent": [
+        "ticket.create",
+        "ticket.reply",
+        "ticket.read",
+        "ticket.reopen",
+        "kb.read",
+        "agent.trigger",
+    ],
     "client_viewer": ["ticket.read", "kb.read"],
 }
 

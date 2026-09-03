@@ -226,6 +226,7 @@ def _get_agent_runner(
         tenants=SqlAlchemyTenantRepository(session),
         agent_runs=SqlAlchemyAgentRunRepository(session),
         approvals=SqlAlchemyApprovalRepository(session),
+        ticket_service=get_ticket_service(session),
         clock=SystemClock(),
         top_k=AGENT_TOP_K,
         confidence_threshold=settings.agent_confidence_threshold,

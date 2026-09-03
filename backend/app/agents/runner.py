@@ -39,6 +39,7 @@ from app.domain.ports.repositories import (
     MessageRepository,
     TenantRepository,
 )
+from app.domain.services.ticket_service import TicketService
 from app.rag.citations import build_citations
 from app.rag.retriever import Retriever
 
@@ -55,6 +56,7 @@ class LangGraphAgentRunner:
         tenants: TenantRepository,
         agent_runs: AgentRunRepository,
         approvals: ApprovalRepository,
+        ticket_service: TicketService,
         clock: Clock,
         top_k: int,
         confidence_threshold: float,
@@ -73,6 +75,7 @@ class LangGraphAgentRunner:
             chat_model,
             retriever,
             messages_repo,
+            ticket_service,
             top_k=top_k,
             confidence_threshold=confidence_threshold,
             trim_max_tokens=trim_max_tokens,

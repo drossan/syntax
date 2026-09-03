@@ -22,7 +22,9 @@ que cubra ambos repos es de infra (11/12).
 **Fix real, no del diseño original**: `new→pending`/`reopened→pending` no son transiciones válidas
 (CU-BE-04: la máquina de estados no salta `open`) — un ticket con `ai_auto_draft` activo (o cualquier
 `agent.trigger` manual antes de que alguien lo abra a mano) llega aquí sin `open` todavía. `decide()`
-encadena `→open` primero cuando hace falta, en vez de forzar el salto.
+usa `TicketService.advance_to()` (tarea `backend-auto-resolve-ticket-01`), que encadena `→open`
+primero cuando hace falta en vez de forzar el salto — generaliza lo que antes era un `if` a mano
+aquí, compartido con el camino auto de `respond.py`.
 """
 
 import uuid
@@ -43,9 +45,6 @@ _DECISION_TO_STATUS: dict[Decision, ApprovalStatus] = {
     "reject": ApprovalStatus.rejected,
 }
 _TRANSITIONS_TICKET: frozenset[Decision] = frozenset({"approve", "edit"})
-_NEEDS_OPEN_BEFORE_PENDING: frozenset[TicketStatus] = frozenset(
-    {TicketStatus.new, TicketStatus.reopened}
-)
 
 
 class ApprovalService:
@@ -118,15 +117,11 @@ class ApprovalService:
             )
 
         if decision in _TRANSITIONS_TICKET:
-            ticket = await self._ticket_service.get(updated.ticket_id)
-            if ticket.status in _NEEDS_OPEN_BEFORE_PENDING:
-                # `_VALID_TRANSITIONS` no tiene `new→pending` ni `reopened→pending` (CU-BE-04: el
-                # estado avanza de uno en uno, nunca salta `open` — "el agente lo toma"). Un ticket
-                # puede llegar aquí sin que nadie lo haya abierto a mano todavía (p.ej. `ai_auto_draft`
-                # dispara el run justo al crearlo, tarea `backend-tickets-ai-auto-draft`) — encadenar
-                # `→open` primero preserva la máquina de estados en vez de forzar un salto.
-                await self._ticket_service.transition(updated.ticket_id, TicketStatus.open)
-            await self._ticket_service.transition(updated.ticket_id, TicketStatus.pending)
+            # `advance_to()` (tarea `backend-auto-resolve-ticket-01`) generaliza el encadenado que
+            # antes vivía aquí a mano (`_NEEDS_OPEN_BEFORE_PENDING`): recorre `_VALID_TRANSITIONS`
+            # desde el estado ACTUAL del ticket hasta `pending`, sin saltar `open` — mismo
+            # comportamiento observable, ya no duplicado con el camino auto de `respond.py`.
+            await self._ticket_service.advance_to(updated.ticket_id, TicketStatus.pending)
 
         await self._agent_runner.resume(
             updated.agent_run_id,
