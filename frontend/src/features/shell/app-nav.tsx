@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { Can } from "@/features/rbac/can";
 
@@ -19,16 +20,24 @@ const NAV_ITEMS = [
 /** Navegación principal: solo muestra las entradas que la sesión puede usar (`<Can>`). */
 export function AppNav() {
   const t = useTranslations("nav");
+  const pathname = usePathname();
 
   return (
     <nav aria-label="Navegación principal" className="flex flex-col gap-1 p-2">
-      {NAV_ITEMS.map((item) => (
-        <Can key={item.key} capability={item.capability}>
-          <Link href={item.href} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
-            {t(item.key)}
-          </Link>
-        </Can>
-      ))}
+      {NAV_ITEMS.map((item) => {
+        const active = pathname === item.href;
+        return (
+          <Can key={item.key} capability={item.capability}>
+            <Link
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={`rounded-md px-3 py-2 text-sm hover:bg-accent ${active ? "bg-accent font-medium" : ""}`}
+            >
+              {t(item.key)}
+            </Link>
+          </Can>
+        );
+      })}
     </nav>
   );
 }

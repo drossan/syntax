@@ -10,7 +10,9 @@
     "tenants": "Clients",
     "users": "Users",
     "roles": "Roles",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "openMenu": "Open navigation",
+    "closeMenu": "Close navigation"
   },
   "header": {
     "logout": "Log out",
