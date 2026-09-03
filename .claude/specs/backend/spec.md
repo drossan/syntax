@@ -64,7 +64,7 @@ generativa**: gestiona tickets, genera respuestas con RAG sobre la documentació
 - **FR-020** — El sistema DEBERÁ registrar toda mutación de negocio en `audit_log` (append-only).
 - **FR-021** — Cuando un listado se solicita sin orden explícito, el sistema DEBERÁ aplicar el **orden determinista por defecto** (tickets `-updated_at`; `/approvals` `sla_due,confidence`; `/notifications` `-created_at`).
 
-### Draft IA y aprobación HITL — [[../adr/0007-hitl-asincrono-postgressaver-checkpointer]] · [[../adr/0008-grafo-langgraph-plano-edges-tipados]] · [[../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]] · [[../adr/0019-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]
+### Draft IA y aprobación HITL — [[../adr/0007-hitl-asincrono-postgressaver-checkpointer]] · [[../adr/0008-grafo-langgraph-plano-edges-tipados]] · [[../adr/0009-confianza-hibrida-y-auto-approve-por-tenant]] · [[../adr/0022-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]
 
 - **FR-022** — Cuando un sujeto con `agent.trigger` dispara un draft, el sistema DEBERÁ crear un `agent_run` (`thread_id=ticket_{id}_run_{n}`) y ejecutar el grafo `classify→retrieve→grade→generate→decide`.
 - **FR-023** — El nodo `classify` DEBERÁ producir `{categoria, dominio(1-de-17), prioridad, resoluble}` con **structured output**, y el dominio DEBERÁ **filtrar el retrieval**.

@@ -1048,9 +1048,12 @@ async def test_the_background_trigger_actually_creates_a_real_agent_run(
             raise NotImplementedError
 
     class _FakeRetriever:
-        async def retrieve(
+        async def embed_query(self, query: str) -> list[float]:
+            return [0.1]
+
+        async def search(
             self,
-            query: str,
+            vector: list[float],
             *,
             top_k: int,
             domain: KbDomain | None = None,
@@ -1125,9 +1128,12 @@ async def test_creating_a_ticket_via_http_makes_it_visible_to_the_background_tas
             raise NotImplementedError
 
     class _FakeRetriever:
-        async def retrieve(
+        async def embed_query(self, query: str) -> list[float]:
+            return [0.1]
+
+        async def search(
             self,
-            query: str,
+            vector: list[float],
             *,
             top_k: int,
             domain: KbDomain | None = None,

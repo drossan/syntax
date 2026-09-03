@@ -208,3 +208,88 @@ async def test_retrieve_does_not_call_the_provider_more_than_once() -> None:
     await retriever.retrieve("consulta", top_k=10)
 
     assert len(embeddings.queries) == 1
+
+
+# --- embed_query() / search() (backend-rag-domain-fallback-01, ADR-0019) ---
+#
+# `retrieve()` se parte en dos métodos públicos para que el nodo `retrieve` del agente pueda reutilizar
+# el mismo vector en dos búsquedas (filtrada + sin filtro) sin pagar dos veces la llamada al proveedor de
+# embeddings. Los tests de arriba (sobre `retrieve()`) siguen pasando sin cambios: verifican que el
+# envoltorio no rompe nada.
+
+
+async def test_embed_query_returns_the_vector_from_the_port() -> None:
+    embeddings = FakeEmbeddingModel(vector=[0.4, 0.5])
+    retriever, embeddings, _ = _retriever(embeddings)
+
+    vector = await retriever.embed_query("cómo subo un vídeo")
+
+    assert vector == [0.4, 0.5]
+    assert embeddings.queries == ["cómo subo un vídeo"]
+
+
+async def test_embed_query_propagates_a_provider_failure() -> None:
+    embeddings = FakeEmbeddingModel(error=PortError("proveedor caído"))
+    retriever, _, _ = _retriever(embeddings)
+
+    with pytest.raises(PortError):
+        await retriever.embed_query("consulta")
+
+
+async def test_search_uses_a_precomputed_vector_without_embedding_again() -> None:
+    """`search` no toca el puerto de embeddings — recibe el vector ya calculado. Es la garantía central
+    del refactor (ADR-0019): reutilizar el vector entre la búsqueda filtrada y la sin filtro."""
+    retriever, embeddings, index = _retriever()
+
+    await retriever.search([0.9, 0.8], top_k=10)
+
+    assert embeddings.queries == []
+    assert index.calls[0]["query_vector"] == [0.9, 0.8]
+
+
+async def test_search_forwards_top_k_and_filters() -> None:
+    retriever, _, index = _retriever()
+
+    await retriever.search(
+        [0.1],
+        top_k=42,
+        domain=KbDomain.forms_and_submissions,
+        package=Package.syntax_api,
+        estado=KbEstado.active,
+    )
+
+    assert index.calls[0]["top_k"] == 42
+    assert index.calls[0]["domain"] is KbDomain.forms_and_submissions
+    assert index.calls[0]["package"] is Package.syntax_api
+    assert index.calls[0]["estado"] is KbEstado.active
+
+
+async def test_search_applies_the_estado_weight_same_as_retrieve() -> None:
+    index = FakeIndex([_hit("UC-DRAFT", 0.5), _hit("UC-ACTIVE", 0.5, estado=KbEstado.active)])
+    retriever, _, _ = _retriever(index=index, estado_weight=0.2)
+
+    ranked = await retriever.search([0.1], top_k=10)
+
+    assert [r.hit.uc_id for r in ranked] == ["UC-ACTIVE", "UC-DRAFT"]
+    assert ranked[0].weighted_score == 0.6
+
+
+async def test_search_propagates_a_search_failure() -> None:
+    retriever, _, _ = _retriever(index=FakeIndex(error=PortError("BD caída")))
+
+    with pytest.raises(PortError):
+        await retriever.search([0.1], top_k=10)
+
+
+async def test_retrieve_is_embed_query_then_search() -> None:
+    """`retrieve()` es un envoltorio fino: mismo resultado que llamar a los dos métodos por separado."""
+    index = FakeIndex([_hit("UC-1", 0.6)])
+    retriever, embeddings, _ = _retriever(FakeEmbeddingModel(vector=[0.7]), index)
+
+    ranked = await retriever.retrieve("consulta", top_k=5, domain=KbDomain.media_and_dam)
+
+    assert embeddings.queries == ["consulta"]
+    assert index.calls[0]["query_vector"] == [0.7]
+    assert index.calls[0]["top_k"] == 5
+    assert index.calls[0]["domain"] is KbDomain.media_and_dam
+    assert [r.hit.uc_id for r in ranked] == ["UC-1"]

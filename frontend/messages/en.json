@@ -282,5 +282,17 @@
     "submit": "Change password",
     "success": "Password updated.",
     "genericError": "The password could not be changed."
+  },
+  "markdownEditor": {
+    "bold": "Bold",
+    "italic": "Italic",
+    "strikethrough": "Strikethrough",
+    "unorderedList": "Unordered list",
+    "orderedList": "Ordered list",
+    "link": "Link",
+    "image": "Image",
+    "code": "Code block",
+    "quote": "Quote",
+    "table": "Table"
   }
 }

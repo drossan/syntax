@@ -73,11 +73,19 @@ class _FakeRetriever:
         self._error = error
         self.calls = 0
 
-    async def retrieve(self, query: str, *, top_k: int, domain=None, **kwargs) -> list[RankedHit]:
+    async def embed_query(self, query: str) -> list[float]:
+        return [0.1]
+
+    async def search(self, vector, *, top_k: int, domain=None, **kwargs) -> list[RankedHit]:
         self.calls += 1
         if self._error is not None:
             raise self._error
         return self._hits
+
+    async def retrieve(self, query: str, *, top_k: int, domain=None, **kwargs) -> list[RankedHit]:
+        return await self.search(
+            await self.embed_query(query), top_k=top_k, domain=domain, **kwargs
+        )
 
 
 class _FakeMessageRepository:
@@ -146,6 +154,7 @@ def _compile(chat_model, retriever, messages_repo, ticket_service=None):
         top_k=5,
         confidence_threshold=0.5,
         trim_max_tokens=50,
+        domain_fallback_margin=0.05,
     )
     return graph.compile(checkpointer=InMemorySaver())
 

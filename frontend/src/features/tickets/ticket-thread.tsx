@@ -2,6 +2,7 @@
 
 import { useFormatter, useTranslations } from "next-intl";
 
+import { MarkdownText } from "@/components/markdown-text";
 import type { components } from "@/types/api";
 
 import { prepareThread } from "./message-visibility";
@@ -17,8 +18,10 @@ function authorLabel(message: Message, t: (key: string) => string): string {
 
 /**
  * Hilo de conversación del ticket. Aplica el filtro de visibilidad en cliente (**defensa en
- * profundidad**) y ordena cronológicamente (`prepareThread`). El cuerpo se renderiza como **texto
- * inerte** (anti-XSS, cross-cutting §1). Marca notas internas y borradores de IA.
+ * profundidad**) y ordena cronológicamente (`prepareThread`). El cuerpo se renderiza con
+ * `MarkdownText` (ADR-0020) — formateado vía un allow-list explícito, sin distinguir autor; el
+ * marcado fuera del allow-list o HTML embebido se muestra como texto inerte (anti-XSS,
+ * `cross-cutting.md` §1). Marca notas internas y borradores de IA.
  *
  * @param messages Mensajes recibidos del servidor.
  * @param canSeeInternal Si el sujeto puede ver notas internas (`note.internal.read`).
@@ -49,7 +52,12 @@ export function TicketThread({
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">{authorLabel(message, t)}</span>
             {message.created_at ? (
-              <span>{format.dateTime(new Date(message.created_at), { dateStyle: "medium", timeStyle: "short" })}</span>
+              <span>
+                {format.dateTime(new Date(message.created_at), {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </span>
             ) : null}
             {message.visibility === "internal" ? (
               <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
@@ -60,7 +68,9 @@ export function TicketThread({
               <span className="rounded bg-accent px-1.5 py-0.5">{t("thread.aiDraft")}</span>
             ) : null}
           </div>
-          <p className="mt-1 whitespace-pre-wrap text-sm">{message.body}</p>
+          <div className="mt-1 text-sm">
+            <MarkdownText>{message.body ?? ""}</MarkdownText>
+          </div>
         </li>
       ))}
     </ul>

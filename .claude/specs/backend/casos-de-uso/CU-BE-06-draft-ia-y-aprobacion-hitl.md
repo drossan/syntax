@@ -3,7 +3,7 @@
 > **SDD** (Cockburn + Gherkin). CÓMO para FR-022, FR-026…FR-031, FR-040, FR-057…FR-059 de
 > [`../spec.md`](../spec.md). **Núcleo de riesgo**. Decisiones:
 > [[../../adr/0007-hitl-asincrono-postgressaver-checkpointer]] ·
-> [[../../adr/0019-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]. Detalle:
+> [[../../adr/0022-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]. Detalle:
 > [`../agent-graph.md`](../agent-graph.md) §6.
 
 - **Ámbito**: backend (grafo + checkpointer + servicio de aprobación)
@@ -64,7 +64,7 @@
 - **0b.** (Ampliado, tarea 12) El tenant excede `ai_draft_rate_limit_per_minute` en la ventana actual:
   el disparo se rechaza con **429**, no se crea ningún `AgentRun` (rate-limiting mínimo in-memory por
   proceso — limitación multi-proceso documentada, no resuelta en esta tarea).
-- **4c.** (Ampliado, plan `backend/auto-resolve-ticket`, [[../../adr/0019-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]])
+- **4c.** (Ampliado, plan `backend/auto-resolve-ticket`, [[../../adr/0022-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]])
   Camino **auto** (`decide.requires_approval=false`, sin HITL): antes de publicar el `message`,
   `respond` encadena la transición del ticket hasta `resolved` — recorre `_VALID_TRANSITIONS` desde
   el estado ACTUAL (nunca fuerza saltos que no apliquen): desde `new`/`reopened`,
@@ -102,7 +102,7 @@
 - **RN-9** (FR-058) — `ticket.reopen` es una capacidad distinta de `ticket.transition`, acotada por el servicio a `{resolved,closed}→reopened` exclusivamente — ningún otro destino es alcanzable con ella.
 - **RN-11** (FR-058, `scenario-coverage`) — Reabrir un ticket que no está en `{resolved,closed}` con la capacidad presente es **409**, no 403 — el 403 es exclusivo de la ausencia de capacidad; el 409 es exclusivo de un estado de origen inválido.
 - **RN-12** (FR-058, `scenario-coverage`) — El aislamiento cross-tenant de `ticket.reopen` sigue el mismo criterio que el resto de endpoints de ticket: un ticket de otro tenant (o inexistente) da 404, nunca 403 ni 200.
-- **RN-10** (FR-057, asimetría aceptada — [[../../adr/0019-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]) — El camino auto (sin revisión humana) llega a `resolved`; el camino HITL aprobado se detiene en `pending` (RN existente de `approval_service.decide()`). Es una consecuencia conocida y aceptada de la decisión de diseño, no un error a corregir en esta capa.
+- **RN-10** (FR-057, asimetría aceptada — [[../../adr/0022-auto-respuesta-resuelve-ticket-y-capacidad-ticket-reopen]]) — El camino auto (sin revisión humana) llega a `resolved`; el camino HITL aprobado se detiene en `pending` (RN existente de `approval_service.decide()`). Es una consecuencia conocida y aceptada de la decisión de diseño, no un error a corregir en esta capa.
 
 ## Criterios de aceptación (Gherkin)
 
