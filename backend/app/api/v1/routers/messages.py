@@ -53,7 +53,7 @@ from app.domain.ports.storage import Storage
 from app.domain.services.notification_service import NotificationService
 from app.domain.services.rbac_service import Deny, DenyReason
 from app.domain.services.ticket_service import TicketService
-from app.infra.db.repositories import SqlAlchemyMessageRepository
+from app.infra.db.repositories import SqlAlchemyMessageRepository, SqlAlchemyUserRepository
 
 router = APIRouter(tags=["messages"])
 
@@ -64,12 +64,16 @@ _logger = structlog.get_logger()
 
 
 def _to_message_schema(
-    message: MessageEntity, attachments: list[AttachmentEntity] | None = None
+    message: MessageEntity,
+    attachments: list[AttachmentEntity] | None = None,
+    *,
+    author_email: str | None = None,
 ) -> MessageSchema:
     return MessageSchema(
         id=message.id,
         ticket_id=message.ticket_id,
         author_id=message.author_id,
+        author_email=author_email,
         visibility=message.visibility.value,
         is_ai_draft=message.is_ai_draft,
         body=message.body,
@@ -133,9 +137,17 @@ async def list_messages(
         id, page=page, page_size=page_size, visibilities=visibilities
     )
     attachments_by_message = await message_repo.list_by_messages([m.id for m in result.items])
+    author_ids = {m.author_id for m in result.items if m.author_id is not None}
+    users = await SqlAlchemyUserRepository(session).list_by_ids(list(author_ids))
+    email_by_author_id = {user.id: user.email for user in users}
     return Page(
         items=[
-            _to_message_schema(m, attachments_by_message.get(m.id, [])) for m in result.items
+            _to_message_schema(
+                m,
+                attachments_by_message.get(m.id, []),
+                author_email=email_by_author_id.get(m.author_id) if m.author_id else None,
+            )
+            for m in result.items
         ],
         page=page,
         page_size=page_size,
@@ -185,7 +197,8 @@ async def create_message(
                         ticket_id=str(id),
                         recipient_id=str(recipient_id),
                     )
-    return _to_message_schema(message)
+        author = await SqlAlchemyUserRepository(session).get(subject.id)
+    return _to_message_schema(message, author_email=author.email if author is not None else None)
 
 
 @router.post("/messages/{id}/attachments", status_code=201)

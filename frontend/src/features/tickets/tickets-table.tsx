@@ -29,10 +29,20 @@ function PriorityCell({ value }: { value: Ticket["priority"] }) {
   return <>{value ? t(value) : null}</>;
 }
 
-/** Responsable del ticket, o "sin asignar" si no hay `assignee_id`. */
-function AssigneeCell({ value }: { value: Ticket["assignee_id"] }) {
+/**
+ * Responsable del ticket: su email, "Sin asignar" si no hay `assignee_id`, o "Usuario eliminado" si
+ * hay `assignee_id` pero no se resolvió su email (usuario ya no existe) — nunca el UUID crudo.
+ */
+function AssigneeCell({
+  assigneeId,
+  assigneeEmail,
+}: {
+  assigneeId: Ticket["assignee_id"];
+  assigneeEmail: Ticket["assignee_email"];
+}) {
   const t = useTranslations("tickets");
-  return <>{value ?? t("unassigned")}</>;
+  if (!assigneeId) return <>{t("unassigned")}</>;
+  return <>{assigneeEmail ?? t("deletedUser")}</>;
 }
 
 /** Fecha de actualización formateada según locale y timezone del usuario (cross-cutting §2). */
@@ -119,7 +129,12 @@ export function TicketsTable({
         helper.accessor("domain", { header: () => <ColHeader k="domain" />, cell: (c) => c.getValue() }),
         helper.accessor("assignee_id", {
           header: () => <ColHeader k="assignee" />,
-          cell: (c) => <AssigneeCell value={c.getValue()} />,
+          cell: (c) => (
+            <AssigneeCell
+              assigneeId={c.getValue()}
+              assigneeEmail={c.row.original.assignee_email}
+            />
+          ),
         }),
         helper.accessor("sla_due", {
           header: () => <ColHeader k="sla" />,

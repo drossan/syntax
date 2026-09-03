@@ -33,6 +33,7 @@
     "clearFilters": "Limpiar filtros",
     "statusFilter": "Filtrar por estado",
     "unassigned": "Sin asignar",
+    "deletedUser": "Usuario eliminado",
     "columns": {
       "subject": "Asunto",
       "status": "Estado",
@@ -256,7 +257,8 @@
       "internal": "Interna",
       "aiDraft": "Borrador IA",
       "assistant": "Asistente IA",
-      "system": "Sistema"
+      "system": "Sistema",
+      "deletedUser": "Usuario eliminado"
     }
   },
   "ticketReply": {

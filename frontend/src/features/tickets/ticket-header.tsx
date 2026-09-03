@@ -34,7 +34,14 @@ export function TicketHeader({ ticket }: { ticket: Ticket }) {
         <Field label={t("columns.status")} value={status} />
         <Field label={t("columns.priority")} value={priority} />
         <Field label={t("columns.domain")} value={ticket.domain ?? "—"} />
-        <Field label={t("columns.assignee")} value={ticket.assignee_id ?? t("unassigned")} />
+        <Field
+          label={t("columns.assignee")}
+          value={
+            ticket.assignee_id === null || ticket.assignee_id === undefined
+              ? t("unassigned")
+              : (ticket.assignee_email ?? t("deletedUser"))
+          }
+        />
       </dl>
     </header>
   );

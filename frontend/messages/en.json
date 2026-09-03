@@ -33,6 +33,7 @@
     "clearFilters": "Clear filters",
     "statusFilter": "Filter by status",
     "unassigned": "Unassigned",
+    "deletedUser": "Deleted user",
     "columns": {
       "subject": "Subject",
       "status": "Status",
@@ -256,7 +257,8 @@
       "internal": "Internal",
       "aiDraft": "AI draft",
       "assistant": "AI assistant",
-      "system": "System"
+      "system": "System",
+      "deletedUser": "Deleted user"
     }
   },
   "ticketReply": {

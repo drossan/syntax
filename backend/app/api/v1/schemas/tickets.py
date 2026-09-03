@@ -16,6 +16,7 @@ class Ticket(BaseModel):
     category: str | None = None
     requester_id: uuid.UUID | None = None
     assignee_id: uuid.UUID | None = None
+    assignee_email: str | None = None
     sla_due: datetime | None = None
     csat: int | None = None
     created_at: datetime | None = None

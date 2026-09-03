@@ -18,6 +18,7 @@ class Message(BaseModel):
     id: uuid.UUID
     ticket_id: uuid.UUID
     author_id: uuid.UUID | None = None
+    author_email: str | None = None
     visibility: str
     is_ai_draft: bool = False
     body: str

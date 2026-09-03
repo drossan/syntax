@@ -282,6 +282,26 @@ async def test_list_tickets_filters_by_assignee_id(app: FastAPI, db: AsyncSessio
     assert body["items"][0]["assignee_id"] == str(assignee.id)
 
 
+async def test_list_tickets_returns_the_assignees_email_not_just_its_id(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """El frontend no puede resolver un UUID a un nombre por su cuenta -- `assignee_email` viaja en
+    la propia respuesta de la bandeja."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    assignee = await _make_user(db)
+    await db.commit()
+    ticket_repo = SqlAlchemyTicketRepository(db)
+    await ticket_repo.add(_make_ticket_entity(tenant.id, assignee_id=assignee.id))
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(db, tenant=tenant, capabilities=["ticket.read"])
+
+    async with _client(app) as c:
+        r = await c.get("/api/v1/tickets", headers=_auth_header(token))
+
+    assert r.json()["items"][0]["assignee_email"] == assignee.email
+
+
 async def test_list_tickets_combines_filters_with_and(app: FastAPI, db: AsyncSession) -> None:
     tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
     await db.commit()
@@ -429,6 +449,40 @@ async def test_reading_a_ticket_of_the_same_tenant_returns_it(
 
     assert r.status_code == 200
     assert r.json()["id"] == str(ticket.id)
+
+
+async def test_reading_a_ticket_returns_the_assignees_email_not_just_its_id(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    assignee = await _make_user(db)
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(
+        _make_ticket_entity(tenant.id, assignee_id=assignee.id)
+    )
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(db, tenant=tenant, capabilities=["ticket.read"])
+
+    async with _client(app) as c:
+        r = await c.get(f"/api/v1/tickets/{ticket.id}", headers=_auth_header(token))
+
+    assert r.json()["assignee_email"] == assignee.email
+
+
+async def test_reading_an_unassigned_ticket_has_no_assignee_email(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(db, tenant=tenant, capabilities=["ticket.read"])
+
+    async with _client(app) as c:
+        r = await c.get(f"/api/v1/tickets/{ticket.id}", headers=_auth_header(token))
+
+    assert r.json()["assignee_email"] is None
 
 
 # ── PATCH /tickets/{id} ──
@@ -609,6 +663,29 @@ async def test_assigning_within_the_same_tenant_succeeds(app: FastAPI, db: Async
 
     assert r.status_code == 200
     assert r.json()["assignee_id"] == str(assignee.id)
+
+
+async def test_assigning_returns_the_assignees_email_not_just_its_id(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    assignee = await _make_user(db)
+    await _add_membership(db, user_id=assignee.id, tenant_id=tenant.id)
+    await db.commit()
+    _agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.assign"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/assign",
+            json={"assignee_id": str(assignee.id)},
+            headers=_auth_header(token),
+        )
+
+    assert r.json()["assignee_email"] == assignee.email
 
 
 # ── POST /tickets/{id}/assign: notifica ticket_assigned (FR-038, tarea backend-routers-flujo-ia-04) ──

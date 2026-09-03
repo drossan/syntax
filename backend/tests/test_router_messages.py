@@ -405,6 +405,60 @@ async def test_replying_public_with_the_capability_succeeds(app: FastAPI, db: As
     assert r.json()["visibility"] == "public"
 
 
+async def test_replying_public_returns_the_authors_email_not_just_its_id(
+    app: FastAPI, db: AsyncSession
+) -> None:
+    """El frontend no puede resolver un UUID a un nombre por su cuenta -- `author_email` viaja en la
+    respuesta del propio POST, no hace falta una segunda llamada."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    agent, token = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.read", "ticket.reply"]
+    )
+
+    async with _client(app) as c:
+        r = await c.post(
+            f"/api/v1/tickets/{ticket.id}/messages",
+            json={"body": "hola", "visibility": "public"},
+            headers=_auth_header(token),
+        )
+
+    assert r.json()["author_email"] == agent.email
+
+
+async def test_list_messages_returns_each_authors_email(app: FastAPI, db: AsyncSession) -> None:
+    """`list_messages` resuelve el email de CADA autor -- no solo el del propio subject (regresión
+    del caso real: un mensaje de OTRO agente seguía mostrando su UUID)."""
+    tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
+    await db.commit()
+    ticket = await SqlAlchemyTicketRepository(db).add(_make_ticket_entity(tenant.id))
+    await db.commit()
+    author_a, token_a = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.read", "ticket.reply"]
+    )
+    author_b, token_b = await _agent_with_capabilities(
+        db, tenant=tenant, capabilities=["ticket.read", "ticket.reply"]
+    )
+
+    async with _client(app) as c:
+        await c.post(
+            f"/api/v1/tickets/{ticket.id}/messages",
+            json={"body": "de A", "visibility": "public"},
+            headers=_auth_header(token_a),
+        )
+        await c.post(
+            f"/api/v1/tickets/{ticket.id}/messages",
+            json={"body": "de B", "visibility": "public"},
+            headers=_auth_header(token_b),
+        )
+        r = await c.get(f"/api/v1/tickets/{ticket.id}/messages", headers=_auth_header(token_a))
+
+    emails_by_body = {m["body"]: m["author_email"] for m in r.json()["items"]}
+    assert emails_by_body == {"de A": author_a.email, "de B": author_b.email}
+
+
 async def test_replying_with_an_empty_body_is_rejected(app: FastAPI, db: AsyncSession) -> None:
     tenant = await SqlAlchemyTenantRepository(db).add(_make_tenant())
     await db.commit()

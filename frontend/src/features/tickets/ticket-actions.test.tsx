@@ -139,10 +139,18 @@ describe("TicketActions (mutaciones de ticket)", () => {
 
   it("asignación: 'Asignarme' asigna el ticket al usuario actual", async () => {
     let assignee: string | null = null; // el GET refleja la asignación (server stateful)
+    const assigneeEmail = agentMe.user?.email ?? null;
     server.use(
       http.get(TICKET, () =>
         HttpResponse.json(
-          ticketFixture({ id: ID, tenant_id: TENANT, subject: "Ticket X", status: "open", assignee_id: assignee }),
+          ticketFixture({
+            id: ID,
+            tenant_id: TENANT,
+            subject: "Ticket X",
+            status: "open",
+            assignee_id: assignee,
+            assignee_email: assignee ? assigneeEmail : null,
+          }),
         ),
       ),
       http.get(MESSAGES, () => HttpResponse.json(messagePageFixture([]))),
@@ -150,7 +158,14 @@ describe("TicketActions (mutaciones de ticket)", () => {
         const body = (await request.json()) as { assignee_id: string | null };
         assignee = body.assignee_id;
         posted.push({ url: request.url, body });
-        return HttpResponse.json(ticketFixture({ id: ID, tenant_id: TENANT, assignee_id: assignee }));
+        return HttpResponse.json(
+          ticketFixture({
+            id: ID,
+            tenant_id: TENANT,
+            assignee_id: assignee,
+            assignee_email: assignee ? assigneeEmail : null,
+          }),
+        );
       }),
     );
 
@@ -158,7 +173,7 @@ describe("TicketActions (mutaciones de ticket)", () => {
     await screen.findByText("Abierto");
     await userEvent.click(screen.getByRole("button", { name: /asignarme/i }));
 
-    expect(await screen.findByText(USER)).toBeInTheDocument();
+    expect(await screen.findByText(assigneeEmail ?? "")).toBeInTheDocument();
     expect(posted[0]?.body).toStrictEqual({ assignee_id: USER });
   });
 

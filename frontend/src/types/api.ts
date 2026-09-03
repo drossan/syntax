@@ -1995,6 +1995,11 @@ export interface components {
       requester_id?: string | null;
       /** Format: uuid */
       assignee_id?: string | null;
+      /**
+       * Format: email
+       * @description Email del responsable en el momento de leer el ticket — null si no hay `assignee_id` o si el usuario ya no existe.
+       */
+      assignee_email?: string | null;
       /** Format: date-time */
       sla_due?: string | null;
       csat?: number | null;
@@ -2022,6 +2027,11 @@ export interface components {
       ticket_id?: string;
       /** Format: uuid */
       author_id?: string | null;
+      /**
+       * Format: email
+       * @description Email del autor en el momento de leer el mensaje (no se congela al crearlo) — null si `author_id` es null (mensaje de sistema/IA) o si el usuario ya no existe.
+       */
+      author_email?: string | null;
       visibility?: components["schemas"]["MessageVisibility"];
       is_ai_draft?: boolean;
       body?: string;

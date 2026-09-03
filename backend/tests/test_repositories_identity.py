@@ -145,6 +145,33 @@ async def test_user_get_by_email_does_not_need_a_tenant(session: AsyncSession) -
     assert found.id == user.id
 
 
+async def test_user_list_by_ids_returns_only_the_requested_users_in_one_query(
+    session: AsyncSession,
+) -> None:
+    """`list_by_ids` trae varios usuarios de una sola vez (evita N+1 al resolver autores de
+    mensajes en `list_messages`) -- ni de más (otro user no pedido) ni de menos."""
+    repo = SqlAlchemyUserRepository(session)
+    a = await repo.add(_make_user(email="a@example.com"))
+    b = await repo.add(_make_user(email="b@example.com"))
+    await repo.add(_make_user(email="c@example.com"))
+    await session.commit()
+
+    found = await repo.list_by_ids([a.id, b.id])
+
+    assert {u.id for u in found} == {a.id, b.id}
+
+
+async def test_user_list_by_ids_with_empty_list_returns_empty_without_querying(
+    session: AsyncSession,
+) -> None:
+    """Lista vacía -> resultado vacío, sin lanzar un `IN ()` inválido a la base de datos."""
+    repo = SqlAlchemyUserRepository(session)
+
+    found = await repo.list_by_ids([])
+
+    assert found == []
+
+
 async def test_user_duplicate_email_is_wrapped_in_port_error(session: AsyncSession) -> None:
     """Insertar un email duplicado llega como PortError, no como IntegrityError cruda."""
     repo = SqlAlchemyUserRepository(session)

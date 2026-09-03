@@ -9,11 +9,15 @@ import { prepareThread } from "./message-visibility";
 
 type Message = components["schemas"]["Message"];
 
-/** Etiqueta del autor del mensaje: asistente IA, sistema (sin autor) o el id del autor. */
+/**
+ * Etiqueta del autor del mensaje: asistente IA, sistema (sin autor), el email del autor humano, o
+ * "usuario eliminado" si el autor ya no existe (`author_id` presente pero `author_email` ausente) —
+ * nunca el UUID crudo, que no identifica a nadie para quien lee el hilo.
+ */
 function authorLabel(message: Message, t: (key: string) => string): string {
   if (message.is_ai_draft) return t("thread.assistant");
   if (!message.author_id) return t("thread.system");
-  return message.author_id;
+  return message.author_email ?? t("thread.deletedUser");
 }
 
 /**

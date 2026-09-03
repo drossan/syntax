@@ -2340,6 +2340,11 @@
             "type": ["string", "null"],
             "format": "uuid"
           },
+          "assignee_email": {
+            "type": ["string", "null"],
+            "format": "email",
+            "description": "Email del responsable en el momento de leer el ticket — null si no hay `assignee_id` o si el usuario ya no existe.\n"
+          },
           "sla_due": {
             "type": ["string", "null"],
             "format": "date-time"
@@ -2408,6 +2413,11 @@
           "author_id": {
             "type": ["string", "null"],
             "format": "uuid"
+          },
+          "author_email": {
+            "type": ["string", "null"],
+            "format": "email",
+            "description": "Email del autor en el momento de leer el mensaje (no se congela al crearlo) — null si `author_id` es null (mensaje de sistema/IA) o si el usuario ya no existe.\n"
           },
           "visibility": {
             "$ref": "#/components/schemas/MessageVisibility"

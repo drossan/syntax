@@ -38,6 +38,32 @@ describe("TicketThread", () => {
     expect(screen.getByText(/\d{1,2}:\d{2}/)).toBeInTheDocument();
   });
 
+  it("un mensaje humano muestra el email de su autor, no el UUID", () => {
+    const human = messageFixture({
+      id: "a",
+      is_ai_draft: false,
+      author_id: "33333333-3333-3333-3333-333333333333",
+      author_email: "soporte@syntax.local",
+    });
+    renderWithIntl(<TicketThread messages={[human]} canSeeInternal />);
+
+    expect(screen.getByText("soporte@syntax.local")).toBeInTheDocument();
+    expect(screen.queryByText("33333333-3333-3333-3333-333333333333")).not.toBeInTheDocument();
+  });
+
+  it("un autor sin email resuelto (usuario eliminado) no muestra el UUID en su lugar", () => {
+    const orphaned = messageFixture({
+      id: "a",
+      is_ai_draft: false,
+      author_id: "33333333-3333-3333-3333-333333333333",
+      author_email: null,
+    });
+    renderWithIntl(<TicketThread messages={[orphaned]} canSeeInternal />);
+
+    expect(screen.getByText(/usuario eliminado/i)).toBeInTheDocument();
+    expect(screen.queryByText("33333333-3333-3333-3333-333333333333")).not.toBeInTheDocument();
+  });
+
   it("marca un mensaje como borrador IA", () => {
     const draft = messageFixture({ id: "a", is_ai_draft: true, body: "respuesta del agente" });
     renderWithIntl(<TicketThread messages={[draft]} canSeeInternal />);

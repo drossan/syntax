@@ -8,6 +8,7 @@ type Message = components["schemas"]["Message"];
 export interface TimelineEvent {
   id: string;
   at: string;
+  /** Email del autor, o `null` (sin autor, o el usuario ya no existe) — nunca el UUID crudo. */
   actor: string | null;
   kind: "message" | "ai_draft";
 }
@@ -25,7 +26,7 @@ export function buildTimeline(messages: Message[], canSeeInternal: boolean): Tim
   return prepareThread(messages, canSeeInternal).map((message) => ({
     id: message.id ?? "",
     at: message.created_at ?? "",
-    actor: message.author_id ?? null,
+    actor: message.author_email ?? null,
     kind: message.is_ai_draft ? "ai_draft" : "message",
   }));
 }

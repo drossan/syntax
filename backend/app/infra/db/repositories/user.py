@@ -47,6 +47,17 @@ class SqlAlchemyUserRepository:
             raise PortError("fallo al buscar user por email") from exc
         return _to_domain(row) if row is not None else None
 
+    async def list_by_ids(self, user_ids: list[uuid.UUID]) -> list[User]:
+        if not user_ids:
+            return []
+        try:
+            rows = (
+                await self._session.execute(select(UserModel).where(UserModel.id.in_(user_ids)))
+            ).scalars()
+        except Exception as exc:
+            raise PortError("fallo al listar users por id") from exc
+        return [_to_domain(row) for row in rows]
+
     async def add(self, user: User) -> User:
         row = UserModel(
             id=user.id,

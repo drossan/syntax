@@ -57,6 +57,7 @@ from app.domain.services.notification_service import NotificationService
 from app.domain.services.ticket_service import TicketService
 from app.infra.db.repositories import (
     SqlAlchemyTenantRepository,
+    SqlAlchemyUserRepository,
     SqlAlchemyUserTenantMembershipRepository,
 )
 from app.infra.db.session import get_sessionmaker, tenant_scope
@@ -86,7 +87,7 @@ async def _trigger_ai_draft_in_background(tenant_id: uuid.UUID, ticket_id: uuid.
         _logger.warning("ai_auto_draft_trigger_failed", ticket_id=str(ticket_id))
 
 
-def _to_schema(ticket: TicketEntity) -> Ticket:
+def _to_schema(ticket: TicketEntity, *, assignee_email: str | None = None) -> Ticket:
     return Ticket(
         id=ticket.id,
         tenant_id=ticket.tenant_id,
@@ -97,11 +98,21 @@ def _to_schema(ticket: TicketEntity) -> Ticket:
         category=ticket.category,
         requester_id=ticket.requester_id,
         assignee_id=ticket.assignee_id,
+        assignee_email=assignee_email,
         sla_due=ticket.sla_due,
         csat=ticket.csat,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
     )
+
+
+async def _assignee_email(session: AsyncSession, ticket: TicketEntity) -> str | None:
+    """Resuelve el email del responsable actual -- `None` si no hay `assignee_id` o si el usuario ya
+    no existe. Una consulta por ticket individual (`get`); `list_tickets` usa `list_by_ids` en lote."""
+    if ticket.assignee_id is None:
+        return None
+    user = await SqlAlchemyUserRepository(session).get(ticket.assignee_id)
+    return user.email if user is not None else None
 
 
 def _validate_sort(sort: str) -> str:
@@ -152,7 +163,7 @@ async def list_tickets(
     subject_session: tuple[Subject, AsyncSession] = Depends(require_capability("ticket.read")),
     ticket_service: TicketService = Depends(get_ticket_service),
 ) -> Page[Ticket]:
-    subject, _session = subject_session
+    subject, session = subject_session
     _validate_sort(sort)
     result = await ticket_service.list_tickets(
         subject.tenant_id,
@@ -164,8 +175,16 @@ async def list_tickets(
         assignee_id=assignee_id,
         sort=sort,
     )
+    assignee_ids = {t.assignee_id for t in result.items if t.assignee_id is not None}
+    users = await SqlAlchemyUserRepository(session).list_by_ids(list(assignee_ids))
+    email_by_assignee_id = {user.id: user.email for user in users}
     return Page(
-        items=[_to_schema(t) for t in result.items],
+        items=[
+            _to_schema(
+                t, assignee_email=email_by_assignee_id.get(t.assignee_id) if t.assignee_id else None
+            )
+            for t in result.items
+        ],
         page=page,
         page_size=page_size,
         total=result.total,
@@ -210,9 +229,9 @@ async def get_ticket(
     subject_session: tuple[Subject, AsyncSession] = Depends(require_capability("ticket.read")),
     ticket_service: TicketService = Depends(get_ticket_service),
 ) -> Ticket:
-    _subject, _session = subject_session
+    _subject, session = subject_session
     ticket = await ticket_service.get(id)
-    return _to_schema(ticket)
+    return _to_schema(ticket, assignee_email=await _assignee_email(session, ticket))
 
 
 @router.patch("/{id}")
@@ -222,7 +241,7 @@ async def update_ticket(
     subject_session: tuple[Subject, AsyncSession] = Depends(require_capability("ticket.update")),
     ticket_service: TicketService = Depends(get_ticket_service),
 ) -> Ticket:
-    _subject, _session = subject_session
+    _subject, session = subject_session
     ticket = None
     if payload.subject is not None or payload.priority is not None or payload.category is not None:
         priority = _parse_priority(payload.priority)
@@ -233,7 +252,7 @@ async def update_ticket(
         ticket = await ticket_service.set_csat(id, payload.csat)
     if ticket is None:
         ticket = await ticket_service.get(id)
-    return _to_schema(ticket)
+    return _to_schema(ticket, assignee_email=await _assignee_email(session, ticket))
 
 
 @router.post("/{id}/transition")
@@ -245,9 +264,9 @@ async def transition_ticket(
     ),
     ticket_service: TicketService = Depends(get_ticket_service),
 ) -> Ticket:
-    _subject, _session = subject_session
+    _subject, session = subject_session
     ticket = await ticket_service.transition(id, _parse_status(payload.status))
-    return _to_schema(ticket)
+    return _to_schema(ticket, assignee_email=await _assignee_email(session, ticket))
 
 
 @router.post("/{id}/assign")
@@ -286,7 +305,7 @@ async def assign_ticket(
                 "notification_emit_failed", ticket_id=str(id), recipient_id=str(recipient_id)
             )
 
-    return _to_schema(ticket)
+    return _to_schema(ticket, assignee_email=await _assignee_email(session, ticket))
 
 
 @router.post("/{id}/reopen")
@@ -300,6 +319,6 @@ async def reopen_ticket(
     salto es alcanzable con ella (endpoint separado de `POST /{id}/transition` a propósito). El
     `actor_id` del audit log es el `Subject` real que decide reabrir (a diferencia del camino auto de
     `respond.py`, que usa `actor_id=None`)."""
-    subject, _session = subject_session
+    subject, session = subject_session
     ticket = await ticket_service.reopen(id, actor_id=subject.id)
-    return _to_schema(ticket)
+    return _to_schema(ticket, assignee_email=await _assignee_email(session, ticket))

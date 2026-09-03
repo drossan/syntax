@@ -11,6 +11,7 @@ function msg(over: Partial<Message>): Message {
     id: "m",
     ticket_id: "t",
     author_id: "u1",
+    author_email: "u1@example.com",
     visibility: "public",
     is_ai_draft: false,
     body: "x",
@@ -21,12 +22,22 @@ function msg(over: Partial<Message>): Message {
 
 /** El timeline se deriva del hilo (respeta visibilidad y orden cronológico). */
 describe("buildTimeline", () => {
-  it("ordena los eventos cronológicamente y conserva actor y fecha", () => {
-    const later = msg({ id: "b", author_id: "u2", created_at: "2026-08-13T12:00:00Z" });
+  it("ordena los eventos cronológicamente y conserva actor (email) y fecha", () => {
+    const later = msg({
+      id: "b",
+      author_id: "u2",
+      author_email: "u2@example.com",
+      created_at: "2026-08-13T12:00:00Z",
+    });
     const earlier = msg({ id: "a", author_id: "u1", created_at: "2026-08-13T09:00:00Z" });
     const events = buildTimeline([later, earlier], true);
     expect(events.map((e) => e.id)).toEqual(["a", "b"]);
-    expect(events[0]).toMatchObject({ actor: "u1", at: "2026-08-13T09:00:00Z" });
+    expect(events[0]).toMatchObject({ actor: "u1@example.com", at: "2026-08-13T09:00:00Z" });
+  });
+
+  it("nunca deja el UUID crudo como actor, ni siquiera si el email no se resolvió", () => {
+    const orphaned = msg({ id: "o", author_id: "u1", author_email: null });
+    expect(buildTimeline([orphaned], true)[0]?.actor).toBeNull();
   });
 
   it("distingue el borrador de IA del mensaje normal", () => {
@@ -45,7 +56,8 @@ describe("buildTimeline", () => {
   });
 
   it("un mensaje sin autor deja actor null", () => {
-    expect(buildTimeline([msg({ id: "s", author_id: null })], true)[0]?.actor).toBeNull();
+    const noAuthor = msg({ id: "s", author_id: null, author_email: null });
+    expect(buildTimeline([noAuthor], true)[0]?.actor).toBeNull();
   });
 
   it("un mensaje sin id ni fecha degrada a cadenas vacías sin romper", () => {
