@@ -3,10 +3,22 @@
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 
+import { useTicket } from "@/features/tickets/use-ticket";
 import { problemToUi, type Problem } from "@/lib/api/problem";
 
 import { ApprovalDecision } from "./approval-decision";
 import { useApprovals } from "./use-approvals";
+
+/** Enlace al ticket con su asunto real; cae al enlace genérico mientras carga o si falla. */
+function TicketSubjectLink({ ticketId }: { ticketId: string }) {
+  const t = useTranslations("approvals");
+  const ticket = useTicket(ticketId);
+  return (
+    <Link href={`/tickets/${ticketId}`} className="font-medium text-primary underline">
+      {ticket.data?.subject ?? t("openTicket")}
+    </Link>
+  );
+}
 
 /** Coerción defensiva de un error de query al envelope `problem+json`. */
 function toProblem(error: unknown, fallbackTitle: string): Problem {
@@ -70,9 +82,7 @@ export function ApprovalsQueue() {
           {items.map((task) => (
             <li key={task.id} className="flex flex-col gap-1 rounded-md border p-3">
               <div className="flex items-center justify-between gap-2 text-sm">
-                <Link href={`/tickets/${task.ticket_id}`} className="font-medium text-primary underline">
-                  {t("openTicket")}
-                </Link>
+                <TicketSubjectLink ticketId={task.ticket_id ?? ""} />
                 {task.created_at ? (
                   <time dateTime={task.created_at} className="text-xs text-muted-foreground">
                     {format.dateTime(new Date(task.created_at), { dateStyle: "medium", timeStyle: "short" })}

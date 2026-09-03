@@ -3,13 +3,19 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { approvalPageFixture, approvalTaskFixture, meFixture } from "@/mocks/fixtures";
+import {
+  approvalPageFixture,
+  approvalTaskFixture,
+  meFixture,
+  ticketFixture,
+} from "@/mocks/fixtures";
 import { server } from "@/mocks/server";
 import { renderWithSession, SESSION_BASE } from "@/test/render-with-session";
 
 import { ApprovalsQueue } from "./approvals-queue";
 
 const APPROVALS = `${SESSION_BASE}/api/v1/approvals`;
+const TICKETS = `${SESSION_BASE}/api/v1/tickets`;
 
 const supportMe = meFixture({
   capabilities: [{ capability: "approval.decide", scope: "global" }],
@@ -74,6 +80,27 @@ describe("ApprovalsQueue", () => {
     serveApprovals([a]);
     await userEvent.click(within(alert).getByRole("button", { name: /reintentar/i }));
     await screen.findByText("Draft A");
+  });
+
+  it("muestra el asunto del ticket en vez de un enlace genérico", async () => {
+    serveApprovals([a]);
+    server.use(
+      http.get(`${TICKETS}/t-a`, () =>
+        HttpResponse.json(ticketFixture({ id: "t-a", subject: "No puedo publicar" })),
+      ),
+    );
+    renderWithSession(<ApprovalsQueue />, { me: supportMe });
+
+    const link = await screen.findByRole("link", { name: "No puedo publicar" });
+    expect(link).toHaveAttribute("href", "/tickets/t-a");
+  });
+
+  it("si el ticket aún no ha cargado, cae al enlace genérico", async () => {
+    serveApprovals([a]);
+    server.use(http.get(`${TICKETS}/t-a`, () => new Promise(() => {})));
+    renderWithSession(<ApprovalsQueue />, { me: supportMe });
+
+    expect(await screen.findByRole("link", { name: /abrir ticket/i })).toBeInTheDocument();
   });
 
   it("una aprobación resuelta por otro agente desaparece tras refrescar", async () => {
