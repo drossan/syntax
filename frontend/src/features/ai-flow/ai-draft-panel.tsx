@@ -175,8 +175,8 @@ export function AiDraftPanel({
                 {t("sources")}
               </span>
               <ul className="flex flex-col gap-1 text-sm">
-                {(run.data?.sources ?? []).map((source) => (
-                  <li key={source.uc_id}>
+                {(run.data?.sources ?? []).map((source, index) => (
+                  <li key={`${source.uc_id}-${source.section_type}-${index}`}>
                     <span className="font-mono text-xs">{source.uc_id}</span> {source.title}
                   </li>
                 ))}

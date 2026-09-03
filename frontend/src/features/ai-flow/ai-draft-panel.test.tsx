@@ -69,6 +69,47 @@ describe("AiDraftPanel", () => {
     expect(trace).toHaveAttribute("href", "https://smith.langchain.com/run-1");
   });
 
+  it("done: la misma UC citada dos veces (secciones distintas) no genera keys duplicadas", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    serveTrigger();
+    server.use(
+      http.get(RUN, () =>
+        HttpResponse.json(
+          agentRunFixture({
+            id: RUN_ID,
+            status: "succeeded",
+            confidence: 0.9,
+            sources: [
+              {
+                uc_id: "UC-API-141",
+                title: "Asignar la navegación a páginas en bloque",
+                section_type: "comportamiento",
+                source_url: "u",
+                score: 0.58,
+              },
+              {
+                uc_id: "UC-API-141",
+                title: "Asignar la navegación a páginas en bloque",
+                section_type: "intro",
+                source_url: "u",
+                score: 0.53,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+
+    renderWithSession(<AiDraftPanel ticketId={TICKET_ID} pollMs={10} />, { me });
+    await userEvent.click(await screen.findByRole("button", { name: /generar borrador/i }));
+
+    expect(await screen.findAllByText("UC-API-141")).toHaveLength(2);
+    expect(
+      consoleError.mock.calls.some((call) => String(call[0]).includes("same key")),
+    ).toBe(false);
+    consoleError.mockRestore();
+  });
+
   it("done: sin fuentes, sin confianza y sin traza, no muestra esas secciones", async () => {
     serveTrigger();
     server.use(
